@@ -6083,38 +6083,53 @@ async function webFetchCards(names, {force=false, quiet=false}={}){
 }
 async function claudeFill(names){
   const sample = await claude.use("sample");
-  if (!sample){ toast("Completar con Claude no está disponible en esta vista."); return 0; }
-  const B = 35, own = !S.busy; let n = 0;
+  if (!sample){ toast("Completar con Claude no está disponible en esta vista. Abre la Bóveda en boveda-edh.netlify.app para traer los datos desde Scryfall."); return 0; }
+  const B = 12, own = !S.busy; let n = 0, done = 0, fatal = "";
+  const missing = new Set(names.map(slug));
   if (own) setBusy("Completando datos de las cartas con Claude", names.length);
-  try {
-    for (let i=0; i<names.length; i+=B){
-      const chunk = names.slice(i, i+B);
-      const prompt = `You are a Magic: The Gathering card database. For each card name below, give its official Oracle data in English.
-Reply with ONLY a JSON array, one object per name, same order, exactly this shape:
+  const prompt = chunk => `You are a Magic: The Gathering card database. For each card name below, give its official Oracle data in English.
+Reply with ONLY a JSON array (no wrapper object), one object per name, same order, exactly this shape:
 {"q":"<name as given>","name":"<official name>","type_line":"Creature — Elf Druid","mana_cost":"{1}{G}","cmc":2,"colors":["G"],"color_identity":["G"],"oracle_text":"<full oracle text>","produced_mana":["G"],"legal":{"commander":"legal","pauper":"not_legal","pioneer":"legal"},"game_changer":false,"known":true}
-Rules: produced_mana lists the colors of mana the card can add (empty array if none). legal values are "legal", "not_legal" or "banned". game_changer is true only if the card is on the official Commander Game Changers list. If you are not sure a card exists or do not know its exact text, set "known":false and leave the other fields empty. Never invent cards.
+Rules: produced_mana lists the colors of mana the card can add (empty array if none). legal values are "legal", "not_legal" or "banned". game_changer is true only if the card is on the official Commander Game Changers list. For double-faced cards use the front face's type_line and mana_cost and join both faces' oracle text with "\n//\n". If you are not sure a card exists or do not know its exact text, set "known":false and leave the other fields empty.
 Names:
 ${chunk.join("\n")}`;
-      let arr;
-      try { arr = await sample.json(prompt, {modelTier:"default"}); }
-      catch(e){
-        const c = e && e.code;
-        toast(c==="not_granted" ? "Sin permiso para usar Claude en esta página." : c==="rate_limited" ? "Claude está ocupado. Prueba en unos minutos." : c==="session_expired" ? "Tu sesión de claude.ai expiró: vuelve a entrar." : "No se pudieron completar los datos. Prueba de nuevo.");
-        break;
-      }
-      for (const x of Array.isArray(arr) ? arr : []){
-        if (!x || !x.known || !x.name || !x.type_line) continue;
-        const c = fromScry({name:String(x.name), cmc:+x.cmc||0, type_line:String(x.type_line), mana_cost:String(x.mana_cost||""),
-          colors:Array.isArray(x.colors)?x.colors:[], color_identity:Array.isArray(x.color_identity)?x.color_identity:[],
-          oracle_text:String(x.oracle_text||""), produced_mana:Array.isArray(x.produced_mana)?x.produced_mana:[],
-          legalities:x.legal||{}, game_changer:x.game_changer===true});
-        c.est = true; c.at = 1; c.usd = null; c.eur = null; c.img = ""; c.uri = SF_CARD(c.n);
-        S.cards[slug(c.n)] = c; if (x.q) S.cards[slug(x.q)] = c; n++;
-      }
-      stepBusy(Math.min(names.length, i+B));
+  const take = arr => {
+    if (arr && !Array.isArray(arr) && typeof arr === "object") arr = Object.values(arr).find(Array.isArray) || [arr];
+    for (const x of Array.isArray(arr) ? arr : []){
+      if (!x || x.known===false || !x.name || !x.type_line) continue;
+      const c = fromScry({name:String(x.name), cmc:+x.cmc||0, type_line:String(x.type_line), mana_cost:String(x.mana_cost||""),
+        colors:Array.isArray(x.colors)?x.colors:[], color_identity:Array.isArray(x.color_identity)?x.color_identity:[],
+        oracle_text:String(x.oracle_text||""), produced_mana:Array.isArray(x.produced_mana)?x.produced_mana:[],
+        legalities:x.legal||{}, game_changer:x.game_changer===true});
+      c.est = true; c.at = 1; c.usd = null; c.eur = null; c.img = ""; c.uri = SF_CARD(c.n);
+      S.cards[slug(c.n)] = c; if (x.q) S.cards[slug(x.q)] = c;
+      missing.delete(slug(c.n)); if (x.q) missing.delete(slug(x.q)); n++;
     }
+  };
+  // un lote que se corta por largo se divide en dos (una sola vez por mitad)
+  const run = async (chunk, depth=0) => {
+    if (fatal) return;
+    try { take(await sample.json(prompt(chunk), {modelTier:"default"})); }
+    catch(e){
+      const c = e && e.code;
+      if (c==="not_granted"){ fatal = "Sin permiso para usar Claude en esta página. Acepta el aviso de Claude al tocar el botón."; return; }
+      if (c==="session_expired"){ fatal = "Tu sesión de claude.ai expiró: vuelve a entrar."; return; }
+      if (c==="rate_limited"){ fatal = "Claude está ocupado. Prueba de nuevo en unos minutos: se completarán solo las cartas que falten."; return; }
+      if (chunk.length > 1 && depth < 2){ const h = Math.ceil(chunk.length/2); await run(chunk.slice(0,h), depth+1); await run(chunk.slice(h), depth+1); return; }
+    }
+    if (depth===0){ done += chunk.length; stepBusy(Math.min(names.length, done)); }
+  };
+  try {
+    const chunks = []; for (let i=0; i<names.length; i+=B) chunks.push(names.slice(i, i+B));
+    let next = 0;
+    const worker = async () => { while (next < chunks.length && !fatal){ const c = chunks[next++]; await run(c); } };
+    await Promise.all([worker(), worker()]);   // dos lotes a la vez, como permite Claude
   } finally { if (own){ S.busy = null; } }
-  if (n){ saveCaches(); if (typeof accPushCards==="function") accPushCards(); toast(`Datos de ${n} cartas completados con Claude (sin precios). Revisa los que se vean raros en la ficha de cada carta.`); }
+  if (n){ saveCaches(); bumpAnalysis(); if (typeof accPushCards==="function") accPushCards(); }
+  const left = [...missing].length;
+  toast(fatal ? `${n ? `Datos de ${n} cartas completados. ` : ""}${fatal}`
+    : left ? `Datos de ${n} cartas completados con Claude. Faltan ${left}: vuelve a tocar el botón para intentarlo solo con esas.`
+    : `Datos de ${n} cartas completados con Claude (sin precios). Revisa los que se vean raros en la ficha de cada carta.`);
   render(); return n;
 }
 
