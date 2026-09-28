@@ -39,7 +39,7 @@ function homeHTML(){
       ${week ? `<div class="stats home-stats"><div class="stat"><div class="k">tu colección</div><div class="v ${W.delta>0?"up":W.delta<0?"down":""}">${W.base?pct(100*W.delta/W.base):"—"}</div></div><div class="stat"><div class="k">mazos con cambios</div><div class="v">${W.changes.length}</div></div><div class="stat"><div class="k">ventas</div><div class="v">${W.sales.length}</div></div></div>` : `<p class="muted">Todavía no hay movimientos esta semana.</p>`}</section>
     <section class="home-sec"><div class="home-h"><h2>Atajos</h2></div>
       <div class="home-quick">
-        <button class="btn primary" data-home="mesa">Mesa de hoy</button><button class="btn" data-home="coll">Mi colección</button><button class="btn" data-home="venta">Carpetas de venta</button>
+        <button class="btn primary" data-home="mesa">Mesa de hoy</button>${S.match && !S.match.done ? `<button class="btn primary" data-mt="resume">Seguir partida en vivo</button>` : ""}<button class="btn" data-home="coll">Mi colección</button><button class="btn" data-home="venta">Carpetas de venta</button>
         <button class="btn" data-home="pauper-meta">Meta de Pauper</button><button class="btn" data-home="tools">Todas las herramientas</button>
       </div></section>
   </div>`;

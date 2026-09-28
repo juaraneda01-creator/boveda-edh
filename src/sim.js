@@ -32,6 +32,7 @@ function simCard(r, cmd){
   c.outlet = has("sacOutlet"); c.fodder = has("sacFodder");
   c.tokens = has("token") && c.perm && has("repeat") ? 1 : 0;
   c.alt = has("wcAlt");
+  c.poison = creature && has("wcPoison");   // infect o toxic: pega veneno en vez de daño
   return c;
 }
 function simDeck(d){
@@ -51,7 +52,7 @@ function simGame(decks, rnd, {life=40, maxTurns=20}={}){
     // mulligan simple: menos de 2 o más de 5 tierras, se baraja una vez y se roban 7 (y se deja una abajo)
     const lands = hand.filter(c=>c.land).length;
     if (lands < 2 || lands > 5){ lib.push(...hand); for (let i=lib.length-1;i>0;i--){ const j = Math.floor(rnd()*(i+1)); [lib[i], lib[j]] = [lib[j], lib[i]]; } hand = lib.splice(0, 7); const worst = hand.findIndex(c=>c.cmc>=5) ; lib.push(hand.splice(worst>=0?worst:0, 1)[0]); }
-    return {D, seat, life, lib, hand, board:[], lands:0, landNames:[], cmdZone:D.cmds.map(c=>({...c, tax:0})), alive:true, gy:0, how:null, spare:0};
+    return {D, seat, life, poison:0, cmdDmg:{}, lib, hand, board:[], lands:0, landNames:[], cmdZone:D.cmds.map(c=>({...c, tax:0})), alive:true, gy:0, how:null, spare:0};
   });
   const alive = () => players.filter(p=>p.alive);
   const boardPow = p => { const anth = p.board.reduce((a,c)=>a+(c.anthem||0),0); const cr = p.board.filter(c=>c.creature); return cr.reduce((a,c)=>a+c.pow,0) + (anth ? anth*cr.length : 0) + p.board.reduce((a,c)=>a+(c.tokensMade||0),0); };
@@ -147,8 +148,12 @@ function simGame(decks, rnd, {life=40, maxTurns=20}={}){
       if (opps.length){
         const tgt = opps[0]; const anth = p.board.reduce((a,c)=>a+(c.anthem||0),0);
         const atk = p.board.filter(c=>c.creature && !c.sick);
-        let dmg = 0; const blockers = tgt.board.filter(c=>c.creature).length;
-        atk.forEach((c,i)=>{ const pw = c.pow + anth; if (c.evasive || i >= blockers) dmg += pw; else dmg += pw*0.35; });
+        let dmg = 0, psn = 0; const blockers = tgt.board.filter(c=>c.creature).length;
+        // los más grandes atacan primero hacia donde no hay bloqueador; el comandante suma su daño aparte (21 mata)
+        atk.sort((a,b)=>(b.evasive?1:0)-(a.evasive?1:0) || b.pow-a.pow).forEach((c,i)=>{ const pw = c.pow + anth; const hit = c.evasive || i >= blockers ? pw : pw*0.35;
+          if (c.poison) psn += hit; else dmg += hit;
+          if (c.cmd && hit >= 1 && !c.poison){ const k = p.seat; tgt.cmdDmg[k] = (tgt.cmdDmg[k]||0) + Math.round(hit); if (tgt.cmdDmg[k] >= 21 && tgt.alive){ tgt.life = Math.min(tgt.life, 0); tgt.alive = false; p.how = "cmdr"; } } });
+        if (psn > 0){ tgt.poison += Math.round(psn); if (tgt.poison >= 10 && tgt.alive){ tgt.alive = false; tgt.life = Math.min(tgt.life, 0); p.how = "poison"; } }
         dmg += p.board.reduce((a,c)=>a+(c.tokensMade||0),0) * (blockers>atk.length?0.3:1);
         if (dmg>0){ tgt.life -= Math.round(dmg); kill(p, tgt, "combat"); }
         // quien va ganando recibe removal de los demás
@@ -164,8 +169,9 @@ function simGame(decks, rnd, {life=40, maxTurns=20}={}){
 }
 
 // muchas partidas rotando asientos; devuelve estadísticas por mazo
-async function simRun(deckObjs, n, onStep){
-  let seed = 12345 + n; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+async function simRun(deckObjs, n, onStep, opts={}){
+  // semilla distinta cada vez (para ver que el resultado no depende de la suerte); se puede fijar para pruebas
+  let seed = opts.seed != null ? opts.seed : (1 + Math.floor(Math.random() * 2147483645)); const seed0 = seed; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const D = deckObjs.map(simDeck);
   const small = D.filter(x=>x.lib.length < (x.isC ? 60 : 30));
   if (small.length) throw Object.assign(new Error(`${small.map(x=>x.name).join(", ")} tiene${small.length>1?"n":""} muy pocas cartas para simular.`), {user:true});
@@ -180,7 +186,9 @@ async function simRun(deckObjs, n, onStep){
     else { const di = seats[out.winner]; const R = res[di]; R.w++; R.turns.push(out.turn); R.how[out.how] = (R.how[out.how]||0)+1; R.seat[out.winner]++; }
     if (g % 50 === 49){ if (onStep) onStep(g+1); await new Promise(r=>setTimeout(r, 0)); }
   }
-  return {at:Date.now(), n, draws, players:D.length, decks:res.map(r=>({id:r.id, name:r.name, pct:r.w/n, w:r.w, avgTurn:r.turns.length ? r.turns.reduce((a,x)=>a+x,0)/r.turns.length : null, how:r.how, seat:r.seat.map((w,i)=>r.seatN[i] ? w/r.seatN[i] : null)}))};
+  // intervalo de confianza del 95% (Wilson): cuánto podría moverse el % solo por azar
+  const wilson = (w, n) => { if (!n) return [0, 0]; const z = 1.96, p = w/n, den = 1 + z*z/n, c = (p + z*z/(2*n))/den, h = z*Math.sqrt(p*(1-p)/n + z*z/(4*n*n))/den; return [Math.max(0, c-h), Math.min(1, c+h)]; };
+  return {at:Date.now(), n, seed:seed0, draws, players:D.length, decks:res.map(r=>({id:r.id, name:r.name, pct:r.w/n, ci:wilson(r.w, n), w:r.w, avgTurn:r.turns.length ? r.turns.reduce((a,x)=>a+x,0)/r.turns.length : null, how:r.how, seat:r.seat.map((w,i)=>r.seatN[i] ? w/r.seatN[i] : null)}))};
 }
 
 /* ---------- vista (dentro de Jugar → Partidas) ---------- */
@@ -192,7 +200,7 @@ function simGamesHTML(d, A){
   const max = isC ? 3 : 1;
   const R = d.sim;
   const real = typeof gameStats==="function" ? gameStats(gamesOf(d)) : null;
-  const howEs = {combat:"combate", drain:"drenaje", combo:"combo"};
+  const howEs = {combat:"combate", drain:"drenaje", combo:"combo", cmdr:"daño de comandante", poison:"veneno"};
   const mine = R && R.decks.find(x=>x.id===d.id);
   return `<div class="sec gm sim">
     <h3>Partidas simuladas</h3>
@@ -203,8 +211,9 @@ function simGamesHTML(d, A){
     : `<p class="muted">Agrega mazos de tu grupo en “Mazos de mis amigos” (o más mazos tuyos del mismo formato) para simular partidas contra ellos.</p>`}
     ${R ? `<h4 class="td-h">Resultado (${R.n} partidas, ${new Date(R.at).toLocaleDateString("es-CL",{day:"numeric",month:"short"})})</h4>
       <div class="tbl-wrap"><table><thead><tr><th>Mazo</th><th class="n">Gana</th><th class="n">Turno</th><th>Cómo</th></tr></thead><tbody>
-      ${[...R.decks].sort((a,b)=>b.pct-a.pct).map(x=>`<tr${x.id===d.id?' class="td-mine"':""}><td>${esc(x.name)}</td><td class="n">${Math.round(x.pct*100)}%</td><td class="n">${x.avgTurn?x.avgTurn.toFixed(1).replace(".",","):"—"}</td><td style="font-size:.85rem">${Object.entries(x.how).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${howEs[k]||k} ${Math.round(100*v/Math.max(1,x.w))}%`).join(" · ")||"—"}</td></tr>`).join("")}
+      ${[...R.decks].sort((a,b)=>b.pct-a.pct).map(x=>`<tr${x.id===d.id?' class="td-mine"':""}><td>${esc(x.name)}</td><td class="n">${Math.round(x.pct*100)}%${x.ci?`<br><small class="muted">${Math.round(x.ci[0]*100)}–${Math.round(x.ci[1]*100)}%</small>`:""}</td><td class="n">${x.avgTurn?x.avgTurn.toFixed(1).replace(".",","):"—"}</td><td style="font-size:.85rem">${Object.entries(x.how).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${howEs[k]||k} ${Math.round(100*v/Math.max(1,x.w))}%`).join(" · ")||"—"}</td></tr>`).join("")}
       </tbody></table></div>
+      <p class="foot">Debajo de cada %, el rango en que caería con 95% de seguridad: si dos mazos se traslapan, la diferencia puede ser suerte. Cada simulación usa una baraja distinta.</p>
       ${R.draws?`<p class="foot">${Math.round(100*R.draws/R.n)}% de las partidas llegó al turno 20 sin ganador.</p>`:""}
       ${mine && isC ? `<h4 class="td-h">Tu mazo por asiento</h4><div class="td-seats gm-seats">${mine.seat.slice(0, R.players).map((v,i)=>`<div class="td-seat"><small class="sc">asiento ${i+1}</small><b class="num">${v==null?"—":Math.round(v*100)+"%"}</b></div>`).join("")}</div>` : ""}
       ${mine ? `<p class="lede" style="margin-top:10px">${real && real.n>=5 ? `En la mesa real ganas ${Math.round(real.pct*100)}% (${real.n} partidas); la simulación da ${Math.round(mine.pct*100)}%. ${Math.abs(real.pct-mine.pct)>=0.15 ? (real.pct>mine.pct ? "Juegas el mazo mejor de lo que el modelo supone, o tu grupo interactúa menos." : "Tu grupo juega más fuerte o interactúa más de lo que el modelo supone.") : "Coinciden bastante."}` : `Esperado en una mesa pareja: ${Math.round(100/R.players)}%. ${mine.pct>=1.4/R.players ? "Tu mazo sale favorito en este grupo." : mine.pct<=0.6/R.players ? "Tu mazo sale en desventaja en este grupo." : "Tu mazo sale parejo con este grupo."}`}</p>` : ""}

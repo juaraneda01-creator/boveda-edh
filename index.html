@@ -625,6 +625,7 @@ body.web [data-act="fetch-meta"],body.web [data-act="fetch-meta-all"],body.web [
 .rp-br{display:grid;gap:6px;justify-items:start}
 .rp-br-row{display:flex;gap:8px}
 .rp-br-row div{border:1px solid var(--line);border-radius:10px;padding:6px 18px;text-align:center;display:grid;background:var(--bg)}
+.rp-axes{font-size:.9rem;max-width:34ch}.rp-axes summary{cursor:pointer;min-height:32px;display:flex;align-items:center;gap:6px}.rp-axes p{margin:.3em 0}
 .rp-br-row b{font-size:1.9rem;line-height:1.1;color:var(--accent)}
 .rp-row2{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px}
 .rp-card{border:1px solid var(--line);border-radius:16px;background:var(--surface);padding:16px;display:grid;gap:10px;align-content:start}
@@ -757,6 +758,30 @@ body.web [data-act="fetch-meta"],body.web [data-act="fetch-meta-all"],body.web [
 .grp-code{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 8px}
 .grp-seats{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center}
 @media (max-width:640px){.grp-two{grid-template-columns:1fr}}
+
+/* ---------- partida en vivo ---------- */
+.mt{display:grid;gap:12px}
+.mt-top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.mt-grid{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.mt-grid.n2{grid-template-columns:minmax(0,1fr)}
+@media (min-width:700px){.mt-grid.n2{grid-template-columns:repeat(2,minmax(0,1fr))}.mt-grid.n3,.mt-grid.n5,.mt-grid.n6{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.mt-p{border:1px solid var(--line);border-radius:14px;padding:10px;background:var(--surface);display:grid;gap:8px;min-width:0}
+.mt-p.act{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.mt-p.out{opacity:.55}
+.mt-h{display:grid;gap:0;min-width:0}.mt-h b{font-size:1.05rem}.mt-h span{font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mt-life{display:grid;grid-template-columns:48px 1fr 48px;align-items:center;text-align:center}
+.mt-life b{font-size:clamp(2.2rem,11vw,3.4rem);line-height:1}
+.mt-b{min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--bg);font-size:1.6rem;color:var(--ink);cursor:pointer}
+.mt-b:disabled{opacity:.4}
+.mt-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.mt-psn{display:inline-flex;align-items:center;gap:2px;margin-left:auto;font-size:.88rem}
+.mt-cd{display:flex;gap:4px;flex-wrap:wrap;align-items:center}.mt-cd small{width:100%}
+.mt-cd .chip{min-height:36px}
+.mt-out{margin:0;font-size:.88rem}
+.mt-done{display:grid;gap:8px}
+.mt-log div{font-size:.88rem;padding:2px 0}
+.jz-a{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--surface)}
+.jz-a summary{cursor:pointer;min-height:32px}
 </style>
 </head>
 <body>
@@ -1750,6 +1775,7 @@ function loadData(raw){
   d.games = (Array.isArray(d.games)?d.games:[]).filter(g=>g && g.id && g.deck && ["win","loss","draw"].includes(g.res)).map(g=>({...g, turn:Math.max(0, Math.min(30, parseInt(g.turn,10)||0)), seat:[1,2,3,4].includes(+g.seat)?+g.seat:null, opp:(Array.isArray(g.opp)?g.opp:[]).map(String).slice(0,6), note:String(g.note||"").slice(0,200)}));
   d.roles = d.roles||{};
   d.grpDel = (Array.isArray(d.grpDel)?d.grpDel:[]).map(String).slice(-200);
+  d.judgeLog = (Array.isArray(d.judgeLog)?d.judgeLog:[]).filter(x=>x && typeof x.q==="string" && typeof x.a==="string").slice(0, 15);
   d.binders = Array.isArray(d.binders)?d.binders:[];
   for (const b of d.binders){ b.items=b.items||[]; b.sales=b.sales||[]; b.pricing=Object.assign({src:"ck", pct:100, min:0, clp:true, round:100, syncColl:true}, b.pricing||{}); if (b.pricing.src==="market") b.pricing.src="ck"; if (!b.pricing.v2){ b.pricing.clp=true; b.pricing.v2=true; } }
   return d;
@@ -3080,8 +3106,55 @@ function comboEngine(rows){
 
 /* ---------- evaluación ---------- */
 const clamp10 = x => Math.max(0, Math.min(10, x));
+// el nivel se calcula una vez por análisis (y por ajustes que lo cambian): la tabla, la mesa y el grupo lo piden muchas veces
+const _pwMemo = new WeakMap();
 function powerOf(d, A){
   A = A || analyze(d);
+  const st = (S.data && S.data.settings) || {};
+  const key = [S.noCal?1:0, S.noFit?1:0, st.cedhCal ? st.cedhCal.at+":"+st.cedhCal.k : 0, st.csFit && st.csFit.on ? st.csFit.a+":"+st.csFit.b : 0, S.salt ? S.salt.at||1 : 0, d.combos ? (d.combos.at||1)+":"+(d.combos.inc||[]).length : 0, S.td && S.td.data ? S.td.data.at : 0].join("|");
+  const hit = _pwMemo.get(A); if (hit && hit.key === key && hit.d === d) return hit.P;
+  const P = powerOfRaw(d, A); _pwMemo.set(A, {key, d, P}); return P;
+}
+// staples de torneo: las más jugadas en TopDeck.gg (si se cargaron) y la lista fija de piezas cEDH
+function stapleSet(){
+  const k = S.td && S.td.data ? S.td.data.at : 0; if (stapleSet._k === k && stapleSet._v) return stapleSet._v;
+  const s = new Set(Object.values(typeof CEDH_STAPLES!=="undefined" ? CEDH_STAPLES : {}).flat().map(slug));
+  for (const [n, p] of (S.td && S.td.data && S.td.data.staples) || []) if (p >= 8) s.add(slug(n));
+  stapleSet._k = k; return (stapleSet._v = s);
+}
+// bracket por dos ejes, como CommanderBracket: velocidad (en qué turno amenaza ganar) y deformación de la partida
+// (stax, destrucción masiva de tierras, cadenas de turnos extra, interacción gratis). Manda el más alto.
+const SPEED_TURNS = [[10,1],[8,2],[6,3],[4,4]];
+function axesOf(d, A, x){
+  const {sim, c2, fast, stax, free, cedh} = x;
+  let t = sim && sim.winAvg ? sim.winAvg : null; const why = [];
+  if (t != null) why.push(`remate lanzable en el turno ${t.toFixed(1).replace(".",",")}`);
+  // un combo de 2 cartas con tutores adelanta la amenaza aunque el remate normal llegue tarde
+  if ((c2||0) >= 1 && A.tutors.length >= 3){ const ct = Math.max(3, 7 - A.tutors.length*0.35 - fast*0.3); if (t == null || ct < t){ t = ct; why.push(`combo de 2 cartas con ${A.tutors.length} tutores (≈ turno ${ct.toFixed(1).replace(".",",")})`); } }
+  let speed = t == null ? 2 : (SPEED_TURNS.find(([lim])=>t >= lim) || [0, 4])[1];
+  if (t != null && t < 4 && cedh) speed = 5;
+  const w = []; let warp = 1;
+  if (A.mld.length){ warp = Math.max(warp, 4); w.push(`destrucción masiva de tierras (${A.mld.slice(0,2).join(", ")})`); }
+  if (A.xt.length >= 2 || (A.xt.length && A.tutors.length >= 3)){ warp = Math.max(warp, 4); w.push(`turnos extra encadenables (${A.xt.slice(0,2).join(", ")})`); }
+  else if (A.xt.length){ warp = Math.max(warp, 3); w.push(`un turno extra (${A.xt[0]})`); }
+  if (stax >= 3){ warp = Math.max(warp, 4); w.push(`${stax} piezas de stax`); } else if (stax){ warp = Math.max(warp, 3); w.push(`${stax} pieza${stax>1?"s":""} de stax`); }
+  if (free >= 3){ warp = Math.max(warp, 4); w.push(`${free} hechizos de interacción gratis`); } else if (free){ warp = Math.max(warp, 3); w.push(`${free} de interacción gratis`); }
+  if (cedh && warp >= 4 && speed >= 4) speed = 5;
+  if (!w.length) w.push("nada que deforme la partida (el removal y los contrahechizos normales no cuentan)");
+  return {speed, warp, b: Math.max(speed, warp), turn: t, speedWhy: why.join("; ") || "sin remate detectado", warpWhy: w.join("; ")};
+}
+// ajuste lineal (mínimos cuadrados) del nivel a los valores de Commandersalt que anotaste en tus mazos
+function csFitCompute(){
+  const pts = S.data.decks.filter(d=>d.format==="commander" && d.csRef && d.csRef.p).map(d=>{ S.noFit = true; try { return [powerOf(d, analyze(d)).abs, +d.csRef.p, d.name]; } finally { S.noFit = false; } });
+  if (pts.length < 3) return {err:`Anota el nivel de Commandersalt en al menos 3 mazos (tienes ${pts.length}).`};
+  const n = pts.length, mx = pts.reduce((a,p)=>a+p[0],0)/n, my = pts.reduce((a,p)=>a+p[1],0)/n;
+  const sxx = pts.reduce((a,p)=>a+(p[0]-mx)**2,0), sxy = pts.reduce((a,p)=>a+(p[0]-mx)*(p[1]-my),0);
+  if (sxx < 0.25) return {err:"Tus mazos con referencia tienen niveles muy parecidos: agrega uno más bajo o más alto para ajustar la pendiente."};
+  const a = Math.max(0.5, Math.min(2, sxy/sxx)), b = my - a*mx;
+  const err0 = Math.sqrt(pts.reduce((s,p)=>s+(p[0]-p[1])**2,0)/n), err1 = Math.sqrt(pts.reduce((s,p)=>s+(a*p[0]+b-p[1])**2,0)/n);
+  return {a:Math.round(a*1000)/1000, b:Math.round(b*1000)/1000, n, err0:Math.round(err0*100)/100, err1:Math.round(err1*100)/100, at:Date.now(), on:true, pts:pts.map(p=>({n:p[2], x:Math.round(p[0]*100)/100, y:p[1]}))};
+}
+function powerOfRaw(d, A){
   const sim = simulate(d, A);
   const rows = [...A.rows, ...A.cmdMeta.filter(Boolean).map(m=>({n:m.n, q:1, m, cmd:true}))].filter(r=>r.m);
   const cnt = f => rows.filter(r=>f(r.m, r)).reduce((a,r)=>a+r.q,0);
@@ -3124,7 +3197,10 @@ function powerOf(d, A){
   // calibración con listas de torneo: estira solo el tramo sobre 8 de la base; lo que suman o restan los combos va aparte, sin estirar
   const cal = !S.noCal && S.data && S.data.settings && S.data.settings.cedhCal;
   const k = cal ? Math.min(2, +cal.k || 1) : 1;
-  const abs = k > 1 && absNC > 8 ? Math.max(1, Math.min(10, 8 + (absNC - 8) * k + (abs0 - absNC))) : abs0;
+  const absCal = k > 1 && absNC > 8 ? Math.max(1, Math.min(10, 8 + (absNC - 8) * k + (abs0 - absNC))) : abs0;
+  // ajuste a tus referencias de Commandersalt (si lo activaste)
+  const fit = !S.noFit && S.data && S.data.settings && S.data.settings.csFit;
+  const abs = fit && fit.on && fit.a ? Math.max(1, Math.min(10, fit.a*absCal + fit.b)) : absCal;
   const power = Math.round(abs * 10) / 10;
   // bracket realista según el nivel y los elementos que definen cEDH
   const cedh = fast>=5 && A.tutors.length>=5 && (c2||0)>=1;
@@ -3137,7 +3213,12 @@ function powerOf(d, A){
   const saltLabel = salt>=70 ? "Muy salado" : salt>=45 ? "Salado" : salt>=25 ? "Picante" : "Suave";
   const threatCards = rows.filter(r=>(r.m.tg||[]).some(k=>["stax","drawPay","theft","extraCombat"].includes(k)) || ((r.m.r||[]).includes("draw") && r.m.t!=="Instant" && r.m.t!=="Sorcery") || (r.m.sb||[]).includes("counter"));
   const threat = Math.round(clamp10((threatCards.length*0.3 + stax*0.8 + A.gc.length*0.4) / (A.isC?1:0.6)) * 10) / 10;
-  return {power, abs, abs0, absNC, comp, E, early, real, official, cedh, salt, saltLabel, saltTop:salty.slice(0,10), threat, threatCards, sim, c2};
+  const axes = A.isC ? axesOf(d, A, {sim, c2, fast, stax, free, cedh}) : null;
+  // densidad competitiva: qué parte de los hechizos son piezas habituales de torneo
+  const SS = stapleSet(); const spellsN = rows.filter(r=>!r.cmd && r.m.t!=="Land").reduce((a,r)=>a+r.q,0);
+  const stN = rows.filter(r=>!r.cmd && r.m.t!=="Land" && SS.has(slug(r.n))).reduce((a,r)=>a+r.q,0);
+  const density = spellsN ? {pct: stN/spellsN, n: stN, of: spellsN} : null;
+  return {power, abs, abs0, absNC, absCal, fit: fit && fit.on ? fit : null, comp, E, early, real, official, cedh, salt, saltLabel, saltTop:salty.slice(0,10), threat, threatCards, sim, c2, axes, density};
 }
 
 /* ---------- vista del mazo ---------- */
@@ -3177,13 +3258,17 @@ function powerBoardHTML(){
     <div class="tbl-wrap"><table><thead><tr><th>#</th><th>Mazo</th>${th("power","Nivel")}${th("salt","Sal")}${th("threat","Amenaza")}<th class="n">Bracket</th>${anyCS?`<th class="n">Commandersalt</th>`:""}${anyG?`<th class="n">Récord</th>`:""}</tr></thead><tbody>
     ${rows.map((r,i)=>`<tr${r.d.rival?"":' style="background:var(--accent-soft)"'}><td class="num">${i+1}</td><td><b>${esc(r.d.name)}</b><br><span class="muted" style="font-size:.85rem">${esc((r.d.commanders||[]).join(" + "))} · ${r.d.rival?esc(r.d.rival.owner||"amigo"):"tú"}</span></td><td class="n">${r.P.power.toFixed(1)}</td><td class="n">${r.P.salt}</td><td class="n">${r.P.threat.toFixed(1)}</td><td class="n">${r.P.official.b} / ${r.P.real}</td>${anyCS?`<td class="n">${r.d.csRef?Number(r.d.csRef.p).toFixed(1):"—"}</td>`:""}${anyG?(()=>{ const g = gameRecord(r.d); return `<td class="n">${g?`${g.w}-${g.l}${g.dr?`-${g.dr}`:""} · ${Math.round(g.pct*100)}%`:"—"}</td>`; })():""}</tr>`).join("")}
     </tbody></table></div><p class="foot">Bracket: oficial / realista.${anyCS?" Commandersalt: el nivel que anotaste en la ficha de cada mazo.":""}</p>
-    ${anyCS?`<div class="row"><button class="btn sm" data-pw="cs-copy">Copiar comparación con Commandersalt</button></div>`:""}</div>`;
+    ${anyCS?(()=>{ const F = S.data.settings.csFit; const nCS = all.filter(d=>d.csRef).length;
+      return `${F && F.on ? `<p class="lede">Nivel ajustado a tus referencias de Commandersalt (${F.n} mazos): nivel = ${String(F.a).replace(".",",")} × calculado ${F.b>=0?"+":"−"} ${String(Math.abs(F.b)).replace(".",",")}. Error promedio: de ${String(F.err0).replace(".",",")} a ${String(F.err1).replace(".",",")} niveles.</p>` : nCS>=3 ? `<p class="lede">Con ${nCS} mazos medidos en Commandersalt puedo ajustar la escala para que el nivel de todos tus mazos (y los de tus amigos) se parezca más al de Commandersalt.</p>` : ""}
+      <div class="row"><button class="btn sm" data-pw="cs-copy">Copiar comparación con Commandersalt</button>${F && F.on ? `<button class="btn sm" data-pw="cs-fit">Volver a ajustar</button><button class="btn sm ghost" data-pw="cs-unfit">Quitar ajuste</button>` : nCS>=3 ? `<button class="btn sm primary" data-pw="cs-fit">Ajustar a Commandersalt</button>` : `<span class="muted" style="font-size:.88rem">Anota Commandersalt en ${3-nCS} mazo${3-nCS>1?"s":""} más para poder ajustar la escala.</span>`}</div>`; })():""}</div>`;
 }
 function powerPromptText(d, A){ const P = powerOf(d, A); return `Nivel estimado por la app: ${P.power}/10 (${PL_ES(P.power)}); sal ${P.salt}/100; bracket oficial ${P.official.b}, realista ${P.real}.`; }
 
 document.addEventListener("click", async ev => {
   const s = ev.target.closest("[data-pw-sort]"); if (s){ S.pwSort = s.dataset.pwSort; render(); return; }
   const b = ev.target.closest("[data-pw]"); if (b && b.dataset.pw==="salt") await loadSaltLive();
+  if (b && b.dataset.pw==="cs-fit"){ const F = csFitCompute(); if (F.err){ toast(F.err); return; } S.data.settings.csFit = F; saveData(); bumpAnalysis(); render(); toast(`Escala ajustada con ${F.n} mazos: el error promedio baja de ${F.err0.toFixed(2)} a ${F.err1.toFixed(2)} niveles.`); return; }
+  if (b && b.dataset.pw==="cs-unfit"){ delete S.data.settings.csFit; saveData(); bumpAnalysis(); render(); toast("Ajuste a Commandersalt quitado."); return; }
   if (b && b.dataset.pw==="cs-copy"){
     const rows = S.data.decks.filter(d=>d.format==="commander" && d.csRef).map(d=>{ const A = analyze(d), P = powerOf(d, A); return `${d.name} (${(d.commanders||[]).join(" + ")}): Bóveda ${P.power.toFixed(1)} · Commandersalt ${Number(d.csRef.p).toFixed(2)} · diferencia ${(P.power-d.csRef.p>=0?"+":"")+(P.power-d.csRef.p).toFixed(1)} · bracket ${P.official.b}/${P.real}`; });
     copyText("Comparación Bóveda EDH vs Commandersalt\n" + rows.join("\n")); }
@@ -3475,12 +3560,15 @@ function reportHTML(d, A){
       ${prev ? `<div class="rp-chg ${hp(hist[1])>hp(prev)?"up":"down"}">${hp(hist[1])>hp(prev)?"Subió":"Bajó"} de ${hp(prev).toFixed(1)} a ${hp(hist[1]).toFixed(1)}${Math.abs(P.abs - P.abs0) > 0.001 ? " (sin calibrar)" : ""} desde el ${new Date(hist[1].at).toLocaleDateString("es-CL")}</div>` : ""}
       <div class="rp-cs">${d.csRef ? `<span>Commandersalt: <b class="num">${Number(d.csRef.p).toFixed(2)}</b> <span class="muted">(${(P.power - d.csRef.p >= 0 ? "+" : "") + (P.power - d.csRef.p).toFixed(1)} aquí)</span></span>` : `<span class="muted">¿Lo mediste en Commandersalt?</span>`}
         <input type="text" id="rp-cs" inputmode="decimal" placeholder="Ej: 6,6" value="${d.csRef?esc(String(d.csRef.p)):""}" aria-label="Nivel en Commandersalt"><button class="btn sm" data-rp="cs">Guardar</button></div>
-      <details class="rp-what"><summary>¿Qué significa?</summary>${Math.abs(P.abs - P.abs0) > 0.001 ? `<p class="muted">Tramo alto calibrado con listas de torneo (sin calibrar daría ${P.abs0.toFixed(1)}).</p>` : ""}<p>El nivel práctico mide qué tan fuerte juega el mazo en la mesa, de 1 a 10, donde 10 es cEDH. Sale de seis pilares (consistencia, eficiencia, velocidad, interacción, remates y resiliencia) más los Game Changers, el stax y los combos. Es una estimación para conversar antes de jugar, no un veredicto.</p></details>
+      <details class="rp-what"><summary>¿Qué significa?</summary>${P.fit ? `<p class="muted">Ajustado a tus referencias de Commandersalt (${P.fit.n} mazos): sin el ajuste daría ${P.absCal.toFixed(1)}.</p>` : ""}${Math.abs(P.absCal - P.abs0) > 0.001 ? `<p class="muted">Tramo alto calibrado con listas de torneo (sin calibrar daría ${P.abs0.toFixed(1)}).</p>` : ""}<p>El nivel práctico mide qué tan fuerte juega el mazo en la mesa, de 1 a 10, donde 10 es cEDH. Sale de seis pilares (consistencia, eficiencia, velocidad, interacción, remates y resiliencia) más los Game Changers, el stax y los combos. Es una estimación para conversar antes de jugar, no un veredicto.</p></details>
     </div>
     <div class="rp-hero-r">
       <div class="rp-type"><div class="k sc">evaluación</div><b>${R.type.es}</b><span class="muted">${R.type.s}</span>
-        <div class="rp-meta"><span><small class="sc">nivel</small> <b class="num">${P.power.toFixed(1)}</b></span>${R.tier?`<span title="${esc(R.tier.why)}"><small class="sc">comandante</small> <b>T${R.tier.t}</b></span>`:""}</div></div>
-      <div class="rp-br"><div class="k sc">bracket</div><div class="rp-br-row"><div><small class="sc">oficial</small><b class="num">${P.official.b}</b></div><div><small class="sc">realista</small><b class="num">${P.real}</b></div></div><span class="pill ${bTone}">${P.real>P.official.b?"juega por sobre su bracket":P.real<P.official.b?"juega por debajo":"coinciden"}</span></div>
+        <div class="rp-meta"><span><small class="sc">nivel</small> <b class="num">${P.power.toFixed(1)}</b></span>${P.density?`<span title="${P.density.n} de ${P.density.of} hechizos son piezas habituales de torneo (TopDeck.gg y staples cEDH)"><small class="sc">staples de torneo</small> <b class="num">${Math.round(P.density.pct*100)}%</b></span>`:""}${R.tier?`<span title="${esc(R.tier.why)}"><small class="sc">comandante</small> <b>T${R.tier.t}</b></span>`:""}</div></div>
+      <div class="rp-br"><div class="k sc">bracket</div><div class="rp-br-row"><div><small class="sc">oficial</small><b class="num">${P.official.b}</b></div><div><small class="sc">realista</small><b class="num">${P.real}</b></div></div><span class="pill ${bTone}">${P.real>P.official.b?"juega por sobre su bracket":P.real<P.official.b?"juega por debajo":"coinciden"}</span>
+        ${P.axes?`<details class="rp-axes"><summary><small class="sc">por velocidad y deformación</small> <b class="num">${P.axes.b}</b></summary>
+          <p><b>Velocidad ${P.axes.speed}</b> · ${esc(P.axes.speedWhy)}.</p><p><b>Deformación ${P.axes.warp}</b> · ${esc(P.axes.warpWhy)}.</p>
+          <p class="foot">Como CommanderBracket: bracket 1 amenaza ganar desde el turno 10, el 2 desde el 8, el 3 desde el 6, el 4 desde el 4 y el 5 es cEDH. Manda el más alto de los dos ejes.</p></details>`:""}</div>
     </div>
   </section>
 
@@ -3810,6 +3898,7 @@ function simCard(r, cmd){
   c.outlet = has("sacOutlet"); c.fodder = has("sacFodder");
   c.tokens = has("token") && c.perm && has("repeat") ? 1 : 0;
   c.alt = has("wcAlt");
+  c.poison = creature && has("wcPoison");   // infect o toxic: pega veneno en vez de daño
   return c;
 }
 function simDeck(d){
@@ -3829,7 +3918,7 @@ function simGame(decks, rnd, {life=40, maxTurns=20}={}){
     // mulligan simple: menos de 2 o más de 5 tierras, se baraja una vez y se roban 7 (y se deja una abajo)
     const lands = hand.filter(c=>c.land).length;
     if (lands < 2 || lands > 5){ lib.push(...hand); for (let i=lib.length-1;i>0;i--){ const j = Math.floor(rnd()*(i+1)); [lib[i], lib[j]] = [lib[j], lib[i]]; } hand = lib.splice(0, 7); const worst = hand.findIndex(c=>c.cmc>=5) ; lib.push(hand.splice(worst>=0?worst:0, 1)[0]); }
-    return {D, seat, life, lib, hand, board:[], lands:0, landNames:[], cmdZone:D.cmds.map(c=>({...c, tax:0})), alive:true, gy:0, how:null, spare:0};
+    return {D, seat, life, poison:0, cmdDmg:{}, lib, hand, board:[], lands:0, landNames:[], cmdZone:D.cmds.map(c=>({...c, tax:0})), alive:true, gy:0, how:null, spare:0};
   });
   const alive = () => players.filter(p=>p.alive);
   const boardPow = p => { const anth = p.board.reduce((a,c)=>a+(c.anthem||0),0); const cr = p.board.filter(c=>c.creature); return cr.reduce((a,c)=>a+c.pow,0) + (anth ? anth*cr.length : 0) + p.board.reduce((a,c)=>a+(c.tokensMade||0),0); };
@@ -3925,8 +4014,12 @@ function simGame(decks, rnd, {life=40, maxTurns=20}={}){
       if (opps.length){
         const tgt = opps[0]; const anth = p.board.reduce((a,c)=>a+(c.anthem||0),0);
         const atk = p.board.filter(c=>c.creature && !c.sick);
-        let dmg = 0; const blockers = tgt.board.filter(c=>c.creature).length;
-        atk.forEach((c,i)=>{ const pw = c.pow + anth; if (c.evasive || i >= blockers) dmg += pw; else dmg += pw*0.35; });
+        let dmg = 0, psn = 0; const blockers = tgt.board.filter(c=>c.creature).length;
+        // los más grandes atacan primero hacia donde no hay bloqueador; el comandante suma su daño aparte (21 mata)
+        atk.sort((a,b)=>(b.evasive?1:0)-(a.evasive?1:0) || b.pow-a.pow).forEach((c,i)=>{ const pw = c.pow + anth; const hit = c.evasive || i >= blockers ? pw : pw*0.35;
+          if (c.poison) psn += hit; else dmg += hit;
+          if (c.cmd && hit >= 1 && !c.poison){ const k = p.seat; tgt.cmdDmg[k] = (tgt.cmdDmg[k]||0) + Math.round(hit); if (tgt.cmdDmg[k] >= 21 && tgt.alive){ tgt.life = Math.min(tgt.life, 0); tgt.alive = false; p.how = "cmdr"; } } });
+        if (psn > 0){ tgt.poison += Math.round(psn); if (tgt.poison >= 10 && tgt.alive){ tgt.alive = false; tgt.life = Math.min(tgt.life, 0); p.how = "poison"; } }
         dmg += p.board.reduce((a,c)=>a+(c.tokensMade||0),0) * (blockers>atk.length?0.3:1);
         if (dmg>0){ tgt.life -= Math.round(dmg); kill(p, tgt, "combat"); }
         // quien va ganando recibe removal de los demás
@@ -3942,8 +4035,9 @@ function simGame(decks, rnd, {life=40, maxTurns=20}={}){
 }
 
 // muchas partidas rotando asientos; devuelve estadísticas por mazo
-async function simRun(deckObjs, n, onStep){
-  let seed = 12345 + n; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+async function simRun(deckObjs, n, onStep, opts={}){
+  // semilla distinta cada vez (para ver que el resultado no depende de la suerte); se puede fijar para pruebas
+  let seed = opts.seed != null ? opts.seed : (1 + Math.floor(Math.random() * 2147483645)); const seed0 = seed; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const D = deckObjs.map(simDeck);
   const small = D.filter(x=>x.lib.length < (x.isC ? 60 : 30));
   if (small.length) throw Object.assign(new Error(`${small.map(x=>x.name).join(", ")} tiene${small.length>1?"n":""} muy pocas cartas para simular.`), {user:true});
@@ -3958,7 +4052,9 @@ async function simRun(deckObjs, n, onStep){
     else { const di = seats[out.winner]; const R = res[di]; R.w++; R.turns.push(out.turn); R.how[out.how] = (R.how[out.how]||0)+1; R.seat[out.winner]++; }
     if (g % 50 === 49){ if (onStep) onStep(g+1); await new Promise(r=>setTimeout(r, 0)); }
   }
-  return {at:Date.now(), n, draws, players:D.length, decks:res.map(r=>({id:r.id, name:r.name, pct:r.w/n, w:r.w, avgTurn:r.turns.length ? r.turns.reduce((a,x)=>a+x,0)/r.turns.length : null, how:r.how, seat:r.seat.map((w,i)=>r.seatN[i] ? w/r.seatN[i] : null)}))};
+  // intervalo de confianza del 95% (Wilson): cuánto podría moverse el % solo por azar
+  const wilson = (w, n) => { if (!n) return [0, 0]; const z = 1.96, p = w/n, den = 1 + z*z/n, c = (p + z*z/(2*n))/den, h = z*Math.sqrt(p*(1-p)/n + z*z/(4*n*n))/den; return [Math.max(0, c-h), Math.min(1, c+h)]; };
+  return {at:Date.now(), n, seed:seed0, draws, players:D.length, decks:res.map(r=>({id:r.id, name:r.name, pct:r.w/n, ci:wilson(r.w, n), w:r.w, avgTurn:r.turns.length ? r.turns.reduce((a,x)=>a+x,0)/r.turns.length : null, how:r.how, seat:r.seat.map((w,i)=>r.seatN[i] ? w/r.seatN[i] : null)}))};
 }
 
 /* ---------- vista (dentro de Jugar → Partidas) ---------- */
@@ -3970,7 +4066,7 @@ function simGamesHTML(d, A){
   const max = isC ? 3 : 1;
   const R = d.sim;
   const real = typeof gameStats==="function" ? gameStats(gamesOf(d)) : null;
-  const howEs = {combat:"combate", drain:"drenaje", combo:"combo"};
+  const howEs = {combat:"combate", drain:"drenaje", combo:"combo", cmdr:"daño de comandante", poison:"veneno"};
   const mine = R && R.decks.find(x=>x.id===d.id);
   return `<div class="sec gm sim">
     <h3>Partidas simuladas</h3>
@@ -3981,8 +4077,9 @@ function simGamesHTML(d, A){
     : `<p class="muted">Agrega mazos de tu grupo en “Mazos de mis amigos” (o más mazos tuyos del mismo formato) para simular partidas contra ellos.</p>`}
     ${R ? `<h4 class="td-h">Resultado (${R.n} partidas, ${new Date(R.at).toLocaleDateString("es-CL",{day:"numeric",month:"short"})})</h4>
       <div class="tbl-wrap"><table><thead><tr><th>Mazo</th><th class="n">Gana</th><th class="n">Turno</th><th>Cómo</th></tr></thead><tbody>
-      ${[...R.decks].sort((a,b)=>b.pct-a.pct).map(x=>`<tr${x.id===d.id?' class="td-mine"':""}><td>${esc(x.name)}</td><td class="n">${Math.round(x.pct*100)}%</td><td class="n">${x.avgTurn?x.avgTurn.toFixed(1).replace(".",","):"—"}</td><td style="font-size:.85rem">${Object.entries(x.how).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${howEs[k]||k} ${Math.round(100*v/Math.max(1,x.w))}%`).join(" · ")||"—"}</td></tr>`).join("")}
+      ${[...R.decks].sort((a,b)=>b.pct-a.pct).map(x=>`<tr${x.id===d.id?' class="td-mine"':""}><td>${esc(x.name)}</td><td class="n">${Math.round(x.pct*100)}%${x.ci?`<br><small class="muted">${Math.round(x.ci[0]*100)}–${Math.round(x.ci[1]*100)}%</small>`:""}</td><td class="n">${x.avgTurn?x.avgTurn.toFixed(1).replace(".",","):"—"}</td><td style="font-size:.85rem">${Object.entries(x.how).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${howEs[k]||k} ${Math.round(100*v/Math.max(1,x.w))}%`).join(" · ")||"—"}</td></tr>`).join("")}
       </tbody></table></div>
+      <p class="foot">Debajo de cada %, el rango en que caería con 95% de seguridad: si dos mazos se traslapan, la diferencia puede ser suerte. Cada simulación usa una baraja distinta.</p>
       ${R.draws?`<p class="foot">${Math.round(100*R.draws/R.n)}% de las partidas llegó al turno 20 sin ganador.</p>`:""}
       ${mine && isC ? `<h4 class="td-h">Tu mazo por asiento</h4><div class="td-seats gm-seats">${mine.seat.slice(0, R.players).map((v,i)=>`<div class="td-seat"><small class="sc">asiento ${i+1}</small><b class="num">${v==null?"—":Math.round(v*100)+"%"}</b></div>`).join("")}</div>` : ""}
       ${mine ? `<p class="lede" style="margin-top:10px">${real && real.n>=5 ? `En la mesa real ganas ${Math.round(real.pct*100)}% (${real.n} partidas); la simulación da ${Math.round(mine.pct*100)}%. ${Math.abs(real.pct-mine.pct)>=0.15 ? (real.pct>mine.pct ? "Juegas el mazo mejor de lo que el modelo supone, o tu grupo interactúa menos." : "Tu grupo juega más fuerte o interactúa más de lo que el modelo supone.") : "Coinciden bastante."}` : `Esperado en una mesa pareja: ${Math.round(100/R.players)}%. ${mine.pct>=1.4/R.players ? "Tu mazo sale favorito en este grupo." : mine.pct<=0.6/R.players ? "Tu mazo sale en desventaja en este grupo." : "Tu mazo sale parejo con este grupo."}`}</p>` : ""}
@@ -4056,13 +4153,14 @@ function mesaHTML(){
   const M = mesaEval();
   const chip = d => `<button class="chip" data-mesa-deck="${esc(d.id)}" aria-pressed="${S.mesa.ids.includes(d.id)}" ${S.mesa.busy?"disabled":""}>${esc(d.name)}${d.rival?` <small>(${esc(d.rival.owner||"amigo")})</small>`:""}</button>`;
   return `<div class="sec mesa"><h3>Mesa de hoy</h3><p class="lede">Elige los mazos que van a jugar (hasta 4) y te digo si la mesa está pareja antes de empezar.</p>
+    ${S.match && !S.match.done ? `<div class="banner info"><span>Hay una partida en vivo en el turno ${S.match.turn}.</span><button class="btn sm primary" data-mt="resume">Seguir la partida</button></div>` : ""}
     <div class="chips">${all.map(chip).join("")}</div>
     ${M ? `<div class="banner ${M.verdict.k==="good"?"info":""} mesa-v mesa-${M.verdict.k}"><span><b>${M.verdict.es}.</b> ${esc(M.verdict.s)} ${M.rows.length>1?`<span class="muted">(diferencia de ${M.spread.toFixed(1).replace(".",",")} niveles)</span>`:""}</span></div>
       <div class="tbl-wrap"><table><thead><tr><th>Mazo</th><th class="n">Nivel</th><th class="n">Bracket</th><th class="n">Sal</th><th class="n">Gana en</th></tr></thead><tbody>
       ${M.rows.map(r=>`<tr><td><b>${esc(r.d.name)}</b><br><span class="muted" style="font-size:.82rem">${esc(r.owner)}</span></td><td class="n ${r.gap>=1?"warn":r.gap<=-1?"muted":""}">${r.P.power.toFixed(1)}${Math.abs(r.gap)>=1?` <small>${r.gap>0?"▲":"▼"}</small>`:""}</td><td class="n">${r.P.official.b}/${r.P.real}</td><td class="n">${r.P.salt}</td><td class="n">${r.speed?`T${r.speed.toFixed(1).replace(".",",")}`:"—"}</td></tr>`).join("")}
       </tbody></table></div>
       ${M.tips.length?`<ul class="mesa-tips">${M.tips.map(t=>`<li>${esc(t)}</li>`).join("")}</ul>`:""}
-      <div class="row">${M.rows.length>=2?`<button class="btn" data-mesa="sim" ${S.mesa.busy?"disabled":""}>${S.mesa.busy?"Simulando…":"Simular esta mesa (300 partidas)"}</button>`:""}<button class="btn" data-mesa="share">Compartir resumen</button>${S.mesa.ids.length?`<button class="btn ghost" data-mesa="clear">Limpiar</button>`:""}</div>
+      <div class="row">${M.rows.length>=2?`<button class="btn" data-mesa="sim" ${S.mesa.busy?"disabled":""}>${S.mesa.busy?"Simulando…":"Simular esta mesa (300 partidas)"}</button>`:""}${M.rows.length>=2?`<button class="btn primary" data-mt="play">Jugar esta mesa</button>`:""}<button class="btn" data-mesa="share">Compartir resumen</button>${S.mesa.ids.length?`<button class="btn ghost" data-mesa="clear">Limpiar</button>`:""}</div>
       ${S.mesa.sim && S.mesa.sim.key===S.mesa.ids.join("|") ? `<p class="lede" style="margin-top:8px">Simulación: ${S.mesa.sim.decks.slice().sort((a,b)=>b.pct-a.pct).map(x=>`<b>${esc(x.name)}</b> ${Math.round(x.pct*100)}%`).join(" · ")} <span class="muted">(pareja sería ${Math.round(100/S.mesa.sim.players)}% cada uno)</span></p>` : ""}
       <p class="foot">“Gana en” es el turno promedio en que el mazo tiene un remate lanzable según la simulación de manos (sin contar la interacción rival); el nivel y el bracket son los de la ficha de cada mazo.</p>` : ""}
   </div>`;
@@ -4094,7 +4192,7 @@ function render(){
   if (S.editing && $("#f-list")){ S.editing.text=$("#f-list").value; S.editing.side=($("#f-side")||{}).value||""; S.editing.maybe=($("#f-maybe")||{}).value||""; S.editing.name=($("#f-name")||{}).value||""; if ($("#f-cmd")) S.editing.commanders=$("#f-cmd").value.split("+").map(x=>x.trim()).filter(Boolean); }
   const alertsN = alerts().length;
   const nav = [["home","Inicio","Inicio"],["commander","Commander","EDH"],["pauper","Pauper","Pauper"],["pioneer","Pioneer","Pioneer"],["coll","Colección","Colec."],["venta","Venta","Venta"],["market","Mercado","Mercado"]];
-  $("#tabs").innerHTML = nav.map(([k,l,sh])=>`<button class="tab" role="tab" data-view="${k}" aria-selected="${S.view===k || (k==="home" && ["tools","weekly","news"].includes(S.view))}"><span class="tl">${l}</span><span class="ts" aria-hidden="true">${sh}</span>${k==="market"&&alertsN?`<span class="badge" aria-label="${alertsN} alertas">${alertsN}</span>`:""}</button>`).join("");
+  $("#tabs").innerHTML = nav.map(([k,l,sh])=>`<button class="tab" role="tab" data-view="${k}" aria-selected="${S.view===k || (k==="home" && ["tools","weekly","news","match","judge"].includes(S.view))}"><span class="tl">${l}</span><span class="ts" aria-hidden="true">${sh}</span>${k==="market"&&alertsN?`<span class="badge" aria-label="${alertsN} alertas">${alertsN}</span>`:""}</button>`).join("");
   renderBusy();
   renderSettings();
   const main=$("#main");
@@ -4105,6 +4203,8 @@ function render(){
   else if (S.view==="home") main.innerHTML = homeHTML();
   else if (S.view==="news") main.innerHTML = newsHTML();
   else if (S.view==="weekly") main.innerHTML = weeklyHTML();
+  else if (S.view==="match" && typeof matchHTML==="function") main.innerHTML = matchHTML();
+  else if (S.view==="judge" && typeof judgeHTML==="function") main.innerHTML = judgeHTML();
   else main.innerHTML = marketHTML();
   if (S.editing && typeof renderEditorPreview==="function") renderEditorPreview();
   renderModal();
@@ -5844,6 +5944,7 @@ const ICON = {
   file:'<path d="M6 2h8l5 5v15H6z"/><path d="M14 2v5h5M9 13h7M9 17h7"/>',
   bell:'<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   star:'<path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/>',
+  gavel:'<path d="M14 4l6 6M11 7l6 6M12.5 5.5l-5 5M18.5 11.5l-5 5M9 12l-6 6 2 2 6-6"/><path d="M4 21h9"/>',
   mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
 };
 const icon = k => `<svg class="ti" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICON[k]||""}</svg>`;
@@ -5861,6 +5962,7 @@ const TOOLS = [
   {k:"pdf", i:"file", t:"Exportar informe PDF", d:"Decklist y análisis listos para imprimir o guardar como PDF."},
   {k:"vigilancias", i:"bell", t:"Vigilancias de precio", d:"Te avisa cuando una carta baja al precio que le pongas. Sin límite."},
   {k:"novedades", i:"star", t:"Novedades para tus mazos", d:"Qué cartas de los sets nuevos encajan en cada uno de tus mazos."},
+  {k:"juez", i:"gavel", t:"Preguntar al juez", d:"Dudas de reglas respondidas con los números de las Reglas Completas y los fallos oficiales de cada carta."},
   {k:"semanal", i:"mail", t:"Resumen semanal", d:"Subidas, bajadas, cambios y novedades de la semana, para leer o enviarte por correo."},
 ];
 function toolsHubHTML(){
@@ -5895,6 +5997,7 @@ function openTool(k){
   if (k==="vigilancias"){ S.view="market"; S.marketTab="busqueda"; render(); return; }
   if (k==="novedades"){ S.view="news"; render(); return; }
   if (k==="semanal"){ S.view="weekly"; render(); return; }
+  if (k==="juez"){ S.view="judge"; render(); window.scrollTo(0,0); setTimeout(()=>{ const el=$("#jz-q"); if (el) el.focus(); }, 50); return; }
 }
 
 /* ---------- Claude (API con clave propia) ---------- */
@@ -6154,36 +6257,71 @@ function gfAct(a){
 }
 
 /* ---------- Constructor guiado ---------- */
+const BLD_INTER = {low:{es:"Poca", removal:5, wipe:1, counter:0}, mid:{es:"Normal", removal:8, wipe:3, counter:1}, high:{es:"Mucha", removal:11, wipe:4, counter:4}};
 function builderBlockHTML(){
-  const b=S.bldBudget||"10";
+  const b=S.bldBudget||"10", it=S.bldInter||"mid", br=S.bldBr||0, th=S.bldTheme||"";
+  const E = S.bldCmdKey && S.edh[S.bldCmdKey];
   return `<div class="card-box bld"><h3>Constructor guiado</h3>
-    <p class="muted" style="margin:0">Escribe el comandante y arma un borrador de 99 cartas con lo que más se juega en EDHREC: 10 de ramp, 10 de robo, 8 de removal, 3 barridos, 3 de protección, el resto de sinergia y 36 tierras. Prioriza lo que ya tienes y respeta tu presupuesto. Después puedes editarlo antes de guardar.</p>
+    <p class="muted" style="margin:0">Escribe el comandante y arma un borrador de 99 cartas con lo que más se juega en EDHREC: ramp, robo, interacción según el nivel que elijas, protección, sinergia y 36 tierras. Prioriza lo que ya tienes, respeta tu presupuesto y el bracket que buscas. Después puedes editarlo antes de guardar.</p>
     <div class="row" style="align-items:flex-end">
       <div class="field" style="flex:1;min-width:220px"><label for="bld-cmd">Comandante</label><input type="text" id="bld-cmd" placeholder="Ej.: Atraxa, Praetors' Voice" value="${esc(S.bldCmd||"")}"></div>
       <label class="row" style="gap:6px;padding-bottom:8px"><input type="checkbox" id="bld-own" ${S.bldOwn===false?"":"checked"}> Priorizar mi colección</label>
     </div>
+    <div class="field"><label for="bld-theme">Estrategia (opcional)</label><input type="text" id="bld-theme" list="bld-themes" placeholder="Ej.: tokens, +1/+1 counters, aristocrats" value="${esc(th)}" autocomplete="off">
+      ${E && E.themes && E.themes.length ? `<datalist id="bld-themes">${E.themes.map(t=>`<option value="${esc(t.v)}">`).join("")}</datalist><div class="chips" style="margin-top:6px">${E.themes.slice(0,8).map(t=>`<button type="button" class="chip" data-t="bld-theme" data-v="${esc(t.v)}" aria-pressed="${slug(th)===slug(t.v)}">${esc(t.v)}</button>`).join("")}</div>` : `<span class="foot">Los temas de EDHREC de tu comandante aparecen aquí después del primer borrador.</span>`}</div>
+    <div class="field"><label>Interacción</label><div class="chips">${Object.entries(BLD_INTER).map(([k,v])=>`<button type="button" class="chip" data-t="bld-inter" data-v="${k}" aria-pressed="${it===k}">${v.es}</button>`).join("")}</div></div>
+    <div class="field"><label>Bracket buscado</label><div class="chips">${[[0,"Sin límite"],[2,"2 · Básico"],[3,"3 · Mejorado"],[4,"4 · Optimizado"]].map(([k,l])=>`<button type="button" class="chip" data-t="bld-br" data-v="${k}" aria-pressed="${br===k}">${l}</button>`).join("")}</div>
+      <span class="foot">Bracket 2: sin Game Changers, turnos extra ni destrucción de tierras. Bracket 3: hasta 3 Game Changers.</span></div>
     <div class="field"><label>Presupuesto por carta</label><div class="chips">${[["own","Solo mi colección"],["2","Hasta US$2"],["10","Hasta US$10"],["inf","Sin límite"]].map(([k,l])=>`<button type="button" class="chip" data-t="bld-budget" data-v="${k}" aria-pressed="${b===k}">${l}</button>`).join("")}</div></div>
+    <div class="field"><label for="bld-excl">No incluir (opcional)</label><input type="text" id="bld-excl" placeholder="Cartas separadas por coma: Cyclonic Rift, Rhystic Study" value="${esc(S.bldExcl||"")}" autocomplete="off"></div>
     <div class="row"><button type="button" class="btn primary" data-t="bld-run" ${S.busy?"disabled":""}>Armar borrador</button><span class="foot">O escribe tu lista a mano abajo (constructor libre).</span></div></div>`;
+}
+// páginas de tema de EDHREC (p. ej. /commanders/atraxa-praetors-voice/counters): otra lista de cartas para esa estrategia
+async function loadEdhrecTheme(E, theme){
+  const t = (E.themes||[]).find(x=>slug(x.v)===slug(theme) || slug(x.s||"")===slug(theme)) || (E.themes||[]).find(x=>slug(x.v).includes(slug(theme)) || slug(theme).includes(slug(x.v)));
+  if (!t || !t.s) return null;
+  const key = E.slug + "/" + t.s; if (S.edh[key] && Date.now()-S.edh[key].at < 7*864e5) return S.edh[key];
+  try {
+    const r = await fetch(`https://json.edhrec.com/pages/commanders/${E.slug}/${t.s.split("/").pop()}.json`); if (!r.ok) return null;
+    const j = await r.json(); const jd = (j.container && j.container.json_dict) || {}; const pool = new Map();
+    for (const l of jd.cardlists||[]) for (const v of l.cardviews||[]){ const pot = v.potential_decks||0; const incl = pot ? (v.num_decks!=null?v.num_decks:(v.inclusion||0))/pot : null; const rec = {n:v.name, incl, syn:v.synergy!=null?v.synergy:null}; const p = pool.get(slug(v.name)); if (!p || (rec.incl||0)>(p.incl||0)) pool.set(slug(v.name), rec); }
+    const out = {at:Date.now(), slug:E.slug, theme:t.v, themes:E.themes, pool:[...pool.values()]};
+    S.edh[key] = out; saveCaches(); await fetchCards(out.pool.map(c=>c.n), {quiet:true}); return out;
+  } catch { return null; }
 }
 async function runBuilder(){
   const cmd=($("#bld-cmd").value||"").trim(); S.bldCmd=cmd; S.bldOwn=$("#bld-own").checked;
+  S.bldTheme = (($("#bld-theme")||{}).value||"").trim(); S.bldExcl = (($("#bld-excl")||{}).value||"").trim();
   if (!cmd){ toast("Escribe el nombre del comandante."); return; }
   await fetchCards([cmd],{label:"Buscando el comandante"});
   const cm=cardOf(cmd); if (!cm){ toast("No encontré ese comandante en Scryfall. Revisa el nombre en inglés."); return; }
   const ci=cm.ci||""; const tmp={commanders:[cm.n]};
-  const E=await loadEdhrec(tmp,false); if (!E){ return; }
+  let E=await loadEdhrec(tmp,false); if (!E){ return; }
+  S.bldCmdKey = edhSlug(cm.n);
+  let themeUsed = null;
+  if (S.bldTheme){ const T = await loadEdhrecTheme(E, S.bldTheme); if (T && T.pool.length >= 60){ themeUsed = T.theme; const base = new Map(E.pool.map(p=>[slug(p.n), p])); E = {...E, pool:[...T.pool.map(p=>({...p, syn:(p.syn||0)+0.15})), ...E.pool.filter(p=>!T.pool.some(x=>slug(x.n)===slug(p.n)))]}; } else toast(`No encontré el tema “${S.bldTheme}” en EDHREC para este comandante: armo el borrador general.`); }
   const budget=S.bldBudget||"10", cap=budget==="2"?2:budget==="10"?10:Infinity, own=S.bldOwn!==false;
+  const inter = BLD_INTER[S.bldInter||"mid"], br = S.bldBr||0;
+  const excl = new Set(S.bldExcl.split(",").map(x=>slug(x.trim())).filter(Boolean));
   const inCI = m => !(m.ci||"").split("").some(c=>WUBRG.includes(c)&&!ci.includes(c));
-  const pool = E.pool.map(p=>({...p, m:cardOf(p.n)})).filter(p=>p.m && !p.m.basic && inCI(p.m) && (!p.m.lg || p.m.lg.commander==="legal") && slug(p.m.n)!==slug(cm.n)).map(p=>{
+  // lo que el bracket no permite
+  const brOk = m => !(br && br<=2 && (m.gc || m.xt || m.mld)) && !(br===3 && (m.xt || m.mld));
+  const pool = E.pool.map(p=>({...p, m:cardOf(p.n)})).filter(p=>p.m && !p.m.basic && inCI(p.m) && (!p.m.lg || p.m.lg.commander==="legal") && slug(p.m.n)!==slug(cm.n) && !excl.has(slug(p.m.n)) && !excl.has(slug(p.n)) && brOk(p.m)).map(p=>{
     const has=ownedOf(p.n)>0, pr=refPrice(p.m);
     const okBudget = budget==="own" ? has : (has || pr==null || pr<=cap);
     return {...p, has, pr, ok:okBudget, score:(p.incl||0)*100 + Math.max(0,p.syn||0)*60 + (own&&has?30:0)};
   }).filter(p=>p.ok).sort((a,b)=>b.score-a.score);
-  const chosen=new Map(); const take = p => { if (!chosen.has(slug(p.m.n))) chosen.set(slug(p.m.n), p); };
+  const chosen=new Map(); let gcN = 0; const gcMax = br===3 ? 3 : br===2 ? 0 : Infinity;
+  const take = p => { if (chosen.has(slug(p.m.n))) return false; if (p.m.gc){ if (gcN>=gcMax) return false; gcN++; } chosen.set(slug(p.m.n), p); return true; };
   const spells=pool.filter(p=>p.m.t!=="Land");
-  for (const [role,n] of [["ramp",10],["draw",10],["removal",8],["wipe",3],["protection",3]]){ let k=0; for (const p of spells){ if (k>=n) break; if ((p.m.r||[]).includes(role) && !chosen.has(slug(p.m.n))){ take(p); k++; } } }
-  for (const p of spells){ if (chosen.size>=63) break; take(p); }
-  const nonbasic = pool.filter(p=>p.m.t==="Land").slice(0, ci.length<=1?6:14);
+  const isCounter = m => (m.rf||[]).includes("counter") || (m.sb||[]).includes("counter");
+  const quotas = [["ramp",10],["draw",10],["counter",inter.counter],["removal",inter.removal],["wipe",inter.wipe],["protection",3]];
+  for (const [role,n] of quotas){ let k=0; for (const p of spells){ if (k>=n) break; const fits = role==="counter" ? isCounter(p.m) : (p.m.r||[]).includes(role); if (fits && take(p)) k++; } }
+  // poca interacción: el resto no se llena con más removal
+  const interN = [...chosen.values()].filter(p=>(p.m.r||[]).includes("removal")||(p.m.r||[]).includes("wipe")||isCounter(p.m)).length, interMax = inter.removal + inter.wipe + inter.counter + 2;
+  for (const p of spells){ if (chosen.size>=63) break; const isInt = (p.m.r||[]).includes("removal")||(p.m.r||[]).includes("wipe")||isCounter(p.m); if (isInt && interN >= interMax && !chosen.has(slug(p.m.n))) continue; take(p); }
+  const nonbasic = pool.filter(p=>p.m.t==="Land").slice(0, ci.length<=1?6:14).filter(p=>take(p) || chosen.has(slug(p.m.n)));
+  for (const p of nonbasic) chosen.delete(slug(p.m.n));
   const landsN=36, basicsN=Math.max(0, landsN-nonbasic.length);
   const pips={W:0,U:0,B:0,R:0,G:0}; for (const p of chosen.values()) for (const s of (p.m.cost||"").match(/\{[^}]+\}/g)||[]) for (const c of WUBRG) if (s.includes(c)) pips[c]++;
   const cols=ci.split("").filter(c=>WUBRG.includes(c)); const BN={W:"Plains",U:"Island",B:"Swamp",R:"Mountain",G:"Forest"};
@@ -6191,10 +6329,10 @@ async function runBuilder(){
   cols.forEach((c,i)=>{ const q = i===cols.length-1 ? left : Math.round(basicsN*(pips[c]||1)/tot); basics.push([BN[c],q]); left-=q; });
   if (!cols.length) basics.push(["Wastes",basicsN]);
   const lines=[...[...chosen.values()].map(p=>`1 ${p.m.n}`), ...nonbasic.map(p=>`1 ${p.m.n}`), ...basics.filter(b=>b[1]>0).map(([n,q])=>`${q} ${n}`)];
-  $("#f-list").value=lines.join("\n"); if ($("#f-cmd")) $("#f-cmd").value=cm.n; if (!$("#f-name").value.trim()) $("#f-name").value=`${cm.n.split(",")[0]} (borrador)`;
+  $("#f-list").value=lines.join("\n"); if ($("#f-cmd")) $("#f-cmd").value=cm.n; if (!$("#f-name").value.trim()) $("#f-name").value=`${cm.n.split(",")[0]}${themeUsed?` ${themeUsed}`:""} (borrador)`;
   const nOwn=[...chosen.values(), ...nonbasic].filter(p=>p.has).length; const cost=[...chosen.values(), ...nonbasic].filter(p=>!p.has).reduce((a,p)=>a+(p.pr||0),0);
-  renderEditorPreview();
-  toast(`Borrador listo: ${chosen.size} hechizos y ${landsN} tierras. ${nOwn} ya las tienes; comprar el resto cuesta ~${money(cost)}.${chosen.size<63?" EDHREC no tenía suficientes cartas en tu presupuesto: completa a mano.":""}`);
+  render(); renderEditorPreview();
+  toast(`Borrador listo${themeUsed?` (${themeUsed})`:""}: ${chosen.size} hechizos y ${landsN} tierras${gcN?`, ${gcN} Game Changer${gcN>1?"s":""}`:""}. ${nOwn} ya las tienes; comprar el resto cuesta ~${money(cost)}.${chosen.size<63?" EDHREC no tenía suficientes cartas con esas condiciones: completa a mano.":""}`);
 }
 
 /* ---------- Mesa local ---------- */
@@ -6450,6 +6588,9 @@ document.addEventListener("click", async ev=>{
       break; }
     case "bld-budget": S.bldBudget=b.dataset.v; for (const x of document.querySelectorAll('[data-t="bld-budget"]')) x.setAttribute("aria-pressed", x.dataset.v===S.bldBudget); break;
     case "bld-run": await runBuilder(); break;
+    case "bld-inter": S.bldInter=b.dataset.v; for (const x of document.querySelectorAll('[data-t="bld-inter"]')) x.setAttribute("aria-pressed", x.dataset.v===S.bldInter); break;
+    case "bld-br": S.bldBr=+b.dataset.v; for (const x of document.querySelectorAll('[data-t="bld-br"]')) x.setAttribute("aria-pressed", +x.dataset.v===S.bldBr); break;
+    case "bld-theme": { S.bldTheme = S.bldTheme===b.dataset.v ? "" : b.dataset.v; const el=$("#bld-theme"); if (el) el.value=S.bldTheme; for (const x of document.querySelectorAll('[data-t="bld-theme"]')) x.setAttribute("aria-pressed", x.dataset.v===S.bldTheme); break; }
     case "local-fetch": await fetchCards(S.data.decks.filter(x=>x.rival).flatMap(allNames),{label:"Trayendo datos de los mazos de tus amigos"}); break;
     case "local-del": S.data.decks=S.data.decks.filter(x=>x.id!==b.dataset.v); saveData(); render(); break;
     case "local-add": { const list=$("#lr-list").value; const p=parseList(list); const nx=splitDeck(p,"commander",[]);
@@ -6484,7 +6625,7 @@ document.addEventListener("change", e=>{
   if (id==="v-a"){ S.vA=+e.target.value; render(); }
   if (id==="v-b"){ S.vB=+e.target.value; render(); }
 });
-document.addEventListener("input", e=>{ if (e.target.id==="ia-notes") S.iaNotes=e.target.value; if (e.target.id==="bld-cmd") S.bldCmd=e.target.value; });
+document.addEventListener("input", e=>{ if (e.target.id==="ia-notes") S.iaNotes=e.target.value; if (e.target.id==="bld-cmd") S.bldCmd=e.target.value; if (e.target.id==="bld-theme") S.bldTheme=e.target.value; if (e.target.id==="bld-excl") S.bldExcl=e.target.value; });
 
 /* ---------- arranque de las herramientas ---------- */
 (function(){
@@ -7422,7 +7563,7 @@ function homeHTML(){
       ${week ? `<div class="stats home-stats"><div class="stat"><div class="k">tu colección</div><div class="v ${W.delta>0?"up":W.delta<0?"down":""}">${W.base?pct(100*W.delta/W.base):"—"}</div></div><div class="stat"><div class="k">mazos con cambios</div><div class="v">${W.changes.length}</div></div><div class="stat"><div class="k">ventas</div><div class="v">${W.sales.length}</div></div></div>` : `<p class="muted">Todavía no hay movimientos esta semana.</p>`}</section>
     <section class="home-sec"><div class="home-h"><h2>Atajos</h2></div>
       <div class="home-quick">
-        <button class="btn primary" data-home="mesa">Mesa de hoy</button><button class="btn" data-home="coll">Mi colección</button><button class="btn" data-home="venta">Carpetas de venta</button>
+        <button class="btn primary" data-home="mesa">Mesa de hoy</button>${S.match && !S.match.done ? `<button class="btn primary" data-mt="resume">Seguir partida en vivo</button>` : ""}<button class="btn" data-home="coll">Mi colección</button><button class="btn" data-home="venta">Carpetas de venta</button>
         <button class="btn" data-home="pauper-meta">Meta de Pauper</button><button class="btn" data-home="tools">Todas las herramientas</button>
       </div></section>
   </div>`;
@@ -7447,6 +7588,216 @@ document.addEventListener("click", ev => {
     case "done": S.data.settings.onboarded = true; saveData(); render(); break;
   }
 });
+
+/* =========================================================
+   Bóveda EDH — Partida en vivo
+   Contador de vidas para la mesa: vida, veneno, daño de
+   comandante y turno, pensado para el teléfono al centro de la
+   mesa. Al terminar, la partida queda anotada sola (resultado,
+   turno, asientos, cómo terminó) en tus mazos y, si todos los
+   mazos son del grupo, también en la Mesa compartida.
+   ========================================================= */
+const MATCH_KEY = "boveda-edh:partida";
+S.match = S.match || (()=>{ try { return lsGet(MATCH_KEY, null); } catch { return null; } })();
+function matchSave(){ try { lsSet(MATCH_KEY, S.match); } catch {} }
+
+function matchNew(decks){
+  const isC = decks.every(d=>(d.format||"commander")==="commander");
+  S.match = {at:Date.now(), turn:1, life:isC?40:20, isC, active:0, log:[], done:null,
+    players: decks.map((d, i)=>({deck:d.id, name:d.rival ? (d.rival.owner||"Amigo") : decks.filter(x=>!x.rival).length > 1 ? d.name : (S.data.settings.nick||"Tú"), deckName:d.name, cmd:(d.commanders||[]).join(" + "), life:isC?40:20, poison:0, cd:{}, out:null, seat:i+1}))};
+  matchSave(); S.view = "match"; render(); window.scrollTo(0,0);
+}
+const matchAlive = M => M.players.filter(p=>!p.out);
+// quien queda fuera: vida 0, 10 de veneno o 21 de un mismo comandante
+function matchCheck(M, by){
+  for (const p of M.players){
+    if (p.out) continue;
+    const cmd = Object.entries(p.cd).find(([,v])=>v>=21);
+    const how = p.life<=0 ? "life" : p.poison>=10 ? "poison" : cmd ? "cmdr" : null;
+    if (how){ p.out = {how, turn:M.turn, by: how==="cmdr" ? +cmd[0] : by}; M.log.push({t:M.turn, s:`${p.name} queda fuera (${{life:"sin vida",poison:"10 de veneno",cmdr:"21 de comandante"}[how]})`}); }
+  }
+  const alive = matchAlive(M);
+  if (alive.length<=1 && !M.done){
+    const w = alive[0] || null;
+    // cómo ganó: por lo que sacó al último rival
+    const last = M.players.filter(p=>p.out).sort((a,b)=>b.out.turn-a.out.turn)[0];
+    M.done = {winner: w ? M.players.indexOf(w) : -1, turn:M.turn, how: last ? ({life:"combat", poison:"alt", cmdr:"cmdr"}[last.out.how]) : null};
+  }
+}
+function matchHTML(){
+  const M = S.match;
+  if (!M) return `<div class="sec"><h3>Partida en vivo</h3><p class="lede">Elige los mazos en “Mesa de hoy” y toca “Jugar esta mesa”.</p><button class="btn primary" data-home="mesa">Ir a Mesa de hoy</button></div>`;
+  const others = i => M.players.map((q,j)=>({q,j})).filter(x=>x.j!==i);
+  const card = (p, i) => `<section class="mt-p ${p.out?"out":""} ${M.active===i && !M.done?"act":""}" style="--seat:${i}">
+    <div class="mt-h"><b>${esc(p.name)}</b><span class="muted">${esc(p.deckName)}</span></div>
+    <div class="mt-life"><button class="mt-b" data-mt="life" data-i="${i}" data-v="-1" aria-label="Menos 1 de vida a ${esc(p.name)}" ${p.out?"disabled":""}>−</button><b class="num" aria-live="polite">${p.life}</b><button class="mt-b" data-mt="life" data-i="${i}" data-v="1" aria-label="Más 1 de vida a ${esc(p.name)}" ${p.out?"disabled":""}>+</button></div>
+    <div class="mt-row"><button class="btn sm" data-mt="life" data-i="${i}" data-v="-5" ${p.out?"disabled":""}>−5</button><button class="btn sm" data-mt="life" data-i="${i}" data-v="5" ${p.out?"disabled":""}>+5</button>
+      <span class="mt-psn">Veneno <button class="btn sm ghost" data-mt="psn" data-i="${i}" data-v="-1" aria-label="Menos veneno" ${p.out?"disabled":""}>−</button><b class="num">${p.poison}</b><button class="btn sm ghost" data-mt="psn" data-i="${i}" data-v="1" aria-label="Más veneno" ${p.out?"disabled":""}>+</button></span></div>
+    ${M.isC?`<div class="mt-cd"><small class="sc">daño de comandante recibido</small>${others(i).map(({q,j})=>`<button class="chip" data-mt="cd" data-i="${i}" data-from="${j}" ${p.out?"disabled":""} title="Toca para sumar 1 del comandante de ${esc(q.name)} (también resta 1 de vida)">${esc(String(q.cmd||q.deckName).split(/[,+]/)[0].trim().slice(0,16))} <b class="num">${p.cd[j]||0}</b></button>`).join("")}
+      ${Object.values(p.cd).some(v=>v>0)&&!p.out?`<button class="btn sm ghost" data-mt="cdundo" data-i="${i}" title="Deshacer el último daño de comandante">↶</button>`:""}</div>`:""}
+    ${p.out?`<p class="mt-out">Fuera en el turno ${p.out.turn} · ${{life:"sin vida",poison:"veneno",cmdr:"daño de comandante"}[p.out.how]} <button class="btn sm ghost" data-mt="revive" data-i="${i}">Volver</button></p>`:""}
+  </section>`;
+  const W = M.done && M.done.winner>=0 ? M.players[M.done.winner] : null;
+  return `<div class="mt">
+    <div class="mt-top"><button class="btn sm ghost" data-mt="exit">← Salir</button>
+      <div class="gm-step"><span class="muted">Turno</span><button class="btn sm" data-mt="turn" data-v="-1" aria-label="Turno anterior">−</button><b class="num">${M.turn}</b><button class="btn sm primary" data-mt="turn" data-v="1" aria-label="Siguiente turno">+</button></div>
+      <button class="btn sm ghost" data-mt="reset">Reiniciar</button></div>
+    ${M.done?`<div class="banner info mt-done"><span>${W?`<b>${esc(W.name)} gana</b> con ${esc(W.deckName)} en el turno ${M.done.turn}.`:"Nadie quedó en pie: empate."} ¿La anoto?</span>
+      <div class="row">${matchHowChips(M)}</div>
+      <div class="row"><button class="btn primary" data-mt="save" ${M.saved?"disabled":""}>${M.saved?"Anotada":"Anotar partida"}</button>${matchGroupOk(M)?`<span class="muted" style="font-size:.88rem">Todos los mazos son del grupo: queda anotada para todos.</span>`:""}</div></div>`:""}
+    <div class="mt-grid n${M.players.length}">${M.players.map(card).join("")}</div>
+    ${M.log.length?`<details class="mt-log"><summary class="muted">Historial (${M.log.length})</summary>${M.log.slice(-20).reverse().map(l=>`<div><span class="num muted">T${l.t}</span> ${esc(l.s)}</div>`).join("")}</details>`:""}
+    <p class="foot">La partida se guarda en este teléfono mientras juegas: si cierras la app, sigue donde quedó. Toca “+” en Turno al pasar a la siguiente vuelta de la mesa.</p>
+  </div>`;
+}
+function matchHowChips(M){
+  const cur = M.done.how;
+  return GAME_HOW.map(([k,es])=>`<button class="chip" data-mt="how" data-v="${k}" aria-pressed="${cur===k}">${es}</button>`).join("");
+}
+// ¿se puede anotar en el grupo? todos los mazos tienen que estar publicados allá
+function matchGroupKey(d){
+  const G = typeof grpState==="function" ? grpState() : null, doc = S.grp && S.grp.doc; if (!G || !doc) return null;
+  const k = d.rival ? (d.rival.gkey||null) : G.mid + ":" + d.id;
+  return k && Object.hasOwn(doc.decks||{}, k) ? {k, mid: doc.decks[k].mid} : null;
+}
+function matchGroupOk(M){
+  const ks = M.players.map(p=>{ const d = S.data.decks.find(x=>x.id===p.deck); return d ? matchGroupKey(d) : null; });
+  return ks.every(Boolean) && new Set(ks.map(k=>k.mid)).size === ks.length ? ks : null;
+}
+async function matchSaveGame(){
+  const M = S.match; if (!M || !M.done || M.saved) return;
+  const res = i => M.done.winner<0 ? "draw" : M.done.winner===i ? "win" : "loss";
+  const grp = matchGroupOk(M);
+  if (grp){
+    const game = {id:uid(), at:M.at, turn:M.done.turn, how:M.done.how, players: M.players.map((p,i)=>({mid:grp[i].mid, deck:grp[i].k, seat:p.seat, res:res(i)}))};
+    try { S.grp.doc = await grpCall("POST", {op:"game", game}); M.saved = true; matchSave(); render(); toast("Partida anotada para todo el grupo."); return; }
+    catch(e){ toast("No se pudo anotar en el grupo (" + e.message + "). La anoto solo en tus mazos."); }
+  }
+  // tus mazos: una partida por cada uno que jugó
+  let n = 0;
+  M.players.forEach((p, i)=>{ const d = S.data.decks.find(x=>x.id===p.deck); if (!d || d.rival) return;
+    const opp = M.players.filter((_,j)=>j!==i).map(q=>{ const od = S.data.decks.find(x=>x.id===q.deck); return od ? ((od.commanders||[]).join(" + ") || od.name) : q.deckName; });
+    S.data.games = [...(S.data.games||[]), {id:uid(), at:M.at, deck:d.id, res:res(i), turn:M.done.turn, how:M.done.how, seat:p.seat, opp, note:"partida en vivo"}]; n++; });
+  M.saved = true; matchSave(); saveData(); render();
+  toast(n ? `Partida anotada en ${n} mazo${n>1?"s":""} tuyo${n>1?"s":""}.` : "Ningún mazo es tuyo: la partida no se anotó.");
+}
+
+document.addEventListener("click", async ev => {
+  const b = ev.target.closest("[data-mt]"); if (!b) return;
+  const M = S.match; const act = b.dataset.mt; const i = +b.dataset.i, v = +b.dataset.v;
+  if (act==="play"){ const decks = typeof mesaDecks==="function" ? mesaDecks() : []; if (decks.length < 2){ toast("Elige al menos dos mazos en Mesa de hoy."); return; }
+    if (S.match && !S.match.done && !confirm("Hay una partida en curso. ¿Empezar otra?")) { S.view = "match"; render(); return; }
+    matchNew(decks); return; }
+  if (act==="resume"){ S.view = "match"; render(); window.scrollTo(0,0); return; }
+  if (!M) return;
+  const p = M.players[i];
+  if (act==="exit"){ S.view = "commander"; S.showMeta.commander = "local"; render(); return; }
+  if (act==="reset"){ if (!confirm("¿Borrar esta partida y volver a empezar con los mismos mazos?")) return; const decks = M.players.map(q=>S.data.decks.find(x=>x.id===q.deck)).filter(Boolean); if (decks.length>=2) matchNew(decks); else { S.match = null; matchSave(); render(); } return; }
+  if (act==="turn"){ M.turn = Math.max(1, Math.min(40, M.turn + v)); if (M.done && !M.saved) M.done.turn = M.turn; }
+  else if (act==="life" && p && !p.out){ p.life += v; if (v<0) M.log.push({t:M.turn, s:`${p.name} ${v} de vida (${p.life})`}); matchCheck(M); }
+  else if (act==="psn" && p && !p.out){ p.poison = Math.max(0, p.poison + v); matchCheck(M); }
+  else if (act==="cd" && p && !p.out){ const f = +b.dataset.from; p.cd[f] = (p.cd[f]||0) + 1; p.life -= 1; p.cdLast = f; M.log.push({t:M.turn, s:`${M.players[f].name} pega 1 de comandante a ${p.name} (${p.cd[f]})`}); matchCheck(M, f); }
+  else if (act==="cdundo" && p && p.cdLast!=null && p.cd[p.cdLast]){ p.cd[p.cdLast]--; p.life++; p.cdLast = null; }
+  else if (act==="revive" && p){ p.out = null; if (p.life<=0) p.life = 1; if (p.poison>=10) p.poison = 9; for (const k of Object.keys(p.cd)) if (p.cd[k]>=21) p.cd[k] = 20; if (!M.saved) M.done = null; }
+  else if (act==="how" && M.done){ M.done.how = M.done.how===b.dataset.v ? null : b.dataset.v; }
+  else if (act==="save"){ await matchSaveGame(); return; }
+  matchSave(); render();
+});
+
+/* =========================================================
+   Bóveda EDH — Preguntar al juez
+   Dudas de reglas con respuesta anclada en las Reglas Completas
+   (con número de regla) y en los fallos oficiales de cada carta
+   que publica Scryfall. En la versión web usa tu sesión de Claude;
+   en la versión en vivo, tu clave de API o el chat de Claude.
+   ========================================================= */
+S.judge = S.judge || {q:"", cards:"", busy:false, ctx:null};
+
+// cartas que se nombran en la pregunta: las escritas en el campo, más las que están entre comillas o [[corchetes]]
+function judgeCards(q, extra){
+  const out = new Set(String(extra||"").split(/[,;\n]/).map(x=>x.trim()).filter(Boolean));
+  for (const m of String(q).matchAll(/\[\[([^\]]{2,60})\]\]|["“]([^"”]{2,60})["”]/g)) out.add((m[1]||m[2]).trim());
+  return [...out].slice(0, 6);
+}
+// texto oficial y fallos de Scryfall (en la versión web no se puede: se usa lo que se sabe de cada carta)
+async function judgeContext(names){
+  const out = [];
+  for (const n of names){
+    const c = {n, oracle:"", rulings:[]};
+    if (!isWebView()){
+      try { const r = await sf("https://api.scryfall.com/cards/named?fuzzy=" + encodeURIComponent(n)); if (r.ok){ const j = await r.json(); c.n = j.name;
+        c.oracle = j.oracle_text != null ? j.oracle_text : (j.card_faces||[]).map(f=>`${f.name}: ${f.oracle_text||""}`).join("\n//\n"); c.type = j.type_line;
+        if (j.rulings_uri){ const rr = await sf(j.rulings_uri); if (rr.ok){ const jr = await rr.json(); c.rulings = (jr.data||[]).slice(0, 12).map(x=>({d:x.published_at, t:x.comment})); } } } } catch {}
+    }
+    out.push(c);
+  }
+  return out;
+}
+function judgePrompt(q, ctx){
+  return `Eres un juez de Magic: The Gathering (nivel 2) que responde en español de Chile, claro y breve.
+Pregunta del jugador:
+${q}
+
+${ctx.length ? `Cartas involucradas${ctx.some(c=>c.oracle) ? " (texto Oracle y fallos oficiales de Scryfall)" : ""}:
+${ctx.map(c=>`### ${c.n}${c.type?` — ${c.type}`:""}\n${c.oracle||"(usa el texto Oracle que conoces)"}${c.rulings.length?`\nFallos:\n${c.rulings.map(r=>`- (${r.d}) ${r.t}`).join("\n")}`:""}`).join("\n\n")}
+` : ""}
+Responde con este formato (usa "## " para los títulos):
+## Respuesta corta
+Una o dos frases con la respuesta directa.
+## Por qué
+La explicación paso a paso, en el orden en que ocurren las cosas (pila, prioridad, efectos de reemplazo, capas si aplica).
+## Reglas citadas
+Viñetas con el número exacto de las Reglas Completas (por ejemplo 903.9a, 704.5k, 613.1) y qué dice cada una en una línea.
+## Fallos de las cartas
+Solo si alguno de los fallos de arriba aplica, cítalo con su fecha.
+Si en Commander hay una regla especial (zona de mando, daño de comandante, identidad de color), menciónala. Si la respuesta depende de algo que falta en la pregunta, dilo y responde los casos. No inventes números de regla: si no estás seguro de uno, dilo.`;
+}
+function judgeHTML(){
+  const J = S.judge, hist = (S.data.judgeLog||[]);
+  const canRun = isWebView() || S.data.settings.aiKey;
+  return `<div class="fmt-head"><h2>Preguntar al juez</h2><span class="muted">Dudas de reglas respondidas con los números de las Reglas Completas y los fallos oficiales de cada carta.</span></div>
+  <div class="sec jz">
+    <div class="field"><label for="jz-q">Tu pregunta</label><textarea id="jz-q" style="min-height:110px" placeholder="Ej.: Si mi comandante va al exilio con Swords to Plowshares, ¿puedo devolverlo a la zona de mando? ¿Cuánto cuesta lanzarlo otra vez?">${esc(J.q)}</textarea></div>
+    <div class="field"><label for="jz-cards">Cartas involucradas (opcional)</label><input type="text" id="jz-cards" placeholder="Separadas por coma, en inglés: Swords to Plowshares, Hakbal of the Surging Soul" value="${esc(J.cards)}" autocomplete="off">
+      <span class="foot">También reconozco las que escribas entre comillas o [[corchetes]]. ${isWebView()?"":"Traigo su texto Oracle y sus fallos desde Scryfall."}</span></div>
+    <div class="row">${canRun ? `<button class="btn primary" data-jz="ask" ${J.busy?"disabled":""}>${J.busy?"El juez está pensando…":"Preguntar"}</button>` : ""}
+      ${isWebView() ? "" : `<a class="btn ${canRun?"":"primary"}" data-jz="chat" href="https://claude.ai/new" target="_blank" rel="noopener">Abrir en Claude</a><button class="btn sm ghost" data-jz="copy">Solo copiar la consulta</button>`}</div>
+    ${!canRun && !isWebView() ? `<p class="foot">“Abrir en Claude” copia la pregunta con el texto y los fallos de las cartas y abre un chat nuevo (sin costo extra). Con una clave de API en Ajustes, la respuesta aparece aquí.</p>` : ""}
+  </div>
+  ${hist.length ? `<div class="sec"><h3>Respuestas</h3>${hist.map((h,i)=>`<details class="jz-a" ${i===0?"open":""}><summary><b>${esc(h.q.slice(0,120))}${h.q.length>120?"…":""}</b> <span class="muted" style="font-size:.85rem">${new Date(h.at).toLocaleDateString("es-CL",{day:"numeric",month:"short"})}</span></summary>
+      <div class="md">${mdLite(h.a)}</div>${h.cards && h.cards.length ? `<p class="foot">Cartas: ${h.cards.map(n=>`<a href="${SF_CARD(n)}" target="_blank" rel="noopener">${esc(n)}</a>`).join(", ")}</p>` : ""}
+      <div class="row"><button class="btn sm ghost" data-jz="del" data-i="${i}">Borrar</button></div></details>`).join("")}
+    <p class="foot">Las respuestas las escribe Claude a partir de las reglas: en un torneo, el juez presente tiene la última palabra. Reglas Completas: <a href="https://magic.wizards.com/es/rules" target="_blank" rel="noopener">magic.wizards.com/rules</a>.</p></div>` : ""}`;
+}
+async function judgeRun(mode, link){
+  const J = S.judge; J.q = (($("#jz-q")||{}).value||"").trim(); J.cards = (($("#jz-cards")||{}).value||"").trim();
+  if (J.q.length < 8){ toast("Escribe la pregunta de reglas."); return null; }
+  const names = judgeCards(J.q, J.cards);
+  if (mode === "chat" || mode === "copy"){
+    // el enlace se abre al tocar: se copia la consulta con lo que ya se sabe (sin esperar a Scryfall)
+    const ctx = names.map(n=>({n, oracle:"", rulings:[]}));
+    const p = judgePrompt(J.q, ctx); if (link) link.href = claudeChatURL(p);
+    try { await navigator.clipboard.writeText(p); toast(mode==="chat" ? "Consulta copiada. Si el chat aparece vacío, pégala." : "Consulta copiada."); } catch { if (mode==="copy") copyText(p); }
+    return null;
+  }
+  J.busy = true; render();
+  try {
+    const ctx = await judgeContext(names);
+    const a = await askClaude(judgePrompt(J.q, ctx), {max:2000});
+    S.data.judgeLog = [{at:Date.now(), q:J.q, a, cards:ctx.map(c=>c.n)}, ...(S.data.judgeLog||[])].slice(0, 15); saveData();
+    J.q = ""; J.cards = "";
+  } catch(e){ toast(typeof aiErrText==="function" ? aiErrText(e) : "El juez no pudo responder."); }
+  finally { J.busy = false; render(); }
+}
+document.addEventListener("click", async ev => {
+  const b = ev.target.closest("[data-jz]"); if (!b) return;
+  const act = b.dataset.jz;
+  if (act==="ask"){ await judgeRun("ask"); return; }
+  if (act==="chat"){ await judgeRun("chat", b); return; }
+  if (act==="copy"){ await judgeRun("copy"); return; }
+  if (act==="del"){ const i = +b.dataset.i; S.data.judgeLog = (S.data.judgeLog||[]).filter((_,j)=>j!==i); saveData(); render(); return; }
+});
+document.addEventListener("input", e => { if (e.target.id==="jz-q") S.judge.q = e.target.value; if (e.target.id==="jz-cards") S.judge.cards = e.target.value; });
 
 </script>
 </body>

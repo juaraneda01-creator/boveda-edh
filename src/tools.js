@@ -20,6 +20,7 @@ const ICON = {
   file:'<path d="M6 2h8l5 5v15H6z"/><path d="M14 2v5h5M9 13h7M9 17h7"/>',
   bell:'<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   star:'<path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/>',
+  gavel:'<path d="M14 4l6 6M11 7l6 6M12.5 5.5l-5 5M18.5 11.5l-5 5M9 12l-6 6 2 2 6-6"/><path d="M4 21h9"/>',
   mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
 };
 const icon = k => `<svg class="ti" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICON[k]||""}</svg>`;
@@ -37,6 +38,7 @@ const TOOLS = [
   {k:"pdf", i:"file", t:"Exportar informe PDF", d:"Decklist y análisis listos para imprimir o guardar como PDF."},
   {k:"vigilancias", i:"bell", t:"Vigilancias de precio", d:"Te avisa cuando una carta baja al precio que le pongas. Sin límite."},
   {k:"novedades", i:"star", t:"Novedades para tus mazos", d:"Qué cartas de los sets nuevos encajan en cada uno de tus mazos."},
+  {k:"juez", i:"gavel", t:"Preguntar al juez", d:"Dudas de reglas respondidas con los números de las Reglas Completas y los fallos oficiales de cada carta."},
   {k:"semanal", i:"mail", t:"Resumen semanal", d:"Subidas, bajadas, cambios y novedades de la semana, para leer o enviarte por correo."},
 ];
 function toolsHubHTML(){
@@ -71,6 +73,7 @@ function openTool(k){
   if (k==="vigilancias"){ S.view="market"; S.marketTab="busqueda"; render(); return; }
   if (k==="novedades"){ S.view="news"; render(); return; }
   if (k==="semanal"){ S.view="weekly"; render(); return; }
+  if (k==="juez"){ S.view="judge"; render(); window.scrollTo(0,0); setTimeout(()=>{ const el=$("#jz-q"); if (el) el.focus(); }, 50); return; }
 }
 
 /* ---------- Claude (API con clave propia) ---------- */
@@ -330,36 +333,71 @@ function gfAct(a){
 }
 
 /* ---------- Constructor guiado ---------- */
+const BLD_INTER = {low:{es:"Poca", removal:5, wipe:1, counter:0}, mid:{es:"Normal", removal:8, wipe:3, counter:1}, high:{es:"Mucha", removal:11, wipe:4, counter:4}};
 function builderBlockHTML(){
-  const b=S.bldBudget||"10";
+  const b=S.bldBudget||"10", it=S.bldInter||"mid", br=S.bldBr||0, th=S.bldTheme||"";
+  const E = S.bldCmdKey && S.edh[S.bldCmdKey];
   return `<div class="card-box bld"><h3>Constructor guiado</h3>
-    <p class="muted" style="margin:0">Escribe el comandante y arma un borrador de 99 cartas con lo que más se juega en EDHREC: 10 de ramp, 10 de robo, 8 de removal, 3 barridos, 3 de protección, el resto de sinergia y 36 tierras. Prioriza lo que ya tienes y respeta tu presupuesto. Después puedes editarlo antes de guardar.</p>
+    <p class="muted" style="margin:0">Escribe el comandante y arma un borrador de 99 cartas con lo que más se juega en EDHREC: ramp, robo, interacción según el nivel que elijas, protección, sinergia y 36 tierras. Prioriza lo que ya tienes, respeta tu presupuesto y el bracket que buscas. Después puedes editarlo antes de guardar.</p>
     <div class="row" style="align-items:flex-end">
       <div class="field" style="flex:1;min-width:220px"><label for="bld-cmd">Comandante</label><input type="text" id="bld-cmd" placeholder="Ej.: Atraxa, Praetors' Voice" value="${esc(S.bldCmd||"")}"></div>
       <label class="row" style="gap:6px;padding-bottom:8px"><input type="checkbox" id="bld-own" ${S.bldOwn===false?"":"checked"}> Priorizar mi colección</label>
     </div>
+    <div class="field"><label for="bld-theme">Estrategia (opcional)</label><input type="text" id="bld-theme" list="bld-themes" placeholder="Ej.: tokens, +1/+1 counters, aristocrats" value="${esc(th)}" autocomplete="off">
+      ${E && E.themes && E.themes.length ? `<datalist id="bld-themes">${E.themes.map(t=>`<option value="${esc(t.v)}">`).join("")}</datalist><div class="chips" style="margin-top:6px">${E.themes.slice(0,8).map(t=>`<button type="button" class="chip" data-t="bld-theme" data-v="${esc(t.v)}" aria-pressed="${slug(th)===slug(t.v)}">${esc(t.v)}</button>`).join("")}</div>` : `<span class="foot">Los temas de EDHREC de tu comandante aparecen aquí después del primer borrador.</span>`}</div>
+    <div class="field"><label>Interacción</label><div class="chips">${Object.entries(BLD_INTER).map(([k,v])=>`<button type="button" class="chip" data-t="bld-inter" data-v="${k}" aria-pressed="${it===k}">${v.es}</button>`).join("")}</div></div>
+    <div class="field"><label>Bracket buscado</label><div class="chips">${[[0,"Sin límite"],[2,"2 · Básico"],[3,"3 · Mejorado"],[4,"4 · Optimizado"]].map(([k,l])=>`<button type="button" class="chip" data-t="bld-br" data-v="${k}" aria-pressed="${br===k}">${l}</button>`).join("")}</div>
+      <span class="foot">Bracket 2: sin Game Changers, turnos extra ni destrucción de tierras. Bracket 3: hasta 3 Game Changers.</span></div>
     <div class="field"><label>Presupuesto por carta</label><div class="chips">${[["own","Solo mi colección"],["2","Hasta US$2"],["10","Hasta US$10"],["inf","Sin límite"]].map(([k,l])=>`<button type="button" class="chip" data-t="bld-budget" data-v="${k}" aria-pressed="${b===k}">${l}</button>`).join("")}</div></div>
+    <div class="field"><label for="bld-excl">No incluir (opcional)</label><input type="text" id="bld-excl" placeholder="Cartas separadas por coma: Cyclonic Rift, Rhystic Study" value="${esc(S.bldExcl||"")}" autocomplete="off"></div>
     <div class="row"><button type="button" class="btn primary" data-t="bld-run" ${S.busy?"disabled":""}>Armar borrador</button><span class="foot">O escribe tu lista a mano abajo (constructor libre).</span></div></div>`;
+}
+// páginas de tema de EDHREC (p. ej. /commanders/atraxa-praetors-voice/counters): otra lista de cartas para esa estrategia
+async function loadEdhrecTheme(E, theme){
+  const t = (E.themes||[]).find(x=>slug(x.v)===slug(theme) || slug(x.s||"")===slug(theme)) || (E.themes||[]).find(x=>slug(x.v).includes(slug(theme)) || slug(theme).includes(slug(x.v)));
+  if (!t || !t.s) return null;
+  const key = E.slug + "/" + t.s; if (S.edh[key] && Date.now()-S.edh[key].at < 7*864e5) return S.edh[key];
+  try {
+    const r = await fetch(`https://json.edhrec.com/pages/commanders/${E.slug}/${t.s.split("/").pop()}.json`); if (!r.ok) return null;
+    const j = await r.json(); const jd = (j.container && j.container.json_dict) || {}; const pool = new Map();
+    for (const l of jd.cardlists||[]) for (const v of l.cardviews||[]){ const pot = v.potential_decks||0; const incl = pot ? (v.num_decks!=null?v.num_decks:(v.inclusion||0))/pot : null; const rec = {n:v.name, incl, syn:v.synergy!=null?v.synergy:null}; const p = pool.get(slug(v.name)); if (!p || (rec.incl||0)>(p.incl||0)) pool.set(slug(v.name), rec); }
+    const out = {at:Date.now(), slug:E.slug, theme:t.v, themes:E.themes, pool:[...pool.values()]};
+    S.edh[key] = out; saveCaches(); await fetchCards(out.pool.map(c=>c.n), {quiet:true}); return out;
+  } catch { return null; }
 }
 async function runBuilder(){
   const cmd=($("#bld-cmd").value||"").trim(); S.bldCmd=cmd; S.bldOwn=$("#bld-own").checked;
+  S.bldTheme = (($("#bld-theme")||{}).value||"").trim(); S.bldExcl = (($("#bld-excl")||{}).value||"").trim();
   if (!cmd){ toast("Escribe el nombre del comandante."); return; }
   await fetchCards([cmd],{label:"Buscando el comandante"});
   const cm=cardOf(cmd); if (!cm){ toast("No encontré ese comandante en Scryfall. Revisa el nombre en inglés."); return; }
   const ci=cm.ci||""; const tmp={commanders:[cm.n]};
-  const E=await loadEdhrec(tmp,false); if (!E){ return; }
+  let E=await loadEdhrec(tmp,false); if (!E){ return; }
+  S.bldCmdKey = edhSlug(cm.n);
+  let themeUsed = null;
+  if (S.bldTheme){ const T = await loadEdhrecTheme(E, S.bldTheme); if (T && T.pool.length >= 60){ themeUsed = T.theme; const base = new Map(E.pool.map(p=>[slug(p.n), p])); E = {...E, pool:[...T.pool.map(p=>({...p, syn:(p.syn||0)+0.15})), ...E.pool.filter(p=>!T.pool.some(x=>slug(x.n)===slug(p.n)))]}; } else toast(`No encontré el tema “${S.bldTheme}” en EDHREC para este comandante: armo el borrador general.`); }
   const budget=S.bldBudget||"10", cap=budget==="2"?2:budget==="10"?10:Infinity, own=S.bldOwn!==false;
+  const inter = BLD_INTER[S.bldInter||"mid"], br = S.bldBr||0;
+  const excl = new Set(S.bldExcl.split(",").map(x=>slug(x.trim())).filter(Boolean));
   const inCI = m => !(m.ci||"").split("").some(c=>WUBRG.includes(c)&&!ci.includes(c));
-  const pool = E.pool.map(p=>({...p, m:cardOf(p.n)})).filter(p=>p.m && !p.m.basic && inCI(p.m) && (!p.m.lg || p.m.lg.commander==="legal") && slug(p.m.n)!==slug(cm.n)).map(p=>{
+  // lo que el bracket no permite
+  const brOk = m => !(br && br<=2 && (m.gc || m.xt || m.mld)) && !(br===3 && (m.xt || m.mld));
+  const pool = E.pool.map(p=>({...p, m:cardOf(p.n)})).filter(p=>p.m && !p.m.basic && inCI(p.m) && (!p.m.lg || p.m.lg.commander==="legal") && slug(p.m.n)!==slug(cm.n) && !excl.has(slug(p.m.n)) && !excl.has(slug(p.n)) && brOk(p.m)).map(p=>{
     const has=ownedOf(p.n)>0, pr=refPrice(p.m);
     const okBudget = budget==="own" ? has : (has || pr==null || pr<=cap);
     return {...p, has, pr, ok:okBudget, score:(p.incl||0)*100 + Math.max(0,p.syn||0)*60 + (own&&has?30:0)};
   }).filter(p=>p.ok).sort((a,b)=>b.score-a.score);
-  const chosen=new Map(); const take = p => { if (!chosen.has(slug(p.m.n))) chosen.set(slug(p.m.n), p); };
+  const chosen=new Map(); let gcN = 0; const gcMax = br===3 ? 3 : br===2 ? 0 : Infinity;
+  const take = p => { if (chosen.has(slug(p.m.n))) return false; if (p.m.gc){ if (gcN>=gcMax) return false; gcN++; } chosen.set(slug(p.m.n), p); return true; };
   const spells=pool.filter(p=>p.m.t!=="Land");
-  for (const [role,n] of [["ramp",10],["draw",10],["removal",8],["wipe",3],["protection",3]]){ let k=0; for (const p of spells){ if (k>=n) break; if ((p.m.r||[]).includes(role) && !chosen.has(slug(p.m.n))){ take(p); k++; } } }
-  for (const p of spells){ if (chosen.size>=63) break; take(p); }
-  const nonbasic = pool.filter(p=>p.m.t==="Land").slice(0, ci.length<=1?6:14);
+  const isCounter = m => (m.rf||[]).includes("counter") || (m.sb||[]).includes("counter");
+  const quotas = [["ramp",10],["draw",10],["counter",inter.counter],["removal",inter.removal],["wipe",inter.wipe],["protection",3]];
+  for (const [role,n] of quotas){ let k=0; for (const p of spells){ if (k>=n) break; const fits = role==="counter" ? isCounter(p.m) : (p.m.r||[]).includes(role); if (fits && take(p)) k++; } }
+  // poca interacción: el resto no se llena con más removal
+  const interN = [...chosen.values()].filter(p=>(p.m.r||[]).includes("removal")||(p.m.r||[]).includes("wipe")||isCounter(p.m)).length, interMax = inter.removal + inter.wipe + inter.counter + 2;
+  for (const p of spells){ if (chosen.size>=63) break; const isInt = (p.m.r||[]).includes("removal")||(p.m.r||[]).includes("wipe")||isCounter(p.m); if (isInt && interN >= interMax && !chosen.has(slug(p.m.n))) continue; take(p); }
+  const nonbasic = pool.filter(p=>p.m.t==="Land").slice(0, ci.length<=1?6:14).filter(p=>take(p) || chosen.has(slug(p.m.n)));
+  for (const p of nonbasic) chosen.delete(slug(p.m.n));
   const landsN=36, basicsN=Math.max(0, landsN-nonbasic.length);
   const pips={W:0,U:0,B:0,R:0,G:0}; for (const p of chosen.values()) for (const s of (p.m.cost||"").match(/\{[^}]+\}/g)||[]) for (const c of WUBRG) if (s.includes(c)) pips[c]++;
   const cols=ci.split("").filter(c=>WUBRG.includes(c)); const BN={W:"Plains",U:"Island",B:"Swamp",R:"Mountain",G:"Forest"};
@@ -367,10 +405,10 @@ async function runBuilder(){
   cols.forEach((c,i)=>{ const q = i===cols.length-1 ? left : Math.round(basicsN*(pips[c]||1)/tot); basics.push([BN[c],q]); left-=q; });
   if (!cols.length) basics.push(["Wastes",basicsN]);
   const lines=[...[...chosen.values()].map(p=>`1 ${p.m.n}`), ...nonbasic.map(p=>`1 ${p.m.n}`), ...basics.filter(b=>b[1]>0).map(([n,q])=>`${q} ${n}`)];
-  $("#f-list").value=lines.join("\n"); if ($("#f-cmd")) $("#f-cmd").value=cm.n; if (!$("#f-name").value.trim()) $("#f-name").value=`${cm.n.split(",")[0]} (borrador)`;
+  $("#f-list").value=lines.join("\n"); if ($("#f-cmd")) $("#f-cmd").value=cm.n; if (!$("#f-name").value.trim()) $("#f-name").value=`${cm.n.split(",")[0]}${themeUsed?` ${themeUsed}`:""} (borrador)`;
   const nOwn=[...chosen.values(), ...nonbasic].filter(p=>p.has).length; const cost=[...chosen.values(), ...nonbasic].filter(p=>!p.has).reduce((a,p)=>a+(p.pr||0),0);
-  renderEditorPreview();
-  toast(`Borrador listo: ${chosen.size} hechizos y ${landsN} tierras. ${nOwn} ya las tienes; comprar el resto cuesta ~${money(cost)}.${chosen.size<63?" EDHREC no tenía suficientes cartas en tu presupuesto: completa a mano.":""}`);
+  render(); renderEditorPreview();
+  toast(`Borrador listo${themeUsed?` (${themeUsed})`:""}: ${chosen.size} hechizos y ${landsN} tierras${gcN?`, ${gcN} Game Changer${gcN>1?"s":""}`:""}. ${nOwn} ya las tienes; comprar el resto cuesta ~${money(cost)}.${chosen.size<63?" EDHREC no tenía suficientes cartas con esas condiciones: completa a mano.":""}`);
 }
 
 /* ---------- Mesa local ---------- */
@@ -626,6 +664,9 @@ document.addEventListener("click", async ev=>{
       break; }
     case "bld-budget": S.bldBudget=b.dataset.v; for (const x of document.querySelectorAll('[data-t="bld-budget"]')) x.setAttribute("aria-pressed", x.dataset.v===S.bldBudget); break;
     case "bld-run": await runBuilder(); break;
+    case "bld-inter": S.bldInter=b.dataset.v; for (const x of document.querySelectorAll('[data-t="bld-inter"]')) x.setAttribute("aria-pressed", x.dataset.v===S.bldInter); break;
+    case "bld-br": S.bldBr=+b.dataset.v; for (const x of document.querySelectorAll('[data-t="bld-br"]')) x.setAttribute("aria-pressed", +x.dataset.v===S.bldBr); break;
+    case "bld-theme": { S.bldTheme = S.bldTheme===b.dataset.v ? "" : b.dataset.v; const el=$("#bld-theme"); if (el) el.value=S.bldTheme; for (const x of document.querySelectorAll('[data-t="bld-theme"]')) x.setAttribute("aria-pressed", x.dataset.v===S.bldTheme); break; }
     case "local-fetch": await fetchCards(S.data.decks.filter(x=>x.rival).flatMap(allNames),{label:"Trayendo datos de los mazos de tus amigos"}); break;
     case "local-del": S.data.decks=S.data.decks.filter(x=>x.id!==b.dataset.v); saveData(); render(); break;
     case "local-add": { const list=$("#lr-list").value; const p=parseList(list); const nx=splitDeck(p,"commander",[]);
@@ -660,7 +701,7 @@ document.addEventListener("change", e=>{
   if (id==="v-a"){ S.vA=+e.target.value; render(); }
   if (id==="v-b"){ S.vB=+e.target.value; render(); }
 });
-document.addEventListener("input", e=>{ if (e.target.id==="ia-notes") S.iaNotes=e.target.value; if (e.target.id==="bld-cmd") S.bldCmd=e.target.value; });
+document.addEventListener("input", e=>{ if (e.target.id==="ia-notes") S.iaNotes=e.target.value; if (e.target.id==="bld-cmd") S.bldCmd=e.target.value; if (e.target.id==="bld-theme") S.bldTheme=e.target.value; if (e.target.id==="bld-excl") S.bldExcl=e.target.value; });
 
 /* ---------- arranque de las herramientas ---------- */
 (function(){

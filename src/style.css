@@ -607,6 +607,7 @@ body.web [data-act="fetch-meta"],body.web [data-act="fetch-meta-all"],body.web [
 .rp-br{display:grid;gap:6px;justify-items:start}
 .rp-br-row{display:flex;gap:8px}
 .rp-br-row div{border:1px solid var(--line);border-radius:10px;padding:6px 18px;text-align:center;display:grid;background:var(--bg)}
+.rp-axes{font-size:.9rem;max-width:34ch}.rp-axes summary{cursor:pointer;min-height:32px;display:flex;align-items:center;gap:6px}.rp-axes p{margin:.3em 0}
 .rp-br-row b{font-size:1.9rem;line-height:1.1;color:var(--accent)}
 .rp-row2{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px}
 .rp-card{border:1px solid var(--line);border-radius:16px;background:var(--surface);padding:16px;display:grid;gap:10px;align-content:start}
@@ -739,3 +740,27 @@ body.web [data-act="fetch-meta"],body.web [data-act="fetch-meta-all"],body.web [
 .grp-code{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 8px}
 .grp-seats{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center}
 @media (max-width:640px){.grp-two{grid-template-columns:1fr}}
+
+/* ---------- partida en vivo ---------- */
+.mt{display:grid;gap:12px}
+.mt-top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.mt-grid{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.mt-grid.n2{grid-template-columns:minmax(0,1fr)}
+@media (min-width:700px){.mt-grid.n2{grid-template-columns:repeat(2,minmax(0,1fr))}.mt-grid.n3,.mt-grid.n5,.mt-grid.n6{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.mt-p{border:1px solid var(--line);border-radius:14px;padding:10px;background:var(--surface);display:grid;gap:8px;min-width:0}
+.mt-p.act{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.mt-p.out{opacity:.55}
+.mt-h{display:grid;gap:0;min-width:0}.mt-h b{font-size:1.05rem}.mt-h span{font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mt-life{display:grid;grid-template-columns:48px 1fr 48px;align-items:center;text-align:center}
+.mt-life b{font-size:clamp(2.2rem,11vw,3.4rem);line-height:1}
+.mt-b{min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--bg);font-size:1.6rem;color:var(--ink);cursor:pointer}
+.mt-b:disabled{opacity:.4}
+.mt-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.mt-psn{display:inline-flex;align-items:center;gap:2px;margin-left:auto;font-size:.88rem}
+.mt-cd{display:flex;gap:4px;flex-wrap:wrap;align-items:center}.mt-cd small{width:100%}
+.mt-cd .chip{min-height:36px}
+.mt-out{margin:0;font-size:.88rem}
+.mt-done{display:grid;gap:8px}
+.mt-log div{font-size:.88rem;padding:2px 0}
+.jz-a{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--surface)}
+.jz-a summary{cursor:pointer;min-height:32px}

@@ -66,8 +66,55 @@ function comboEngine(rows){
 
 /* ---------- evaluación ---------- */
 const clamp10 = x => Math.max(0, Math.min(10, x));
+// el nivel se calcula una vez por análisis (y por ajustes que lo cambian): la tabla, la mesa y el grupo lo piden muchas veces
+const _pwMemo = new WeakMap();
 function powerOf(d, A){
   A = A || analyze(d);
+  const st = (S.data && S.data.settings) || {};
+  const key = [S.noCal?1:0, S.noFit?1:0, st.cedhCal ? st.cedhCal.at+":"+st.cedhCal.k : 0, st.csFit && st.csFit.on ? st.csFit.a+":"+st.csFit.b : 0, S.salt ? S.salt.at||1 : 0, d.combos ? (d.combos.at||1)+":"+(d.combos.inc||[]).length : 0, S.td && S.td.data ? S.td.data.at : 0].join("|");
+  const hit = _pwMemo.get(A); if (hit && hit.key === key && hit.d === d) return hit.P;
+  const P = powerOfRaw(d, A); _pwMemo.set(A, {key, d, P}); return P;
+}
+// staples de torneo: las más jugadas en TopDeck.gg (si se cargaron) y la lista fija de piezas cEDH
+function stapleSet(){
+  const k = S.td && S.td.data ? S.td.data.at : 0; if (stapleSet._k === k && stapleSet._v) return stapleSet._v;
+  const s = new Set(Object.values(typeof CEDH_STAPLES!=="undefined" ? CEDH_STAPLES : {}).flat().map(slug));
+  for (const [n, p] of (S.td && S.td.data && S.td.data.staples) || []) if (p >= 8) s.add(slug(n));
+  stapleSet._k = k; return (stapleSet._v = s);
+}
+// bracket por dos ejes, como CommanderBracket: velocidad (en qué turno amenaza ganar) y deformación de la partida
+// (stax, destrucción masiva de tierras, cadenas de turnos extra, interacción gratis). Manda el más alto.
+const SPEED_TURNS = [[10,1],[8,2],[6,3],[4,4]];
+function axesOf(d, A, x){
+  const {sim, c2, fast, stax, free, cedh} = x;
+  let t = sim && sim.winAvg ? sim.winAvg : null; const why = [];
+  if (t != null) why.push(`remate lanzable en el turno ${t.toFixed(1).replace(".",",")}`);
+  // un combo de 2 cartas con tutores adelanta la amenaza aunque el remate normal llegue tarde
+  if ((c2||0) >= 1 && A.tutors.length >= 3){ const ct = Math.max(3, 7 - A.tutors.length*0.35 - fast*0.3); if (t == null || ct < t){ t = ct; why.push(`combo de 2 cartas con ${A.tutors.length} tutores (≈ turno ${ct.toFixed(1).replace(".",",")})`); } }
+  let speed = t == null ? 2 : (SPEED_TURNS.find(([lim])=>t >= lim) || [0, 4])[1];
+  if (t != null && t < 4 && cedh) speed = 5;
+  const w = []; let warp = 1;
+  if (A.mld.length){ warp = Math.max(warp, 4); w.push(`destrucción masiva de tierras (${A.mld.slice(0,2).join(", ")})`); }
+  if (A.xt.length >= 2 || (A.xt.length && A.tutors.length >= 3)){ warp = Math.max(warp, 4); w.push(`turnos extra encadenables (${A.xt.slice(0,2).join(", ")})`); }
+  else if (A.xt.length){ warp = Math.max(warp, 3); w.push(`un turno extra (${A.xt[0]})`); }
+  if (stax >= 3){ warp = Math.max(warp, 4); w.push(`${stax} piezas de stax`); } else if (stax){ warp = Math.max(warp, 3); w.push(`${stax} pieza${stax>1?"s":""} de stax`); }
+  if (free >= 3){ warp = Math.max(warp, 4); w.push(`${free} hechizos de interacción gratis`); } else if (free){ warp = Math.max(warp, 3); w.push(`${free} de interacción gratis`); }
+  if (cedh && warp >= 4 && speed >= 4) speed = 5;
+  if (!w.length) w.push("nada que deforme la partida (el removal y los contrahechizos normales no cuentan)");
+  return {speed, warp, b: Math.max(speed, warp), turn: t, speedWhy: why.join("; ") || "sin remate detectado", warpWhy: w.join("; ")};
+}
+// ajuste lineal (mínimos cuadrados) del nivel a los valores de Commandersalt que anotaste en tus mazos
+function csFitCompute(){
+  const pts = S.data.decks.filter(d=>d.format==="commander" && d.csRef && d.csRef.p).map(d=>{ S.noFit = true; try { return [powerOf(d, analyze(d)).abs, +d.csRef.p, d.name]; } finally { S.noFit = false; } });
+  if (pts.length < 3) return {err:`Anota el nivel de Commandersalt en al menos 3 mazos (tienes ${pts.length}).`};
+  const n = pts.length, mx = pts.reduce((a,p)=>a+p[0],0)/n, my = pts.reduce((a,p)=>a+p[1],0)/n;
+  const sxx = pts.reduce((a,p)=>a+(p[0]-mx)**2,0), sxy = pts.reduce((a,p)=>a+(p[0]-mx)*(p[1]-my),0);
+  if (sxx < 0.25) return {err:"Tus mazos con referencia tienen niveles muy parecidos: agrega uno más bajo o más alto para ajustar la pendiente."};
+  const a = Math.max(0.5, Math.min(2, sxy/sxx)), b = my - a*mx;
+  const err0 = Math.sqrt(pts.reduce((s,p)=>s+(p[0]-p[1])**2,0)/n), err1 = Math.sqrt(pts.reduce((s,p)=>s+(a*p[0]+b-p[1])**2,0)/n);
+  return {a:Math.round(a*1000)/1000, b:Math.round(b*1000)/1000, n, err0:Math.round(err0*100)/100, err1:Math.round(err1*100)/100, at:Date.now(), on:true, pts:pts.map(p=>({n:p[2], x:Math.round(p[0]*100)/100, y:p[1]}))};
+}
+function powerOfRaw(d, A){
   const sim = simulate(d, A);
   const rows = [...A.rows, ...A.cmdMeta.filter(Boolean).map(m=>({n:m.n, q:1, m, cmd:true}))].filter(r=>r.m);
   const cnt = f => rows.filter(r=>f(r.m, r)).reduce((a,r)=>a+r.q,0);
@@ -110,7 +157,10 @@ function powerOf(d, A){
   // calibración con listas de torneo: estira solo el tramo sobre 8 de la base; lo que suman o restan los combos va aparte, sin estirar
   const cal = !S.noCal && S.data && S.data.settings && S.data.settings.cedhCal;
   const k = cal ? Math.min(2, +cal.k || 1) : 1;
-  const abs = k > 1 && absNC > 8 ? Math.max(1, Math.min(10, 8 + (absNC - 8) * k + (abs0 - absNC))) : abs0;
+  const absCal = k > 1 && absNC > 8 ? Math.max(1, Math.min(10, 8 + (absNC - 8) * k + (abs0 - absNC))) : abs0;
+  // ajuste a tus referencias de Commandersalt (si lo activaste)
+  const fit = !S.noFit && S.data && S.data.settings && S.data.settings.csFit;
+  const abs = fit && fit.on && fit.a ? Math.max(1, Math.min(10, fit.a*absCal + fit.b)) : absCal;
   const power = Math.round(abs * 10) / 10;
   // bracket realista según el nivel y los elementos que definen cEDH
   const cedh = fast>=5 && A.tutors.length>=5 && (c2||0)>=1;
@@ -123,7 +173,12 @@ function powerOf(d, A){
   const saltLabel = salt>=70 ? "Muy salado" : salt>=45 ? "Salado" : salt>=25 ? "Picante" : "Suave";
   const threatCards = rows.filter(r=>(r.m.tg||[]).some(k=>["stax","drawPay","theft","extraCombat"].includes(k)) || ((r.m.r||[]).includes("draw") && r.m.t!=="Instant" && r.m.t!=="Sorcery") || (r.m.sb||[]).includes("counter"));
   const threat = Math.round(clamp10((threatCards.length*0.3 + stax*0.8 + A.gc.length*0.4) / (A.isC?1:0.6)) * 10) / 10;
-  return {power, abs, abs0, absNC, comp, E, early, real, official, cedh, salt, saltLabel, saltTop:salty.slice(0,10), threat, threatCards, sim, c2};
+  const axes = A.isC ? axesOf(d, A, {sim, c2, fast, stax, free, cedh}) : null;
+  // densidad competitiva: qué parte de los hechizos son piezas habituales de torneo
+  const SS = stapleSet(); const spellsN = rows.filter(r=>!r.cmd && r.m.t!=="Land").reduce((a,r)=>a+r.q,0);
+  const stN = rows.filter(r=>!r.cmd && r.m.t!=="Land" && SS.has(slug(r.n))).reduce((a,r)=>a+r.q,0);
+  const density = spellsN ? {pct: stN/spellsN, n: stN, of: spellsN} : null;
+  return {power, abs, abs0, absNC, absCal, fit: fit && fit.on ? fit : null, comp, E, early, real, official, cedh, salt, saltLabel, saltTop:salty.slice(0,10), threat, threatCards, sim, c2, axes, density};
 }
 
 /* ---------- vista del mazo ---------- */
@@ -163,13 +218,17 @@ function powerBoardHTML(){
     <div class="tbl-wrap"><table><thead><tr><th>#</th><th>Mazo</th>${th("power","Nivel")}${th("salt","Sal")}${th("threat","Amenaza")}<th class="n">Bracket</th>${anyCS?`<th class="n">Commandersalt</th>`:""}${anyG?`<th class="n">Récord</th>`:""}</tr></thead><tbody>
     ${rows.map((r,i)=>`<tr${r.d.rival?"":' style="background:var(--accent-soft)"'}><td class="num">${i+1}</td><td><b>${esc(r.d.name)}</b><br><span class="muted" style="font-size:.85rem">${esc((r.d.commanders||[]).join(" + "))} · ${r.d.rival?esc(r.d.rival.owner||"amigo"):"tú"}</span></td><td class="n">${r.P.power.toFixed(1)}</td><td class="n">${r.P.salt}</td><td class="n">${r.P.threat.toFixed(1)}</td><td class="n">${r.P.official.b} / ${r.P.real}</td>${anyCS?`<td class="n">${r.d.csRef?Number(r.d.csRef.p).toFixed(1):"—"}</td>`:""}${anyG?(()=>{ const g = gameRecord(r.d); return `<td class="n">${g?`${g.w}-${g.l}${g.dr?`-${g.dr}`:""} · ${Math.round(g.pct*100)}%`:"—"}</td>`; })():""}</tr>`).join("")}
     </tbody></table></div><p class="foot">Bracket: oficial / realista.${anyCS?" Commandersalt: el nivel que anotaste en la ficha de cada mazo.":""}</p>
-    ${anyCS?`<div class="row"><button class="btn sm" data-pw="cs-copy">Copiar comparación con Commandersalt</button></div>`:""}</div>`;
+    ${anyCS?(()=>{ const F = S.data.settings.csFit; const nCS = all.filter(d=>d.csRef).length;
+      return `${F && F.on ? `<p class="lede">Nivel ajustado a tus referencias de Commandersalt (${F.n} mazos): nivel = ${String(F.a).replace(".",",")} × calculado ${F.b>=0?"+":"−"} ${String(Math.abs(F.b)).replace(".",",")}. Error promedio: de ${String(F.err0).replace(".",",")} a ${String(F.err1).replace(".",",")} niveles.</p>` : nCS>=3 ? `<p class="lede">Con ${nCS} mazos medidos en Commandersalt puedo ajustar la escala para que el nivel de todos tus mazos (y los de tus amigos) se parezca más al de Commandersalt.</p>` : ""}
+      <div class="row"><button class="btn sm" data-pw="cs-copy">Copiar comparación con Commandersalt</button>${F && F.on ? `<button class="btn sm" data-pw="cs-fit">Volver a ajustar</button><button class="btn sm ghost" data-pw="cs-unfit">Quitar ajuste</button>` : nCS>=3 ? `<button class="btn sm primary" data-pw="cs-fit">Ajustar a Commandersalt</button>` : `<span class="muted" style="font-size:.88rem">Anota Commandersalt en ${3-nCS} mazo${3-nCS>1?"s":""} más para poder ajustar la escala.</span>`}</div>`; })():""}</div>`;
 }
 function powerPromptText(d, A){ const P = powerOf(d, A); return `Nivel estimado por la app: ${P.power}/10 (${PL_ES(P.power)}); sal ${P.salt}/100; bracket oficial ${P.official.b}, realista ${P.real}.`; }
 
 document.addEventListener("click", async ev => {
   const s = ev.target.closest("[data-pw-sort]"); if (s){ S.pwSort = s.dataset.pwSort; render(); return; }
   const b = ev.target.closest("[data-pw]"); if (b && b.dataset.pw==="salt") await loadSaltLive();
+  if (b && b.dataset.pw==="cs-fit"){ const F = csFitCompute(); if (F.err){ toast(F.err); return; } S.data.settings.csFit = F; saveData(); bumpAnalysis(); render(); toast(`Escala ajustada con ${F.n} mazos: el error promedio baja de ${F.err0.toFixed(2)} a ${F.err1.toFixed(2)} niveles.`); return; }
+  if (b && b.dataset.pw==="cs-unfit"){ delete S.data.settings.csFit; saveData(); bumpAnalysis(); render(); toast("Ajuste a Commandersalt quitado."); return; }
   if (b && b.dataset.pw==="cs-copy"){
     const rows = S.data.decks.filter(d=>d.format==="commander" && d.csRef).map(d=>{ const A = analyze(d), P = powerOf(d, A); return `${d.name} (${(d.commanders||[]).join(" + ")}): Bóveda ${P.power.toFixed(1)} · Commandersalt ${Number(d.csRef.p).toFixed(2)} · diferencia ${(P.power-d.csRef.p>=0?"+":"")+(P.power-d.csRef.p).toFixed(1)} · bracket ${P.official.b}/${P.real}`; });
     copyText("Comparación Bóveda EDH vs Commandersalt\n" + rows.join("\n")); }

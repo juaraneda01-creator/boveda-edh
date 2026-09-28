@@ -8,7 +8,7 @@ function render(){
   if (S.editing && $("#f-list")){ S.editing.text=$("#f-list").value; S.editing.side=($("#f-side")||{}).value||""; S.editing.maybe=($("#f-maybe")||{}).value||""; S.editing.name=($("#f-name")||{}).value||""; if ($("#f-cmd")) S.editing.commanders=$("#f-cmd").value.split("+").map(x=>x.trim()).filter(Boolean); }
   const alertsN = alerts().length;
   const nav = [["home","Inicio","Inicio"],["commander","Commander","EDH"],["pauper","Pauper","Pauper"],["pioneer","Pioneer","Pioneer"],["coll","Colección","Colec."],["venta","Venta","Venta"],["market","Mercado","Mercado"]];
-  $("#tabs").innerHTML = nav.map(([k,l,sh])=>`<button class="tab" role="tab" data-view="${k}" aria-selected="${S.view===k || (k==="home" && ["tools","weekly","news"].includes(S.view))}"><span class="tl">${l}</span><span class="ts" aria-hidden="true">${sh}</span>${k==="market"&&alertsN?`<span class="badge" aria-label="${alertsN} alertas">${alertsN}</span>`:""}</button>`).join("");
+  $("#tabs").innerHTML = nav.map(([k,l,sh])=>`<button class="tab" role="tab" data-view="${k}" aria-selected="${S.view===k || (k==="home" && ["tools","weekly","news","match","judge"].includes(S.view))}"><span class="tl">${l}</span><span class="ts" aria-hidden="true">${sh}</span>${k==="market"&&alertsN?`<span class="badge" aria-label="${alertsN} alertas">${alertsN}</span>`:""}</button>`).join("");
   renderBusy();
   renderSettings();
   const main=$("#main");
@@ -19,6 +19,8 @@ function render(){
   else if (S.view==="home") main.innerHTML = homeHTML();
   else if (S.view==="news") main.innerHTML = newsHTML();
   else if (S.view==="weekly") main.innerHTML = weeklyHTML();
+  else if (S.view==="match" && typeof matchHTML==="function") main.innerHTML = matchHTML();
+  else if (S.view==="judge" && typeof judgeHTML==="function") main.innerHTML = judgeHTML();
   else main.innerHTML = marketHTML();
   if (S.editing && typeof renderEditorPreview==="function") renderEditorPreview();
   renderModal();
