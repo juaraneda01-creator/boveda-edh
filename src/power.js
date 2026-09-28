@@ -65,6 +65,11 @@ function powerOf(d, A){
   const cnt = f => rows.filter(r=>f(r.m, r)).reduce((a,r)=>a+r.q,0);
   const fast = cnt((m,r)=>FAST_MANA.has(r.n.toLowerCase()));
   const cheapRamp = cnt(m=>(m.r||[]).includes("ramp") && m.cmc<=2 && m.t!=="Land");
+  const bigMana = cnt(m=>(m.rf||[]).includes("bigMana") && m.t!=="Land" && !/Instant|Sorcery/.test(m.t));
+  const oneDrops = cnt(m=>(m.r||[]).includes("ramp") && m.cmc<=1 && m.t!=="Land");
+  const protect = cnt(m=>(m.rf||[]).includes("protect") || (m.r||[]).includes("protection"));
+  const select = cnt(m=>(m.rf||[]).includes("select"));
+  const counters2 = cnt(m=>(m.rf||[]).includes("counter") || (m.sb||[]).includes("counter"));
   const free = cnt((m,r)=>FREE_INTERACTION.has(r.n.toLowerCase()));
   const counters = cnt(m=>(m.sb||[]).includes("counter"));
   const stax = cnt(m=>(m.tg||[]).includes("stax"));
@@ -74,19 +79,24 @@ function powerOf(d, A){
   const scale = A.isC ? 1 : 0.6;
   const E = comboEngine(rows);
   const tutorQ = rows.filter(r=>(r.m.r||[]).includes("tutor")).reduce((a,r)=>a + r.q*((r.m.tq!=null ? r.m.tq : 60)/100), 0);
+  // tribal fuerte: la mayoría de las criaturas comparte tipo y hay cartas que lo aprovechan
+  const crN = cnt(m=>m.t==="Creature"); const tb = Y && Y.tribes && Y.tribes[0];
+  const tribeV = tb && crN ? Math.min(8, (tb.n/crN >= 0.6 ? 6 : tb.n/crN >= 0.4 ? 4 : 0) + Math.min(2, tb.pay.length*0.2)) : 0;
   const comp = [
-    {k:"accel", es:"Aceleración", v:clamp10(fast*1.2 + cheapRamp*0.3/scale), why:`${fast} de maná rápido, ${cheapRamp} ramp de 2 o menos`, w:0.17},
+    {k:"accel", es:"Aceleración", v:clamp10(fast*1.2 + cheapRamp*0.3/scale + bigMana*0.9), why:`${fast} de maná rápido, ${cheapRamp} ramp de 2 o menos${bigMana?`, ${bigMana} de mucho maná`:""}`, w:0.17},
     {k:"tutors", es:"Tutores", v:clamp10(tutorQ*1.4/scale), why:`${A.tutors.length} tutores (calidad ${A.tutors.length?Math.round(100*tutorQ/A.tutors.length):0}/100)`, w:0.13},
-    {k:"interaction", es:"Interacción", v:clamp10((A.roles.removal + A.roles.wipe*1.3 + free*1.5)/1.6/scale), why:`${A.roles.removal} removal, ${A.roles.wipe} barridos, ${free} gratis`, w:0.13},
-    {k:"cards", es:"Ventaja de cartas", v:clamp10(A.roles.draw*0.8/scale), why:`${A.roles.draw} fuentes de robo`, w:0.11},
+    {k:"interaction", es:"Interacción", v:clamp10((Math.max(A.roles.removal, counters2) + A.roles.wipe*1.3 + free*1.5 + protect*0.2)/1.6/scale), why:`${A.roles.removal} removal, ${A.roles.wipe} barridos, ${free} gratis, ${protect} protección`, w:0.13},
+    {k:"cards", es:"Ventaja de cartas", v:clamp10((A.roles.draw + select*0.6)*0.8/scale), why:`${A.roles.draw} fuentes de robo${select?`, ${select} de selección`:""}`, w:0.11},
     {k:"efficiency", es:"Eficiencia", v:!A.spells ? null : clamp10(10 - (A.avg-1.9)*3.2 - (sim && sim.pScrew ? sim.pScrew*8 : 0)), why:`CMC promedio ${A.avg.toFixed(2)}${sim?`, ${Math.round((sim.pScrew||0)*100)}% manos atascadas`:""}`, w:0.13},
     {k:"combo", es:"Combos", v:c2==null ? (E.loops ? clamp10(E.loops*1.6) : null) : clamp10(c2*3.5 + c3*1.2 + E.loops*0.8), why:c2==null ? (E.loops ? `motor de sacrificio (${E.outlets} salidas, ${E.drains} drenajes); busca combos para confirmar` : "sin revisar (usa Buscar combos)") : `${c2} de 2 cartas, ${c3} de 3${E.loops?", motor de sacrificio":""}`, w:0.2},
-    {k:"synergy", es:"Sinergia", v:Y ? clamp10(Y.cohesion/10) : null, why:Y ? `cohesión ${Y.cohesion}%` : "", w:0.08},
+    {k:"synergy", es:"Sinergia", v:Y ? clamp10(Math.max(Y.cohesion/10, tribeV)) : null, why:Y ? `cohesión ${Y.cohesion}%${tribeV>Y.cohesion/10?", tribal fuerte":""}` : "", w:0.08},
   ];
   const have = comp.filter(c=>c.v!=null);
   const wsum = have.reduce((a,c)=>a+c.w,0) || 1;
   let raw = have.reduce((a,c)=>a+c.v*c.w,0) / wsum;
-  raw += Math.min(1.2, A.gc.length*0.2) + Math.min(0.8, stax*0.2) + (A.xt.length ? 0.3 : 0);
+  raw += Math.min(0.6, A.gc.length*0.1) + Math.min(0.8, stax*0.2) + (A.xt.length ? 0.3 : 0);
+  // bonificación de aceleración temprana (muchas piezas de maná de 1): como la que suma Commandersalt
+  const early = A.isC ? Math.max(0, oneDrops - 5) * 0.25 : 0; raw += Math.min(1, early);
   const abs = Math.max(1, Math.min(10, 1 + raw*0.95));
   const power = Math.round(abs * 10) / 10;
   // bracket realista según el nivel y los elementos que definen cEDH
@@ -100,7 +110,7 @@ function powerOf(d, A){
   const saltLabel = salt>=70 ? "Muy salado" : salt>=45 ? "Salado" : salt>=25 ? "Picante" : "Suave";
   const threatCards = rows.filter(r=>(r.m.tg||[]).some(k=>["stax","drawPay","theft","extraCombat"].includes(k)) || ((r.m.r||[]).includes("draw") && r.m.t!=="Instant" && r.m.t!=="Sorcery") || (r.m.sb||[]).includes("counter"));
   const threat = Math.round(clamp10((threatCards.length*0.3 + stax*0.8 + A.gc.length*0.4) / (A.isC?1:0.6)) * 10) / 10;
-  return {power, abs, comp, E, real, official, cedh, salt, saltLabel, saltTop:salty.slice(0,10), threat, threatCards, sim, c2};
+  return {power, abs, comp, E, early, real, official, cedh, salt, saltLabel, saltTop:salty.slice(0,10), threat, threatCards, sim, c2};
 }
 
 /* ---------- vista del mazo ---------- */

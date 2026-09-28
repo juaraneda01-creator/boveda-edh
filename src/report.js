@@ -4,14 +4,16 @@
    base casual o cEDH, tabla nutricional, radiografía por áreas
    y tarjeta de regla 0 para conversar el nivel antes de jugar.
    ========================================================= */
-const RF_V = 3;   // versión de las marcas de cada carta; si sube, se vuelven a calcular
+const RF_V = 5;   // versión de las marcas de cada carta; si sube, se vuelven a calcular
 
 // marcas extra por carta, calculadas con el texto de Oracle (se guardan en m.rf y m.tq)
 function cardFlags(o, t, tl){
   o = o || ""; const f = new Set(); const land = t === "Land";
   const perm = !/Instant|Sorcery/.test(t||"");
   if (/(^|\n)flash(\s|$)/.test(o)) f.add("flash");
-  if (/counter target (\w+ ){0,3}(spell|ability)/.test(o)) f.add("counter");
+  if (/counter target (\w+ ){0,3}(spell|ability)|(choose new targets|change the target) (for|of) target spell/.test(o)) f.add("counter");
+  if (!land && /add (\{[wubrgc]\} |an amount of \{[wubrgc]\} |x mana )?(for each|equal to)|add \{[wubrgc]\} for each|add x mana/.test(o)) f.add("bigMana");
+  if (/look at the top card of your library any time|you may (cast|play) [^.]*from the top of your library|look at the top (\w+) cards[^.]*put (up to )?(one|two|a)[^.]*(onto the battlefield|into your hand)/.test(o)) f.add("select");
   if (/(creatures?|permanents?|artifacts?|planeswalkers?|lands?|commanders?|\w+s) you control (gain|gains|have|has|get)[^.]*(hexproof|indestructible|shroud|protection from)/.test(o)
     || /target (\w+ ){0,2}(creature|permanent|artifact|planeswalker)s? you control (gains?|gets?)[^.]*(hexproof|indestructible|shroud|protection)/.test(o)
     || /\bphases? out\b/.test(o) || /can't be countered/.test(o) || /that targets? (a|an|one or more) [^.]*you control/.test(o)
@@ -24,6 +26,8 @@ function cardFlags(o, t, tl){
   if (/creatures you control get \+|other (\w+ ){1,2}(creatures )?(you control )?get \+|\w+s you control get \+\d|creatures you control (gain|have) (trample|double strike|flying)|can't be blocked|additional combat|double strike|\w+walk\b/.test(o)) f.add("wcCombat");
   if (/spells? you cast (of the chosen type |that share a creature type )?costs? \{\d\} less|(\w+ )?(creature )?spells (and \w+ spells )?you cast (of the chosen type )?cost \{\d\} less/.test(o)) f.add("reducer");
   if (/(^|\n)infect|toxic \d|poison counter/.test(o)) f.add("wcPoison");
+  if (/creatures you control get \+(x|[2-9])|\w+ creatures you control get \+[2-9]|\+1\/\+1 counters? on each (other )?creature you control|creatures you control gain [^.]*double strike|elves you control get \+[2-9]/.test(o)) f.add("overrun");
+  if (/deals that much damage to (target|each) opponent|deals (\d+|x) damage to each opponent/.test(o)) f.add("wcDrain");
   if (/(each|target) (opponent|other player|player)s? sacrifices?|each player sacrifices/.test(o)) f.add("edict");
   if (/base toughness 1|creatures your opponents control (get|have) -|(opponents|players) can't (cast|untap|search|draw more)/.test(o)) f.add("hoser");
   if (/whenever [^.]*(creature|another creature)[^.]*dies[^.]*(loses|deals? \d+ damage to each opponent)|whenever you sacrifice [^.]*(loses|damage)/.test(o)) f.add("deathDrain");
@@ -152,7 +156,7 @@ function reportOf(d, A){
     const cmdTags = new Set(cmdRows.flatMap(m=>m.tg||[]));
     const cmdThemes = Y.themes.filter(t=>t.cmd);
     const linkedToCmd = nonland.filter(r=>{ const tg = r.m.tg||[]; if (tg.some(k=>cmdTags.has(k))) return true; if (cmdThemes.some(t=>t.enR.includes(r)||t.payR.includes(r))) return true;
-      if (tribe && cmdRows.some(m=>subtypesOf(m).includes(tribe.s)) && subtypesOf(r.m).includes(tribe.s)) return true; return false; });
+      if (tribe && cmdRows.some(m=>subtypesOf(m).includes(tribe.s) || (m.tg||[]).includes("tribe:"+tribe.s)) && subtypesOf(r.m).includes(tribe.s)) return true; return false; });
     const cmdPct = nonlandN ? Math.round(100*sum(linkedToCmd)/nonlandN) : 0;
     const top = Y.themes[0], topShare = top && nonlandN ? (top.E+top.P)/nonlandN : 0;
     const strongN = Y.themes.filter(t=>t.state==="fuerte").length;
@@ -192,8 +196,8 @@ function reportOf(d, A){
   const inter10 = clamp10(interTotal/2.4);
   const arch = [
     {es:"Control", v: (counters*1.2 + inter.wipes*1.4 + removal*0.6 + (timing.pct||0)/20) * (creatures>=22 ? 0.3 : creatures>=15 ? 0.6 : 1)},
-    {es:"Aggro", v: (creatures>=28?4:creatures/8) + (A.avg<=2.6?3:0) + combatN*0.3 - counters*0.5},
-    {es:"Midrange", v: 4 + (creatures>=15 && creatures<=34 ? 2 : 0) + Math.min(3, interTotal/8) - Math.abs(A.avg-3)},
+    {es:"Aggro", v: (creatures>=28?3:creatures/9) + (A.avg<=2.4?3:A.avg<=2.8?1.5:0) + combatN*0.3 - counters*0.5 - inter.protect*0.1 - interTotal*0.1},
+    {es:"Midrange", v: 4 + (creatures>=15 && creatures<=40 ? 2 : 0) + Math.min(3, interTotal/8) - Math.abs(A.avg-3)*0.8},
     {es:"Combo", v: c2*3 + (P.E ? P.E.loops*2.5 : 0) + tutors.n*0.7 + (altN?2:0)},
     {es:"Stax", v: deny.stax*1.5 + deny.tax*0.6},
     {es:"Ramp", v: ramp.n*0.35 + ramp.land*0.3 + curve.fin*0.5 - 1},
@@ -219,7 +223,7 @@ function reportOf(d, A){
     {k:"eff", es:"Eficiencia", v:clamp10(10 - (A.avg-1.9)*2.6 + ramp.n*0.12 + curve.cheap*0.06 - 1.2), why:`CMC ${A.avg.toFixed(2)}, ${curve.cheap} baratas, ${ramp.n} ramp`},
     {k:"speed", es:"Velocidad", v:clamp10(fast*1.3 + sum(rampR.filter(r=>(r.m.cmc||0)<=2))*0.45 + (A.avg<=2.6?1.5:A.avg<=3.2?0.7:0)), why:`${fast} maná rápido, ${sum(rampR.filter(r=>(r.m.cmc||0)<=2))} ramp de 2 o menos`},
     {k:"inter", es:"Interacción", v:clamp10(inter10 + inter.free*0.5 + ((timing.pct||0)>=80?0.5:0)), why:`${interTotal} piezas, ${inter.free} gratis`},
-    {k:"wins", es:"Remates", v:clamp10(paths.length*1.5 + c2*2.2 + (P.E ? Math.min(4, P.E.loops*2) : 0) + Math.min(2, drainN*0.35) + Math.min(2, curve.fin*0.4) + Math.min(5, combatN*0.4) + (altN?1:0)), why: paths.length ? paths.map(p=>p.es.toLowerCase()).join(", ") : "sin remate claro"},
+    {k:"wins", es:"Remates", v:clamp10(paths.length*1.5 + c2*2.2 + (P.E ? Math.min(4, P.E.loops*2) : 0) + Math.min(2, drainN*0.35) + Math.min(2, curve.fin*0.4) + Math.min(5, combatN*0.4) + Math.min(2.2, cnt("overrun")*0.4) + (altN?1:0)), why: paths.length ? paths.map(p=>p.es.toLowerCase()).join(", ") : "sin remate claro"},
     {k:"res", es:"Resiliencia", v:clamp10(cards.rec*0.8 + inter.protect*0.7 + engine.rep*0.08 + (cards.draw>=10?1:0)), why:`${cards.rec} reciclaje, ${inter.protect} protección`},
   ];
   const BASE = {casual:{cons:4.5, eff:5, speed:3, inter:4.5, wins:4.5, res:4}, cedh:{cons:9, eff:9, speed:9, inter:8.5, wins:8.5, res:7}};

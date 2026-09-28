@@ -33,9 +33,25 @@ check(D, "remates A", R2['grades'][2].split(":")[1][0] == "A", R2['grades'])
 check(D, "sinergia B", R2['grades'][3].split(":")[1][0] == "B", R2['grades'])
 check(D, "tema -1/-1", R2['strat'] == "Contadores -1/-1", R2['strat'])
 
-for X in (R, R2):
+# Voja (elfos) — Commandersalt: 8.2 · bracket 3/4 · Midrange/Kindred · sal C, interacción B+, remates B+, sinergia A+
+R3 = deckrun.run("voja.txt", ["voja_cards.py"], ["Voja, Jaws of the Conclave"])
+D = "Voja"
+check(D, "nivel 7.7–8.7", 7.7 <= R3['p'] <= 8.7, R3['p'])
+check(D, "bracket 3/4", R3['br'] == [3, 4], R3['br'])
+check(D, "perfil Midrange / Tribal", (R3['plan'], R3['strat']) == ("Midrange", "Tribal"), (R3['plan'], R3['strat']))
+check(D, "32 tierras, 6 básicas", (R3['lands'], R3['basics']) == (32, 6), (R3['lands'], R3['basics']))
+check(D, "19 baratas", R3['cheap'] == 19, R3['cheap'])
+check(D, "7 tutores", R3['tutors'] == 7, R3['tutors'])
+check(D, "86% instantáneo", R3['timing'] == 86, R3['timing'])
+check(D, "tribal elf", R3['tribe'] == "elf", R3['tribe'])
+check(D, "el comandante paga a los elfos", R3['syn']['cmd'] >= 45, R3['syn'])
+check(D, "remates B o A", R3['grades'][2].split(":")[1][0] in "AB", R3['grades'])
+check(D, "sinergia A", R3['grades'][3].split(":")[1][0] == "A", R3['grades'])
+check("orden", "Voja > Hapatra > Tiritones o parejos", R3['p'] > R2['p'] - 0.1 and R3['p'] > R['p'], (R['p'], R2['p'], R3['p']))
+
+for X in (R, R2, R3):
     check("ambos", "sin cartas pendientes", X['missing'] == 0 and X['stale'] == 0, (X['missing'], X['stale']))
     check("ambos", "sin desborde en teléfono", X['overflow'] <= 390, X['overflow'])
     check("ambos", "sin errores", not X['errors'], X['errors'])
 if fails: print("FALLA ficha:\n  " + "\n  ".join(map(str, fails))); sys.exit(1)
-print("Ficha OK: Tiritones y Hapatra dan números cercanos a Commandersalt.")
+print("Ficha OK: Tiritones, Hapatra y Voja dan números cercanos a Commandersalt.")
