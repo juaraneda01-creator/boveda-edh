@@ -51,6 +51,41 @@ function tdStatsFor(d){
 const pct1 = v => (v*100).toFixed(1).replace(".", ",") + "%";
 const tdDate = s => s ? new Date(s*1000).toLocaleDateString("es-CL", {day:"numeric", month:"short", year:"numeric"}) : "—";
 
+/* ---------- calibración del tramo alto con listas de torneo ---------- */
+// la "lista típica" de un comandante: las cartas que juega la mayoría de sus listas en torneos de 24+ jugadores
+async function tdCalibrate(){
+  const A = tdAgg(); if (!A) return;
+  const top = [...A.cmds].filter(c=>c.n>=8).sort((a,b)=>b.n-a.n).slice(0, 8);
+  if (top.length < 3){ toast("Hacen falta al menos 3 comandantes con 8 o más listas."); return; }
+  S.td.cal = "Armando las listas típicas…"; render();
+  const rows = [];
+  try {
+    for (const c of top){
+      const r = await fetch("/api/cedh?q=cmd&name=" + encodeURIComponent(c.name)); if (!r.ok) continue;
+      const j = await r.json(); const cards = (j.cards||[]).filter(x=>x[1]>=25).slice(0, 99);
+      if (cards.length < 70) continue;
+      const d = {id:"cal-"+slug(c.name), format:"commander", name:c.name, commanders:c.name.split(" / "), cards:cards.map(x=>({n:x[0], q:1})), side:[], maybe:[], log:[]};
+      await fetchCards(allNames(d), {quiet:true});
+      S.noCal = true; try { const P = powerOf(d, analyzeRaw(d)); rows.push({c:c.name, p:Math.round(P.abs0*100)/100, lists:j.lists}); } finally { S.noCal = false; }
+      S.td.cal = `Calculando… ${rows.length} de ${top.length}`; render();
+    }
+    if (rows.length < 3){ toast("No hubo suficientes listas para calibrar."); return; }
+    const mean = rows.reduce((a,x)=>a+x.p,0)/rows.length;
+    const k = mean > 8.05 ? Math.max(1, Math.min(2.5, (9.4 - 8) / (mean - 8))) : 2.5;
+    S.data.settings.cedhCal = {at:Date.now(), mean:Math.round(mean*100)/100, k:Math.round(k*100)/100, rows};
+    saveData(); bumpAnalysis();
+    toast(k > 1.02 ? `Calibrado: las listas de torneo daban ${mean.toFixed(1)}; el tramo sobre 8 se estira ×${k.toFixed(2)}.` : "Las listas de torneo ya dan nivel cEDH: no hace falta ajustar.");
+  } finally { S.td.cal = null; render(); }
+}
+function tdCalHTML(){
+  const C = S.data.settings.cedhCal;
+  return `<h4 class="td-h">Calibrar el nivel alto</h4>
+    <p class="lede">Arma la lista típica de los comandantes más jugados (las cartas que usan la mayoría de sus listas), calcula su nivel y, si queda bajo 9,4, estira el tramo sobre 8 para que los mazos de torneo den nivel cEDH. Los mazos casuales no cambian.</p>
+    ${C ? `<p>Calibrado el ${new Date(C.at).toLocaleDateString("es-CL")}: las listas típicas daban <b class="num">${String(C.mean).replace(".",",")}</b> en promedio → tramo alto ×<b class="num">${String(C.k).replace(".",",")}</b>.</p>
+      <div class="chips">${C.rows.map(r=>`<span class="pill neutral">${esc(r.c)} · ${String(r.p).replace(".",",")}</span>`).join("")}</div>` : ""}
+    <div class="row" style="margin-top:8px"><button class="btn sm ${C?"":"primary"}" data-td-cal="run" ${S.td.cal?"disabled":""}>${S.td.cal?esc(S.td.cal):C?"Volver a calibrar":"Calibrar con torneos"}</button>${C?`<button class="btn sm ghost" data-td-cal="off">Quitar calibración</button>`:""}</div>`;
+}
+
 /* ---------- vista: meta de torneos ---------- */
 function tdHTML(){
   const credit = `<p class="foot">Datos de torneos: <a href="https://topdeck.gg" target="_blank" rel="noopener">TopDeck.gg</a> (API pública), con el mismo criterio de <a href="https://edhtop16.com" target="_blank" rel="noopener">EDHTop16</a>. Solo torneos con ${S.td.min} o más jugadores.</p>`;
@@ -79,6 +114,7 @@ function tdHTML(){
     <h4 class="td-h">Últimos torneos</h4>
     <div class="td-tours">${A.tours.slice(0, 25).map(t=>`<div class="td-tour"><button class="td-tour-h" data-td-tour="${esc(t.id)}" aria-expanded="${S.td.open===t.id}"><span><b>${esc(t.n)}</b><br><span class="muted" style="font-size:.85rem">${tdDate(t.d)}${t.city?` · ${esc(t.city)}${t.st?", "+esc(t.st):""}`:""}</span></span><span class="num td-size">${t.s}<small> jug.</small></span></button>${S.td.open===t.id?tdTourHTML(t):""}</div>`).join("") || `<p class="muted">No hay torneos con este filtro.</p>`}</div>
     ${S.td.data.staples && S.td.data.staples.length?`<h4 class="td-h">Staples de torneo</h4><p class="lede">Las cartas más presentes en todas las listas (${S.td.data.lists.toLocaleString("es-CL")} listas en los últimos ${S.td.data.days} días).</p><div class="td-staples">${S.td.data.staples.slice(0,30).map(([n,p])=>`<div class="rec"><span>${cardName(n)}</span><span class="meta"><span class="num">${String(p).replace(".",",")}%</span> ${ownedOf(n)>0?`<span class="own y">tengo</span>`:""}</span></div>`).join("")}</div>`:""}
+    ${tdCalHTML()}
     <p class="foot">Actualizado ${new Date(S.td.data.at).toLocaleString("es-CL",{dateStyle:"medium",timeStyle:"short"})}.</p>${credit}</div>`;
 }
 function tdTourHTML(t){
@@ -134,6 +170,7 @@ document.addEventListener("click", async ev => {
   const g = k => ev.target.closest(`[data-td-${k}]`);
   let b;
   if ((b = ev.target.closest("[data-td]")) && b.dataset.td==="load"){ await tdLoad(true); return; }
+  if ((b = g("cal"))){ if (b.dataset.tdCal==="off"){ delete S.data.settings.cedhCal; saveData(); bumpAnalysis(); render(); toast("Calibración quitada."); } else await tdCalibrate(); return; }
   if ((b = g("days"))){ S.td.days = +b.dataset.tdDays; render(); return; }
   if ((b = g("min"))){ S.td.min = +b.dataset.tdMin; render(); return; }
   if ((b = g("sort"))){ S.td.sort = b.dataset.tdSort; render(); return; }

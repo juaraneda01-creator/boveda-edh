@@ -10,8 +10,9 @@ const SALT_TOP = {"Stasis":3.06,"Winter Orb":2.96,"Vivi Ornitier":2.81,"Tergrid,
 const SALT_AT = "EDHREC, 28 de septiembre de 2026";
 const SALT_SLUG = Object.fromEntries(Object.entries(SALT_TOP).map(([k,v])=>[slug(k), v]));
 function saltOf(n, m){
-  const live = S.salt && S.salt.map && S.salt.map[slug(n)];
+  const live = S.salt && S.salt.map && (S.salt.map[slug(n)] ?? S.salt.map[slug(String(n).split(" // ")[0])]);
   if (live != null) return live;
+  const full = S.salt && S.salt.done;   // con la lista completa, lo que no aparece tiene sal baja
   const v = SALT_SLUG[slug(n)] ?? SALT_SLUG[slug(String(n).split(" // ")[0])] ?? (m ? SALT_SLUG[slug(m.n)] : undefined);
   if (v != null) return v;
   if (!m) return 0;
@@ -31,9 +32,15 @@ function saltOf(n, m){
   if (rf.includes("deathDrain") || rf.includes("wcDrain")) s += 0.2;
   if (FAST_MANA.has(String(n).toLowerCase())) s += 0.4;
   if (m.gc) s += 0.4;
-  return Math.min(1.6, s);
+  return Math.min(full ? 0.75 : 1.6, s);
 }
-async function loadSaltLive(){
+async function loadSaltLive(quiet){
+  // versión en vivo: la lista completa ya armada en el servidor (todas las cartas con sal 0,8 o más)
+  if (typeof LIVE!=="undefined" && LIVE){
+    try { const r = await fetch("/api/salt"); const j = await r.json(); if (!r.ok || !j.map) throw 0;
+      S.salt = {at:j.at, map:j.map, n:j.n, done:!!j.done}; idb.set("salt", S.salt); bumpAnalysis(); render(); if (!quiet) toast(`Sal actualizada desde EDHREC (${j.n} cartas).`); return; }
+    catch { if (quiet) return; }
+  }
   try {
     const r = await fetch("https://json.edhrec.com/pages/top/salt.json"); if (!r.ok) throw 0;
     const j = await r.json(); const list = (((j.container||{}).json_dict||{}).cardlists||[]).flatMap(c=>c.cardviews||[]);
@@ -42,7 +49,8 @@ async function loadSaltLive(){
     idb.set("salt", S.salt); bumpAnalysis(); render(); toast(`Sal actualizada desde EDHREC (${list.length} cartas).`);
   } catch { toast(typeof offlineMsg==="function" ? offlineMsg("EDHREC") : "EDHREC no respondió."); }
 }
-idb.get("salt").then(v=>{ if (v && v.map) S.salt = v; });
+idb.get("salt").then(v=>{ if (v && v.map) S.salt = v; })
+  .finally(()=>{ if (typeof LIVE!=="undefined" && LIVE && (!S.salt || !S.salt.done || Date.now()-(S.salt.at||0) > 7*864e5)) setTimeout(()=>loadSaltLive(true), 1500); });
 
 /* ---------- motor de sacrificio que cierra partidas (sin depender de Commander Spellbook) ---------- */
 // salida de sacrificio + cartas que drenan por cada muerte + cuerpos que vuelven o se multiplican = bucle que gana
@@ -97,7 +105,10 @@ function powerOf(d, A){
   raw += Math.min(0.6, A.gc.length*0.1) + Math.min(0.8, stax*0.2) + (A.xt.length ? 0.3 : 0);
   // bonificación de aceleración temprana (muchas piezas de maná de 1): como la que suma Commandersalt
   const early = A.isC ? Math.max(0, oneDrops - 5) * 0.25 : 0; raw += Math.min(1, early);
-  const abs = Math.max(1, Math.min(10, 1 + raw*0.95));
+  const abs0 = Math.max(1, Math.min(10, 1 + raw*0.95));
+  // calibración con listas de torneo: estira solo el tramo sobre 8 (lo casual no se mueve)
+  const cal = !S.noCal && S.data && S.data.settings && S.data.settings.cedhCal;
+  const abs = cal && cal.k > 1 && abs0 > 8 ? Math.min(10, 8 + (abs0 - 8) * cal.k) : abs0;
   const power = Math.round(abs * 10) / 10;
   // bracket realista según el nivel y los elementos que definen cEDH
   const cedh = fast>=5 && A.tutors.length>=5 && (c2||0)>=1;
@@ -110,7 +121,7 @@ function powerOf(d, A){
   const saltLabel = salt>=70 ? "Muy salado" : salt>=45 ? "Salado" : salt>=25 ? "Picante" : "Suave";
   const threatCards = rows.filter(r=>(r.m.tg||[]).some(k=>["stax","drawPay","theft","extraCombat"].includes(k)) || ((r.m.r||[]).includes("draw") && r.m.t!=="Instant" && r.m.t!=="Sorcery") || (r.m.sb||[]).includes("counter"));
   const threat = Math.round(clamp10((threatCards.length*0.3 + stax*0.8 + A.gc.length*0.4) / (A.isC?1:0.6)) * 10) / 10;
-  return {power, abs, comp, E, early, real, official, cedh, salt, saltLabel, saltTop:salty.slice(0,10), threat, threatCards, sim, c2};
+  return {power, abs, abs0, comp, E, early, real, official, cedh, salt, saltLabel, saltTop:salty.slice(0,10), threat, threatCards, sim, c2};
 }
 
 /* ---------- vista del mazo ---------- */
@@ -128,7 +139,7 @@ function powerHTML(d, A){
   return `${R ? reportHTML(d, A) : ""}
   <div class="two">
     <div class="sec"><h3>Lo que más sala la mesa</h3>${P.saltTop.filter(x=>x.s>0.4).map(x=>`<div class="rec"><span>${cardName(x.n,x.m)}${SALT_SLUG[slug(x.n)]!=null||(S.salt&&S.salt.map[slug(x.n)]!=null)?` <span class="tag">top sal EDHREC</span>`:""}</span><span class="meta num">${x.s.toFixed(2)}</span></div>`).join("") || `<p class="muted">Nada especialmente salado.</p>`}
-      <p class="foot">Sal de 0 a 3 según la votación de EDHREC (${S.salt?`actualizada ${new Date(S.salt.at).toLocaleDateString("es-CL")}`:esc(SALT_AT)}); las demás cartas se estiman por lo que hacen. ${isWebView()?"":`<button class="btn sm ghost" style="padding:0" data-pw="salt">Actualizar desde EDHREC</button>`}</p></div>
+      <p class="foot">Sal de 0 a 3 según la votación de EDHREC (${S.salt?`${S.salt.n?`${S.salt.n} cartas, `:""}actualizada ${new Date(S.salt.at).toLocaleDateString("es-CL")}`:esc(SALT_AT)}); las demás cartas se estiman por lo que hacen. ${isWebView()?"":`<button class="btn sm ghost" style="padding:0" data-pw="salt">Actualizar desde EDHREC</button>`}</p></div>
     <div class="sec"><h3>Por qué te ven como amenaza <span class="num muted" style="font-weight:400">${P.threat.toFixed(1)}/10</span></h3>${P.threatCards.length?`<div class="chips">${P.threatCards.slice(0,16).map(r=>`<span class="pill neutral" style="font-size:.9rem">${cardName(r.n,r.m)}</span>`).join("")}</div>`:`<p class="muted">Pocas cartas que llamen la atención de la mesa.</p>`}
       <p class="foot">Motores de robo, stax, contrahechizos, robo de permanentes y combates extra.</p></div>
   </div>

@@ -724,3 +724,18 @@ body.web [data-act="fetch-meta"],body.web [data-act="fetch-meta-all"],body.web [
 .gm-item{align-items:center}
 .gm-seats{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media (max-width:640px){.gm-row{grid-template-columns:1fr;gap:4px}.gm-seats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* mesa de hoy */
+.mesa .chips{margin-bottom:10px}
+.mesa-v{margin:6px 0 10px}
+.mesa-good{border-color:var(--good);background:var(--good-soft)}.mesa-warn{border-color:var(--warn);background:var(--warn-soft)}.mesa-bad{border-color:var(--bad);background:var(--bad-soft)}
+.mesa-tips{margin:10px 0;padding-left:20px;display:grid;gap:6px}
+.mesa td.warn{color:var(--warn);font-weight:700}
+
+/* mesa compartida */
+.grp-form{display:grid;gap:12px}
+.grp-form label{display:grid;gap:4px;font-family:var(--sc);color:var(--muted)}
+.grp-two{display:grid;grid-template-columns:1fr 1fr;gap:16px}.grp-two>div{display:grid;gap:8px;align-content:start}
+.grp-code{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 8px}
+.grp-seats{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center}
+@media (max-width:640px){.grp-two{grid-template-columns:1fr}}

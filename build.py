@@ -1,7 +1,7 @@
 import pathlib, re, sys
 ROOT = pathlib.Path(__file__).resolve().parent
 src = ROOT/'src'
-ORDER = ['meta.js','core.js','tags.js','power.js','report.js','games.js','sim.js','ui.js','pauper.js','cedh.js','events.js','tools.js','account.js','web.js','live.js','home.js']
+ORDER = ['meta.js','core.js','tags.js','power.js','report.js','games.js','sim.js','table.js','ui.js','pauper.js','cedh.js','events.js','tools.js','account.js','web.js','live.js','group.js','home.js']
 css = (src/'style.css').read_text()
 js = "\n".join((src/f).read_text() for f in ORDER)
 html = f'''<!doctype html>

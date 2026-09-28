@@ -315,7 +315,13 @@ async function fetchCards(names, {force=false, label="Buscando cartas en Scryfal
   // un lote rechazado se divide: una carta con nombre raro ya no deja sin datos a las otras 74
   const batch = async (chunk) => {
     let r;
-    try { r = await sf("https://api.scryfall.com/cards/collection", {identifiers: chunk.map(n=>({name:cleanCardName(n).split(" // ")[0]}))}); }
+    try {
+      // versión en vivo: primero la base de cartas propia (más liviana y con caché); si falla, Scryfall directo
+      if (typeof LIVE!=="undefined" && LIVE && !S.noCardApi){
+        try { const x = await fetch("/api/cards", {method:"POST", headers:{"content-type":"application/json"}, body: JSON.stringify({names: chunk.map(n=>cleanCardName(n))})}); if (x.ok) r = x; else if (x.status>=500 || x.status===404) S.noCardApi = true; } catch { S.noCardApi = true; }
+      }
+      if (!r) r = await sf("https://api.scryfall.com/cards/collection", {identifiers: chunk.map(n=>({name:cleanCardName(n).split(" // ")[0]}))});
+    }
     catch(e){ offline = true; S.lastFetchErr = "No se pudo conectar con Scryfall: revisa tu conexión. Si abriste el archivo descargado en el teléfono, usa boveda-edh.netlify.app."; return; }
     if (!r.ok){
       S.lastFetchErr = `Scryfall respondió ${r.status}.`;
