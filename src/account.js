@@ -42,6 +42,11 @@ function accParts(d){
   return parts;
 }
 
+/* ---------- base de la última sincronización (para unir a tres bandas) ---------- */
+function accBaseOf(d){ const {_mod, _acc, _syncAt, _syMod, ...x} = d; const o = JSON.parse(JSON.stringify(x)); if (o.settings) delete o.settings.aiKey; return o; }
+function accBaseSave(d){ try { idb.set("accBase", accBaseOf(d)); } catch {} }
+async function accBaseLoad(){ try { return await idb.get("accBase"); } catch { return null; } }
+
 /* ---------- subir ---------- */
 async function accPush(force){
   if (!ACC.uid || ACC.busy) { if (ACC.uid) ACC.dirty = true; return; }
@@ -54,7 +59,14 @@ async function accPush(force){
       const cloudAt = snap.exists ? (snap.data().savedAt||0) : 0;
       if (cloudAt > (ACC.syncAt||0)){
         const c = await accPull(snap);
-        if (c){ accMerge(c); ACC.cloudAt = cloudAt; S.data._mod = Date.now(); lsSet(LS_DATA, S.data); if (typeof saveDataIdb==="function") saveDataIdb(); if (typeof bumpAnalysis==="function") bumpAnalysis(); render(); toast("Había cambios de otro dispositivo: se combinaron con los tuyos."); }
+        const base = c && await accBaseLoad();
+        if (c && base && typeof syMerge==="function"){
+          const key = S.data.settings && S.data.settings.aiKey;
+          const m = syMerge(base, JSON.parse(JSON.stringify(S.data)), JSON.parse(JSON.stringify(loadData(c.d))));
+          S.data = loadData(m.d); if (key) S.data.settings.aiKey = key; S.data._acc = ACC.uid;
+          for (const f of Object.keys(S.sel)) if (!S.data.decks.some(x=>x.id===S.sel[f])) S.sel[f] = null;
+        } else if (c) accMerge(c);
+        if (c){ ACC.cloudAt = cloudAt; S.data._mod = Date.now(); lsSet(LS_DATA, S.data); if (typeof saveDataIdb==="function") saveDataIdb(); if (typeof bumpAnalysis==="function") bumpAnalysis(); render(); toast("Había cambios de otro dispositivo: se combinaron con los tuyos."); }
       }
     }
     const parts = accParts(S.data);
@@ -65,7 +77,7 @@ async function accPush(force){
     }
     const at = Date.now();
     await root.set({v:1, savedAt:at, meta:accMeta(S.data), decks:Object.keys(parts.decks), coll:Object.keys(parts.coll), binders:Object.keys(parts.binders), cards:ACC.cardDocs||0, cardsAt:ACC.cardsAt||0});
-    ACC.cloudAt = ACC.syncAt = at; S.data._acc = ACC.uid; S.data._syncAt = at; lsSet(LS_DATA, S.data); if (typeof saveDataIdb==="function") saveDataIdb();
+    ACC.cloudAt = ACC.syncAt = at; S.data._acc = ACC.uid; S.data._syncAt = at; lsSet(LS_DATA, S.data); if (typeof saveDataIdb==="function") saveDataIdb(); accBaseSave(S.data);
   } catch(e){
     ACC.err = e && e.code==="quota_exceeded" ? "Tu cuenta llegó al máximo de documentos guardados." : e && e.code==="invalid_argument" ? "Esta cuenta no tiene permiso para guardar aquí (pide acceso de Colaborador)." : "No se pudo guardar en tu cuenta. Se reintentará con el próximo cambio.";
     ACC.dirty = true;
@@ -116,7 +128,7 @@ function accApply(cloud){
   lsSet("boveda-edh:antes-de-cuenta", S.data);
   S.data = loadData(JSON.parse(JSON.stringify(cloud.d)));
   if (key) S.data.settings.aiKey = key;
-  S.data._acc = ACC.uid; S.data._syncAt = S.data._mod = cloud.at; ACC.syncAt = ACC.cloudAt = cloud.at;
+  S.data._acc = ACC.uid; S.data._syncAt = S.data._mod = cloud.at; ACC.syncAt = ACC.cloudAt = cloud.at; accBaseSave(S.data);
   lsSet(LS_DATA, S.data); if (typeof saveDataIdb==="function") saveDataIdb(); if (typeof bumpAnalysis==="function") bumpAnalysis();
   for (const f of Object.keys(S.sel)) if (!S.data.decks.some(x=>x.id===S.sel[f])) S.sel[f] = null;
   S.editing = null; render();
@@ -141,8 +153,8 @@ async function accInit(){
       const cloudAt = snap.data().savedAt||0; ACC.cloudAt = cloudAt;
       const mine = S.data._acc === ACC.uid;
       const localChanged = (S.data._mod||0) > (S.data._syncAt||0);
-      if (isEmptyData(S.data) || (mine && !localChanged)){ ACC.state = "on"; if (!mine || cloudAt > (S.data._syncAt||0)) accApply(await accPull(snap)); else await accPull(snap); }
-      else if (mine && cloudAt <= (S.data._syncAt||0)){ ACC.state = "on"; await accPull(snap); await accPush(); }
+      if (isEmptyData(S.data) || (mine && !localChanged)){ ACC.state = "on"; if (!mine || cloudAt > (S.data._syncAt||0)) accApply(await accPull(snap)); else { await accPull(snap); ACC.syncAt = cloudAt; if (!(await accBaseLoad())) accBaseSave(S.data); } }
+      else if (mine && cloudAt <= (S.data._syncAt||0)){ ACC.state = "on"; await accPull(snap); ACC.syncAt = cloudAt; await accPush(); }
       else { ACC.state = "conflict"; ACC.conflict = {cloudAt, snap}; ACC.open = true; }
     }
     accWatch();
