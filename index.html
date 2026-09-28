@@ -1532,7 +1532,7 @@ function lsGet(k, def){ try{ const v=localStorage.getItem(k); return v?JSON.pars
 const isWebView = () => !!(window.claude && typeof window.claude.use==="function");
 const offlineMsg = site => isWebView() ? `La versión web no puede conectarse a ${site}. Para eso usa la versión en vivo: boveda-edh.netlify.app.` : `No se pudo conectar con ${site}. Revisa tu conexión a internet.`;
 let lsWarned=false;
-function lsSet(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ if (!lsWarned && !(typeof ACC!=="undefined" && ACC.uid)){ lsWarned=true; setTimeout(()=>toast("El navegador no dejó guardar aquí. Inicia sesión con tu cuenta o descarga un respaldo desde Ajustes."),50); } return false; } }
+function lsSet(k, v, quiet){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ if (!quiet && !lsWarned && !(typeof ACC!=="undefined" && ACC.uid)){ lsWarned=true; setTimeout(()=>toast("El navegador no dejó guardar aquí. Inicia sesión con tu cuenta o descarga un respaldo desde Ajustes."),50); } return false; } }
 const idb = (()=>{
   let dbp=null;
   const open = () => dbp || (dbp = new Promise((res,rej)=>{ try{ const r=indexedDB.open("boveda-edh",1); r.onupgradeneeded=()=>r.result.createObjectStore("kv"); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }catch(e){ rej(e); } }));
@@ -1564,9 +1564,14 @@ function loadData(raw){
   return d;
 }
 S.data = loadData();
-function saveData(){ S.data._mod = Date.now(); const ok = lsSet(LS_DATA, S.data); if (typeof accOnSave==="function") accOnSave(); return ok; }
+// los datos van a IndexedDB (sin el tope de ~5 MB) y, si caben, también a localStorage
+let dataT=null, lsFull=false;
+function saveDataIdb(){ clearTimeout(dataT); dataT=setTimeout(async ()=>{ try { await idb.set("data", S.data); } catch { if (lsFull && !lsWarned){ lsWarned=true; toast("El navegador no dejó guardar tus datos. Descarga un respaldo desde Ajustes."); } } }, 250); }
+function saveData(){ bumpAnalysis(); S.data._mod = Date.now(); const ok = lsSet(LS_DATA, S.data, true); lsFull = !ok; saveDataIdb(); if (typeof accOnSave==="function") accOnSave(); return true; }
+async function loadDataIdb(){ try { const d = await idb.get("data"); if (d && typeof d==="object" && (d._mod||0) > (S.data._mod||0)){ S.data = loadData(JSON.parse(JSON.stringify(d))); return true; } } catch {} return false; }
+window.addEventListener("pagehide", ()=>{ if (dataT){ clearTimeout(dataT); idb.set("data", S.data); } });
 let cacheT=null;
-function saveCaches(){ clearTimeout(cacheT); cacheT=setTimeout(()=>{ idb.set("cards",S.cards); idb.set("prints",S.prints); idb.set("hist",S.hist); idb.set("versions",S.versions); idb.set("edh",S.edh); },400); }
+function saveCaches(){ bumpAnalysis(); clearTimeout(cacheT); cacheT=setTimeout(()=>{ idb.set("cards",S.cards); idb.set("prints",S.prints); idb.set("hist",S.hist); idb.set("versions",S.versions); idb.set("edh",S.edh); },400); }
 async function loadCaches(){
   const [cards,prints,hist,versions,edh,gc,ck] = await Promise.all(["cards","prints","hist","versions","edh","gc","ck"].map(k=>idb.get(k)));
   S.cards = cards || lsGet("boveda-edh:cards", {}) || {};
@@ -1766,7 +1771,7 @@ function collIndex(){
   _ci=new Map(); for (const it of items){ const k=slug(it.n); const p=_ci.get(k); if(p){ p.q+=it.q; p.items.push(it); } else _ci.set(k,{n:it.n,q:it.q,items:[it]}); }
   _ciSig=sig; return _ci;
 }
-const touchColl = () => { S.data.collection.v=(S.data.collection.v||0)+1; };
+const touchColl = () => { bumpAnalysis(); S.data.collection.v=(S.data.collection.v||0)+1; };
 function ownedOf(name){ const k=slug(name); if (BASICS.has(k)) return Infinity; const it=collIndex().get(k); return it?it.q:0; }
 function usedMap(){
   const used = new Map();
@@ -1890,6 +1895,7 @@ async function refreshGC(){
 /* ---------- historial de precios ---------- */
 function histKey(kind, id){ return `${kind}:${cur()}:${id}`; }
 function recordHist(key, price){
+  bumpAnalysis();
   if (price==null || isNaN(price)) return;
   const d=today(); const h=S.hist[key]||(S.hist[key]=[]);
   if (h.length && h[h.length-1][0]===d) h[h.length-1][1]=price; else h.push([d, Math.round(price*100)/100]);
@@ -2039,7 +2045,15 @@ function ckOf(it){
 }
 
 /* ---------- análisis ---------- */
+// el análisis de cada mazo se guarda hasta que cambia el mazo, las cartas o la colección
+let _anaEpoch = 0; const _anaCache = new WeakMap();
+function bumpAnalysis(){ _anaEpoch++; }
 function analyze(d){
+  const sig = _anaEpoch + "|" + (d.updated||0) + "|" + (S.data.collection.v||0) + "|" + (S.data.collection.items||[]).length + "|" + cur() + "|" + S.gc.size;
+  const hit = _anaCache.get(d); if (hit && hit.sig === sig) return hit.A;
+  const A = analyzeRaw(d); _anaCache.set(d, {sig, A}); return A;
+}
+function analyzeRaw(d){
   const fmt = d.format||"commander", isC = fmt==="commander";
   const cmdMeta = (d.commanders||[]).map(cardOf);
   let ci = [...new Set(cmdMeta.flatMap(m => m ? m.ci.split("") : []))];
@@ -2384,7 +2398,8 @@ function forecast(name, key){
   return {s, label, why, conf, c7, c30};
 }
 const FC_ES = {up:"presión al alza", down:"presión a la baja", flat:"estable"};
-function alerts(){
+function alerts(){ const sig=_anaEpoch+'|'+Object.keys(S.data.dismissed||{}).length+'|'+(S.data.wishlist||[]).length; if (alerts._s===sig) return alerts._v; alerts._s=sig; return (alerts._v=alertsRaw()); }
+function alertsRaw(){
   const st=S.data.settings; const out=[]; const seen=new Set();
   const dism = S.data.dismissed||{};
   // subidas en tu colección y en tus carpetas de venta
@@ -3007,13 +3022,14 @@ function collHTML(){
   const q = S.collQ.trim().toLowerCase();
   let view = items.filter(i=>!q || i.n.toLowerCase().includes(q) || (i.set||"").toLowerCase()===q);
   if (S.collAvail){ const freeBy=new Map(); for (const [k,g] of idx){ const need=(used.get(k)||[]).reduce((a,u)=>Math.max(a,u.q),0); freeBy.set(k, g.q-need); } view = view.filter(i=>(freeBy.get(slug(i.n))||0)>0); }
-  const shown = view.slice(0,400);
+  const lim = S.collShow || 150; const shown = view.slice(0,lim);
+  const posOf = new Map(S.data.collection.items.map((it,j)=>[it,j]));
   const fmtCov = f => S.data.decks.filter(d=>d.format===f && !d.rival).map(d=>{ const A=analyze(d); return {d, p:A.needCount?A.ownedCount/A.needCount:1, miss:A.missingCards.reduce((a,m)=>a+m.q,0), cost:A.missingCost}; });
   const cov = ["commander","pauper","pioneer"].flatMap(f=>fmtCov(f).map(x=>({...x,f}))).sort((a,b)=>b.p-a.p);
   const pick = S.picked || (S.picked=new Set());
   const nPick = [...pick].filter(i=>S.data.collection.items.includes(i)).length;
   const allShownPicked = shown.length && shown.every(i=>pick.has(i));
-  const rows = shown.map((i)=>{ const u=used.get(slug(i.n))||[]; const m=cardOf(i.n); const pr=itemPrice(i); const key=itemKey(i); const c7=change(key,7), c30=change(key,30); const idxI = S.data.collection.items.indexOf(i);
+  const rows = shown.map((i)=>{ const u=used.get(slug(i.n))||[]; const m=cardOf(i.n); const pr=itemPrice(i); const key=itemKey(i); const c7=change(key,7), c30=change(key,30); const idxI = posOf.get(i);
     return `<tr${pick.has(i)?' style="background:var(--accent-soft)"':""}><td><input type="checkbox" data-pick="${idxI}" ${pick.has(i)?"checked":""} aria-label="Seleccionar ${esc(i.n)}"></td><td><span class="qty"><button data-dq="${idxI}" data-d="-1" aria-label="Quitar una copia">−</button><span class="num" style="min-width:22px;text-align:center">${i.q}</span><button data-dq="${idxI}" data-d="1" aria-label="Agregar una copia">+</button></span></td>
       <td>${cardName(i.n,m)}${i.sell?` <span class="pill warn">vender</span>`:""}</td><td class="muted" style="font-size:.88rem;white-space:nowrap">${i.set?esc(i.set)+(i.num?" #"+esc(i.num):""):"—"}${i.foil?` <span class="tag">${esc(i.foil)}</span>`:""}${i.lang&&!/^(en|english)$/i.test(i.lang)?` <span class="tag">${esc(i.lang)}</span>`:""}</td>
       <td class="muted" style="font-size:.88rem">${u.map(x=>esc(x.d)).filter((v,j,a)=>a.indexOf(v)===j).join(", ")||"—"}</td>
@@ -3032,7 +3048,7 @@ function collHTML(){
         <select id="bulk-cond" aria-label="Cambiar condición" style="width:auto"><option value="">Cambiar condición…</option>${["near_mint","lightly_played","moderately_played","heavily_played","damaged"].map(c=>`<option value="${c}">${{near_mint:"Near Mint",lightly_played:"Lightly Played",moderately_played:"Moderately Played",heavily_played:"Heavily Played",damaged:"Damaged"}[c]}</option>`).join("")}</select>
         ${S.bulkDel?`<span>¿Eliminar de la colección?</span><button class="btn sm danger" data-bulk="del-ok">Sí, eliminar</button><button class="btn sm ghost" data-bulk="del-no">Cancelar</button>`:`<button class="btn sm danger" data-bulk="del">Eliminar</button>`}
         <button class="btn sm ghost" data-bulk="none">Deseleccionar</button></div>`:""}
-      ${items.length?`<div class="tbl-wrap"><table><thead><tr><th><input type="checkbox" id="pick-all" ${allShownPicked?"checked":""} aria-label="Seleccionar todas las visibles"></th><th>Cant.</th><th>Carta</th><th>Versión</th><th>En mazos</th><th class="n">Precio</th><th class="n">7 días</th><th class="n">30 días</th></tr></thead><tbody>${rows}</tbody></table></div>${view.length>400?`<p class="foot">Mostrando 400 de ${view.length}. Afina la búsqueda.</p>`:""}`:`<div class="empty">Tu colección está vacía. Sincroniza con ManaBox o importa una lista a la derecha.</div>`}
+      ${items.length?`<div class="tbl-wrap"><table><thead><tr><th><input type="checkbox" id="pick-all" ${allShownPicked?"checked":""} aria-label="Seleccionar todas las visibles"></th><th>Cant.</th><th>Carta</th><th>Versión</th><th>En mazos</th><th class="n">Precio</th><th class="n">7 días</th><th class="n">30 días</th></tr></thead><tbody>${rows}</tbody></table></div>${view.length>lim?`<div class="row" style="margin-top:10px"><button class="btn" data-act="coll-more">Mostrar ${Math.min(150, view.length-lim)} más</button><span class="foot">Mostrando ${lim} de ${view.length.toLocaleString("es-CL")}</span></div>`:""}`:`<div class="empty">Tu colección está vacía. Sincroniza con ManaBox o importa una lista a la derecha.</div>`}
       <p class="foot">El precio es el de tu versión exacta (set, número y acabado) cuando la conoces; si no, el de referencia. Los cambios de 7 y 30 días se calculan con el historial que la Bóveda guarda cada día que la abres.</p>
     </div>
     <div style="display:grid;gap:16px;align-content:start">
@@ -3826,6 +3842,7 @@ document.addEventListener("click", async ev=>{
   }
   const f = fmtOfView();
   switch(b.dataset.act){
+    case "coll-more": S.collShow=(S.collShow||150)+150; render(); break;
     case "new": S.editing={format:f||"commander", name:"", commanders:[], text:""}; S.showMeta[f]=false; render(); $("#f-name")&&$("#f-name").focus(); break;
     case "show-meta": S.showMeta[f]=true; S.editing=null; render(); break;
     case "edit": S.editing={id:d.id, format:d.format, name:d.name, commanders:d.commanders||[], text:listText(d.cards), side:listText(d.side), maybe:listText(d.maybe)}; S.confirmDel=false; render(); break;
@@ -4060,12 +4077,13 @@ document.addEventListener("focusout", ev=>{ if (ev.target && ev.target.id==="f-l
 document.addEventListener("input", ev=>{
   if (["f-list","f-side","f-maybe","f-cmd"].includes(ev.target.id)){ clearTimeout(prevT); prevT=setTimeout(renderEditorPreview, 250); }
   if (ev.target.id==="b-q"){ S.bQ=ev.target.value; const pos=ev.target.selectionStart; render(); const el=$("#b-q"); if (el){ el.focus(); el.setSelectionRange(pos,pos); } return; }
-  if (ev.target.id==="coll-q"){ S.collQ=ev.target.value; const pos=ev.target.selectionStart; render(); const el=$("#coll-q"); if (el){ el.focus(); el.setSelectionRange(pos,pos); } }
+  if (ev.target.id==="coll-q"){ S.collQ=ev.target.value; S.collShow=150; clearTimeout(S._cqT); S._cqT=setTimeout(()=>{ const pos=ev.target.selectionStart; render(); const el=$("#coll-q"); if (el){ el.focus(); el.setSelectionRange(pos,pos); } }, 180); }
 });
 
 /* ---------- arranque ---------- */
 (async ()=>{
   render();
+  if (await loadDataIdb()) render();
   await loadCaches();
   render();
   refreshGC();
@@ -4620,7 +4638,8 @@ function newsHTML(){
 }
 
 /* ---------- Resumen semanal ---------- */
-function weeklyData(){
+function weeklyData(){ const sig=_anaEpoch+'|'+(S.data._mod||0); if (weeklyData._s===sig) return weeklyData._v; weeklyData._s=sig; return (weeklyData._v=weeklyDataRaw()); }
+function weeklyDataRaw(){
   const since=Date.now()-7*864e5; const moves=[]; let delta=0, base=0;
   for (const it of [...(S.data.collection.items||[]), ...binderItems()]){ if (BASICS.has(slug(it.n))) continue; const ch=change(itemKey(it),7); if (!ch) continue; delta+=ch.diff*it.q; base+=ch.from*it.q; moves.push({n:it.n, set:it.set, pct:ch.pct, diff:ch.diff, q:it.q, to:ch.to}); }
   moves.sort((a,b)=>b.pct-a.pct);
@@ -5129,9 +5148,9 @@ async function syPush(force=false){
   try {
     const at = Date.now();
     const r = await fetch("/api/sync?id=" + await syId(SY.code), {method:"PUT", headers:{"content-type":"application/octet-stream", "x-at":String(at), "x-base-at":String(SY.at), ...(force?{"x-force":"1"}:{})}, body: await gz(JSON.stringify(syPayload()))});
-    if (r.status === 409){ SY.remote = await syPull(); SY.state = "conflict"; ACC.open = true; }
+    if (r.status === 409){ const rem = await syPull(); SY.busy = false; if (!(rem && await syAutoMerge(rem))){ SY.remote = rem; SY.state = "conflict"; ACC.open = true; } return; }
     else if (!r.ok){ SY.err = r.status===413 ? "Tus datos pasan el máximo de 5 MB para sincronizar." : "No se pudo sincronizar. Se reintentará con el próximo cambio."; SY.dirty = true; }
-    else { SY.at = at; S.data._syncAt = at; lsSet(LS_DATA, S.data); sySave(); }
+    else { SY.at = at; S.data._syncAt = at; lsSet(LS_DATA, S.data, true); sySave(); syBaseSave(syPayload()); }
   } catch(e){ SY.err = "Sin conexión: se sincroniza cuando vuelva la señal."; SY.dirty = true; }
   finally { SY.busy = false; accRender(); if (SY.dirty && !SY.err) sySchedule(1500); }
 }
@@ -5142,7 +5161,7 @@ function syApply(remote){
   lsSet("boveda-edh:antes-de-sincronizar", S.data);
   S.data = loadData(JSON.parse(JSON.stringify(remote.d)));
   if (key) S.data.settings.aiKey = key;
-  S.data._syncAt = S.data._mod = remote.at; SY.at = remote.at; sySave();
+  S.data._syncAt = S.data._mod = remote.at; SY.at = remote.at; sySave(); syBaseSave(remote.d);
   lsSet(LS_DATA, S.data);
   for (const f of Object.keys(S.sel)) if (!S.data.decks.some(x=>x.id===S.sel[f])) S.sel[f] = null;
   S.editing = null; render();
@@ -5157,7 +5176,7 @@ async function syCheck(){
     if (remote.at <= SY.at){ if ((S.data._mod||0) > SY.at) syPush(); return; }
     const localChanged = (S.data._mod||0) > (S.data._syncAt||0);
     if (!localChanged || syEmpty(S.data)){ syApply(remote); toast("Se cargaron los cambios de tu otro dispositivo."); }
-    else { SY.remote = remote; SY.state = "conflict"; ACC.open = true; accRender(); }
+    else if (!(await syAutoMerge(remote))){ SY.remote = remote; SY.state = "conflict"; ACC.open = true; accRender(); }
   } catch { SY.err = "Sin conexión: se sincroniza cuando vuelva la señal."; accRender(); }
 }
 async function syConnect(code, isNew){
@@ -5168,6 +5187,56 @@ async function syConnect(code, isNew){
   if (syEmpty(S.data)){ syApply(remote); toast("Tus datos llegaron a este dispositivo."); }
   else { SY.remote = remote; SY.state = "conflict"; ACC.open = true; }
   accRender();
+}
+
+
+/* ---------- unir cambios de dos dispositivos (a tres bandas) ---------- */
+// base = lo último que este dispositivo sincronizó; se compara registro por registro
+function syBaseSave(d){ try { idb.set("syncBase", JSON.parse(JSON.stringify(d))); } catch {} }
+async function syBaseLoad(){ try { return await idb.get("syncBase"); } catch { return null; } }
+const syJ = o => JSON.stringify(o===undefined?null:o);
+function syMergeList(base, loc, rem, keyOf, newer){
+  const B = new Map((base||[]).map(x=>[keyOf(x),x])), L = new Map((loc||[]).map(x=>[keyOf(x),x])), R = new Map((rem||[]).map(x=>[keyOf(x),x]));
+  const out = []; let clash = 0;
+  const keys = [...new Set([...L.keys(), ...R.keys(), ...B.keys()])];
+  for (const k of keys){
+    const b = B.get(k), l = L.get(k), r = R.get(k);
+    const lc = syJ(l)!==syJ(b), rc = syJ(r)!==syJ(b);
+    let v;
+    if (!lc) v = r; else if (!rc) v = l;
+    else if (syJ(l)===syJ(r)) v = l;
+    else { clash++; v = !l ? r : !r ? l : (newer ? newer(l, r) : l); }
+    if (v) out.push(v);
+  }
+  // conserva el orden local y agrega al final lo nuevo del otro dispositivo
+  const pos = new Map((loc||[]).map((x,i)=>[keyOf(x),i]));
+  out.sort((a,b)=>(pos.has(keyOf(a))?pos.get(keyOf(a)):1e9)-(pos.has(keyOf(b))?pos.get(keyOf(b)):1e9));
+  return {list: out, clash};
+}
+function syMerge(base, loc, rem){
+  const byTime = (a,b)=>((b.updated||0) > (a.updated||0) ? b : a);
+  const d = syMergeList(base.decks, loc.decks, rem.decks, x=>x.id, byTime);
+  const bi = syMergeList(base.binders, loc.binders, rem.binders, x=>x.id, byTime);
+  const co = syMergeList(base.collection&&base.collection.items, loc.collection.items, rem.collection.items, x=>collKey(x));
+  const wi = syMergeList(base.wishlist, loc.wishlist, rem.wishlist, x=>slug(x.n)+"|"+(x.pk||"")+"|"+(x.finish||""));
+  const noKey = o => { const x = {...(o||{})}; delete x.aiKey; return x; };
+  const scalar = k => k==="settings" ? (syJ(noKey(loc.settings))!==syJ(noKey(base.settings)) ? loc.settings : rem.settings) : (syJ(loc[k])!==syJ(base[k]) ? loc[k] : rem[k]);
+  const out = {...rem, ...loc, decks:d.list, binders:bi.list, collection:{...loc.collection, items:co.list, v:(loc.collection.v||0)+1}, wishlist:wi.list,
+    settings: {...scalar("settings"), aiKey: loc.settings && loc.settings.aiKey}, dismissed: scalar("dismissed"), roles: scalar("roles"), mbLog: scalar("mbLog")};
+  return {d: out, clash: d.clash + bi.clash + co.clash + wi.clash};
+}
+async function syAutoMerge(remote){
+  const base = await syBaseLoad();
+  if (!base) return false;
+  const loc = JSON.parse(JSON.stringify(S.data));
+  const m = syMerge(base, loc, JSON.parse(JSON.stringify(remote.d)));
+  S.data = loadData(m.d); S.data._syncAt = remote.at; SY.at = remote.at; sySave();
+  lsSet(LS_DATA, S.data, true); if (typeof saveDataIdb==="function") saveDataIdb();
+  for (const f of Object.keys(S.sel)) if (!S.data.decks.some(x=>x.id===S.sel[f])) S.sel[f] = null;
+  S.editing = null; render();
+  toast(m.clash ? `Se unieron los cambios de tus dispositivos. En ${m.clash} registro${m.clash>1?"s":""} cambiado${m.clash>1?"s":""} en ambos se quedó la versión más reciente.` : "Se unieron los cambios de tus dispositivos.");
+  await syPush(true);
+  return true;
 }
 
 /* ---------- interfaz del botón de cuenta en la versión en vivo ---------- */
