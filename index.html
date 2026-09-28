@@ -506,6 +506,69 @@ body.web [data-act="fetch-meta"],body.web [data-act="fetch-meta-all"],body.web [
 .steps b{color:var(--ink)}
 .api-adv{margin-top:12px}
 .api-adv summary{cursor:pointer;padding:6px 0}
+
+/* ---------- escala tipográfica y números ---------- */
+:root{--fs-1:2rem;--fs-2:1.45rem;--fs-3:1.15rem;--fs-s:.88rem}
+.num{font-family:var(--body);font-variant-numeric:tabular-nums lining-nums;font-feature-settings:"tnum" 1,"lnum" 1}
+.stat .v,.sim-card .v,.bl-qty,.bl-price,.bl-total .v,.bl-total .c,.gf-stat b,.hbar .n,td.n,th.n,.rec .meta,.cr .q,.cr .cm{font-family:var(--body);font-variant-numeric:tabular-nums lining-nums;font-weight:600}
+.pane-head h2,.fmt-head h2,.coll-head h2{font-size:var(--fs-1)}
+.sec h3,.card-box h3{font-size:var(--fs-3)}
+/* contraste de avisos */
+.banner{color:var(--ink)}
+.banner .muted,.banner .foot{color:inherit;opacity:.85}
+.banner a{color:inherit;font-weight:600}
+.more-banners{margin-top:-14px}
+.more-banners summary{cursor:pointer;color:var(--muted);font-size:var(--fs-s);padding:4px 0}
+.more-banners[open]{display:grid;gap:8px}
+
+/* ---------- pestañas del mazo en dos niveles ---------- */
+.subtabs.grp{gap:22px}
+.subchips{display:flex;gap:6px;flex-wrap:wrap;padding:12px 20px 0}
+.subchips .chip{font-size:.9rem}
+
+/* ---------- miniaturas ---------- */
+.thumb{width:26px;height:36px;border-radius:3px;object-fit:cover;vertical-align:middle;margin-right:8px;flex:none;background:var(--sunk);display:inline-block}
+.thumb0{opacity:.5}
+.cr .nm{display:flex;align-items:center;min-width:0}
+
+/* ---------- inicio ---------- */
+.home{display:grid;gap:22px}
+.home-sec{display:grid;gap:10px}
+.home-h{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.home-h h2{font-size:var(--fs-2)}
+.home-decks{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.home-deck{display:grid;grid-template-rows:auto auto;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface);padding:0;cursor:pointer;text-align:left;color:var(--ink);font:inherit}
+.home-deck:hover,.home-deck:focus-visible{border-color:var(--accent)}
+.home-deck img,.home-deck-ph{width:100%;aspect-ratio:16/7;object-fit:cover;display:grid;place-items:center;background:var(--sunk)}
+.hd-t{padding:10px 12px;display:grid;gap:2px}
+.hd-t small{color:var(--muted);font-size:var(--fs-s)}
+.home-stats .v.up{color:var(--good)}.home-stats .v.down{color:var(--bad)}
+.home-quick{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px}
+.home-quick .btn{justify-content:center}
+.wz{border-color:var(--accent)}
+.wz-list{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.wz-step{display:grid;grid-template-columns:32px minmax(0,1fr);gap:10px;align-items:start}
+.wz-step p{margin:2px 0 6px;color:var(--muted);font-size:.93rem}
+.wz-n{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);font-weight:700}
+.wz-step.done .wz-n{background:var(--good-soft);color:var(--good)}
+.wz-step.done b{text-decoration:line-through;color:var(--muted)}
+.acc-foot{border-top:1px solid var(--line);padding-top:10px}
+
+@media (max-width:640px){
+  .top-in{flex-wrap:nowrap}
+  .brand{font-size:1.1rem;flex:none}
+  .top-right{margin-left:auto;flex-wrap:nowrap;min-width:0}
+  #btn-settings{display:none}
+  .acc-chip{padding:3px 10px 3px 3px}
+  .acc-chip b{max-width:110px}
+  .home-decks{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .home-deck img,.home-deck-ph{aspect-ratio:4/3}
+  .home-h h2{font-size:1.25rem}
+  .subtabs.grp{justify-content:space-between;gap:10px}
+  .subchips{padding:10px 14px 0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  .subchips .chip{flex:none}
+  .pane-head h2,.fmt-head h2{font-size:1.55rem}
+}
 </style>
 </head>
 <body>
@@ -1482,7 +1545,7 @@ const idb = (()=>{
 const DEFAULT_SETTINGS = {cur:"usd", clp:"", autoFetch:true, autoRefresh:true, rise:15, drop:10, minMove:1, sellMin:5, lastRefresh:0, aiModel:"claude-sonnet-5", weekly:true, weeklySeen:0};
 const S = {
   data: null, cards:{}, prints:{}, versions:{}, hist:{}, edh:{}, ck:null, cedhLive:null, gc:new Set(GC_FALLBACK.map(slug)),
-  view:"commander", sel:{commander:null,pauper:null,pioneer:null}, showMeta:{commander:false,pauper:false,pioneer:false},
+  view:"home", sel:{commander:null,pauper:null,pioneer:null}, showMeta:{commander:false,pauper:false,pioneer:false},
   deckTab:"analisis", editing:null, confirmDel:false, busy:null, modal:null, settingsOpen:false,
   collQ:"", collAvail:false, collMode:null, optBudget:"10", targetBracket:null, mbPreview:null, deckMbPreview:null, marketTab:"alertas",
 };
@@ -2501,8 +2564,8 @@ function render(){
   // conserva lo escrito en el editor si la pantalla se vuelve a dibujar
   if (S.editing && $("#f-list")){ S.editing.text=$("#f-list").value; S.editing.side=($("#f-side")||{}).value||""; S.editing.maybe=($("#f-maybe")||{}).value||""; S.editing.name=($("#f-name")||{}).value||""; if ($("#f-cmd")) S.editing.commanders=$("#f-cmd").value.split("+").map(x=>x.trim()).filter(Boolean); }
   const alertsN = alerts().length;
-  const nav = [["tools","Herramientas","Inicio"],["commander","Commander","EDH"],["pauper","Pauper","Pauper"],["pioneer","Pioneer","Pioneer"],["coll","Colección","Colec."],["venta","Venta","Venta"],["market","Mercado","Mercado"]];
-  $("#tabs").innerHTML = nav.map(([k,l,sh])=>`<button class="tab" role="tab" data-view="${k}" aria-selected="${S.view===k}"><span class="tl">${l}</span><span class="ts" aria-hidden="true">${sh}</span>${k==="market"&&alertsN?`<span class="badge" aria-label="${alertsN} alertas">${alertsN}</span>`:""}</button>`).join("");
+  const nav = [["home","Inicio","Inicio"],["commander","Commander","EDH"],["pauper","Pauper","Pauper"],["pioneer","Pioneer","Pioneer"],["coll","Colección","Colec."],["venta","Venta","Venta"],["market","Mercado","Mercado"]];
+  $("#tabs").innerHTML = nav.map(([k,l,sh])=>`<button class="tab" role="tab" data-view="${k}" aria-selected="${S.view===k || (k==="home" && ["tools","weekly","news"].includes(S.view))}"><span class="tl">${l}</span><span class="ts" aria-hidden="true">${sh}</span>${k==="market"&&alertsN?`<span class="badge" aria-label="${alertsN} alertas">${alertsN}</span>`:""}</button>`).join("");
   renderBusy();
   renderSettings();
   const main=$("#main");
@@ -2510,12 +2573,25 @@ function render(){
   else if (S.view==="coll") main.innerHTML = collHTML();
   else if (S.view==="venta") main.innerHTML = ventaHTML();
   else if (S.view==="tools") main.innerHTML = toolsHubHTML();
+  else if (S.view==="home") main.innerHTML = homeHTML();
   else if (S.view==="news") main.innerHTML = newsHTML();
   else if (S.view==="weekly") main.innerHTML = weeklyHTML();
   else main.innerHTML = marketHTML();
   if (S.editing && typeof renderEditorPreview==="function") renderEditorPreview();
   renderModal();
+  collapseBanners();
 }
+// un aviso a la vez: los demás quedan plegados bajo "N avisos más"
+function collapseBanners(){
+  for (const body of document.querySelectorAll("#main .pane-body")){
+    const bs = [...body.children].filter(e=>e.classList.contains("banner"));
+    if (bs.length < 2) continue;
+    const det = document.createElement("details"); det.className = "more-banners";
+    det.innerHTML = `<summary>${bs.length-1} aviso${bs.length>2?"s":""} más</summary>`;
+    bs[0].after(det); for (const b of bs.slice(1)) det.append(b);
+  }
+}
+function thumbHTML(m){ return m && m.img ? `<img class="thumb" src="${esc(m.img.replace("/normal/","/small/"))}" alt="" loading="lazy" decoding="async">` : `<span class="thumb thumb0" aria-hidden="true"></span>`; }
 function renderBusy(){
   $("#sync").innerHTML = S.busy ? `${esc(S.busy.label)}…${S.busy.total>1?` <span class="num">${S.busy.done}/${S.busy.total}</span>`:""}` : (S.data.settings.lastRefresh?`Precios del ${new Date(S.data.settings.lastRefresh).toLocaleDateString("es-CL")}`:(typeof ACC!=="undefined"&&ACC.state==="on"?"Guardado en tu cuenta":"Guardado en este navegador")); if (typeof accRender==="function") accRender();
   const b=$("#busy-banner"); if (b) b.outerHTML = busyBanner();
@@ -2535,7 +2611,7 @@ function renderSettings(){
     <div class="field"><label>Alertas</label>
       <div class="row" style="gap:6px"><span class="muted" style="font-size:.9rem">Subida de</span><input type="number" id="set-rise" min="1" step="1" style="width:70px" value="${st.rise}"><span class="muted" style="font-size:.9rem">% · bajada de</span><input type="number" id="set-drop" min="1" step="1" style="width:70px" value="${st.drop}"><span class="muted" style="font-size:.9rem">%</span></div>
       <div class="row" style="gap:6px"><span class="muted" style="font-size:.9rem">Movimiento mínimo</span><input type="number" id="set-min" min="0" step="0.5" style="width:70px" value="${st.minMove}"><span class="muted" style="font-size:.9rem">· vender desde</span><input type="number" id="set-sell" min="0" step="1" style="width:70px" value="${st.sellMin}"></div></div>
-    <label class="row" style="gap:8px"><input type="checkbox" id="set-auto" ${st.autoFetch?"checked":""}> Traer datos de Scryfall al importar</label>
+    <label class="row" style="gap:8px"><input type="checkbox" id="set-auto" ${st.autoFetch?"checked":""}> Actualizar las cartas al importar</label>
     <label class="row" style="gap:8px"><input type="checkbox" id="set-autorefresh" ${st.autoRefresh?"checked":""}> Actualizar precios una vez al día al abrir</label>
     <h3 style="font-size:1.1rem;margin-top:6px">Claude (opcional)</h3>
     <p class="muted" style="margin:0;font-size:.9rem">Para “Optimizar con IA” y la radiografía con IA, pega una clave de la API de Anthropic (console.anthropic.com). Se guarda solo en este navegador y el uso se cobra en tu cuenta de Anthropic.</p>
@@ -2555,7 +2631,7 @@ function formatViewHTML(fmt){
   const rail = `<aside class="rail fmt-rail">
     <button class="btn primary" data-act="new">+ Nuevo mazo de ${FORMATS[fmt].name}</button>
     <button class="btn meta-btn" data-act="show-meta" aria-pressed="${S.showMeta[fmt]===true}">${fmt==="commander"?"Meta cEDH y brackets":"Meta de "+FORMATS[fmt].name}</button>
-    ${fmt==="commander"?`<button class="btn meta-btn" data-act="show-local" aria-pressed="${S.showMeta[fmt]==="local"}">Mesa local: tus amigos</button>`:""}
+    ${fmt==="commander"?`<button class="btn meta-btn" data-act="show-local" aria-pressed="${S.showMeta[fmt]==="local"}">Mazos de mis amigos</button>`:""}
     <ul class="deck-list">${decks.map(d=>{ const A=analyze(d); return `<li><button class="deck-item" data-deck="${esc(d.id)}" aria-current="${d.id===S.sel[fmt] && !S.editing && !S.showMeta[fmt]}"><span class="dn">${esc(d.name)}</span><span class="dc">${pipsHTML(A.ci)} ${esc(fmt==="commander"?((d.commanders||[]).join(" + ")||"sin comandante"):`${A.main} + ${A.sideN}`)} · <span class="num">${money(A.price)}</span>${d.mb?` · <span class="tag">ManaBox</span>`:""}</span></button></li>`; }).join("") || `<li class="muted" style="padding:8px 12px">Aún no tienes mazos de ${FORMATS[fmt].name}.</li>`}</ul>
   </aside>`;
   let pane;
@@ -2570,24 +2646,37 @@ function formatViewHTML(fmt){
 }
 function deckHTML(d){
   const A = analyze(d);
-  const tabs = A.isC ? [["analisis","Análisis"],["lista","Lista"],["mana","Base de maná"],["combos","Combos"],["brackets","Brackets"],["mejorar","Mejorar"],["ia","Optimizar con IA"],["radiografia","Radiografía"],["mano","Probar mano"],["versiones","Versiones"],["compartir","Compartir"],["precio","Precio"],["manabox","ManaBox e historial"]]
-                     : [["analisis","Análisis"],["lista","Lista"],["mana","Base de maná"],["meta","Contra el meta"],["ia","Optimizar con IA"],["radiografia","Radiografía"],["mano","Probar mano"],["versiones","Versiones"],["compartir","Compartir"],["precio","Precio"],["manabox","ManaBox e historial"]];
+  // cinco grupos; cada uno con sus vistas
+  const G = A.isC ? [
+    ["resumen","Resumen",[["analisis","Análisis"],["mana","Base de maná"]]],
+    ["lista","Lista",[["lista","Lista"]]],
+    ["mejorar","Mejorar",[["mejorar","Recomendaciones"],["ia","Con IA"],["brackets","Brackets"],["combos","Combos"]]],
+    ["jugar","Jugar",[["mano","Probar mano"],["radiografia","Cómo se juega"]]],
+    ["precio","Precio",[["precio","Valor"],["versiones","Versiones"],["manabox","ManaBox"],["compartir","Compartir"]]]]
+  : [
+    ["resumen","Resumen",[["analisis","Análisis"],["mana","Base de maná"]]],
+    ["lista","Lista",[["lista","Lista"]]],
+    ["mejorar","Mejorar",[["meta","Contra el meta"],["ia","Con IA"]]],
+    ["jugar","Jugar",[["mano","Probar mano"],["radiografia","Cómo se juega"]]],
+    ["precio","Precio",[["precio","Valor"],["versiones","Versiones"],["manabox","ManaBox"],["compartir","Compartir"]]]];
+  const tabs = G.flatMap(g=>g[2]);
   if (!tabs.some(t=>t[0]===S.deckTab)) S.deckTab="analisis";
   const body = {analisis:analysisHTML, lista:listHTML, mana:manaHTML, combos:combosHTML, brackets:bracketsHTML, mejorar:improveHTML, precio:priceHTML, meta:deckMetaHTML, manabox:mbDeckHTML, ia:iaHTML, radiografia:radioHTML, mano:manoHTML, versiones:versionesHTML, compartir:compartirHTML}[S.deckTab](d,A);
   const pendN = d.mb ? boardDiff(mbBase(d.mb), boardsOf(d)).n : 0;
   return `<div class="pane">
     <div class="pane-head">
-      <div><h2>${esc(d.name)}</h2>${d.rival?`<div class="pill neutral" style="margin:4px 0">Mazo de ${esc(d.rival.owner||"un amigo")} · Mesa local</div>`:""}<div class="sub">${pipsHTML(A.ci)} <span>${esc(A.isC?((d.commanders||[]).join(" + ")||"Sin comandante"):FORMATS[A.fmt].name)}</span> <span class="num muted">· ${A.isC?`${A.total} cartas`:`main ${A.main}`} · side ${A.sideN} · maybe ${A.maybeN} · ${money(A.price)}</span>${pendN?` <span class="pill warn">${pendN} cambio${pendN>1?"s":""} sin pasar a ManaBox</span>`:""}</div></div>
+      <div><h2>${esc(d.name)}</h2>${d.rival?`<div class="pill neutral" style="margin:4px 0">Mazo de ${esc(d.rival.owner||"un amigo")} · mazos de mis amigos</div>`:""}<div class="sub">${pipsHTML(A.ci)} <span>${esc(A.isC?((d.commanders||[]).join(" + ")||"Sin comandante"):FORMATS[A.fmt].name)}</span> <span class="num muted">· ${A.isC?`${A.total} cartas`:`main ${A.main}`} · side ${A.sideN} · maybe ${A.maybeN} · ${money(A.price)}</span>${pendN?` <span class="pill warn">${pendN} cambio${pendN>1?"s":""} sin pasar a ManaBox</span>`:""}</div></div>
       <div class="actions"><button class="btn sm" data-act="edit">Editar lista</button><button class="btn sm ghost danger" data-act="askdel">Borrar</button></div>
     </div>
     ${S.confirmDel?`<div style="padding:12px 20px 0"><div class="confirm">¿Borrar “${esc(d.name)}” de este navegador? <button class="btn sm danger" data-act="del">Sí, borrar</button><button class="btn sm ghost" data-act="nodel">Cancelar</button></div></div>`:""}
-    <div class="subtabs" role="tablist">${tabs.map(([k,l])=>`<button class="subtab" role="tab" data-sub="${k}" aria-selected="${S.deckTab===k}">${l}</button>`).join("")}</div>
+    <div class="subtabs grp" role="tablist">${G.map(([gk,gl,items])=>{ const on=items.some(i=>i[0]===S.deckTab); return `<button class="subtab" role="tab" data-sub="${on?S.deckTab:items[0][0]}" aria-selected="${on}">${gl}</button>`; }).join("")}</div>
+    ${(()=>{ const g=G.find(x=>x[2].some(i=>i[0]===S.deckTab)); return g && g[2].length>1 ? `<div class="subchips">${g[2].map(([k,l])=>`<button class="chip" data-sub="${k}" aria-pressed="${S.deckTab===k}">${l}</button>`).join("")}</div>` : ""; })()}
     <div class="pane-body">${missingBanner(A)}${body}</div>
   </div>`;
 }
 function missingBanner(A){
   if (S.busy || !A.missing.length) return "";
-  return `<div class="banner"><span><b class="num">${A.missing.length}</b> carta${A.missing.length>1?"s":""} sin datos todavía. El análisis las cuenta como desconocidas.</span><button class="btn sm primary" data-act="fetch">Traer datos de Scryfall</button></div>`;
+  return `<div class="banner"><span><b class="num">${A.missing.length}</b> carta${A.missing.length>1?"s":""} sin datos todavía. El análisis las cuenta como desconocidas.</span><button class="btn sm primary" data-act="fetch">Actualizar cartas</button></div>`;
 }
 function ringSVG(score){
   const r=40, c=2*Math.PI*r, col = score>=80?"var(--good)":score>=60?"var(--warn)":"var(--bad)";
@@ -2686,8 +2775,8 @@ function listHTML(d,A){
   const row = (r,t,board) => { const o=ownedOf(r.n); const have=o>=r.q; const tags=[...(r.m&&r.m.gc&&A.isC?[`<span class="tag gc">game changer</span>`]:[]), ...((r.m&&r.m.r)||[]).map(x=>`<span class="tag">${ROLE_ES[x]}</span>`)];
     const mv = board==="side" ? `<button class="btn sm ghost" style="padding:0 6px" data-move="side>cards" data-card2="${esc(r.n)}" title="Pasar al main">→ main</button>`
              : board==="maybe" ? `<button class="btn sm ghost" style="padding:0 6px" data-move="maybe>cards" data-card2="${esc(r.n)}" title="Pasar al main">→ main</button>` : "";
-    return `<div class="cr"><span class="q">${r.q}</span><span class="nm">${cardName(r.n,r.m)}${tags.length?`<span class="tags">${tags.join("")}</span>`:""} ${mv}</span><span class="cm">${r.m&&t!=="Land"?r.m.cmc:""}</span><span class="own ${have?"y":"n"}">${r.m&&r.m.basic?"":have?"tengo":"falta"}</span></div>`; };
-  const cmd = (d.commanders||[]).map(n=>{const m=cardOf(n); return `<div class="cr"><span class="q">1</span><span class="nm"><b>${cardName(n,m)}</b></span><span class="cm">${m?m.cmc:"?"}</span><span class="own ${ownedOf(n)>0?"y":"n"}">${ownedOf(n)>0?"tengo":"falta"}</span></div>`;}).join("");
+    return `<div class="cr"><span class="q">${r.q}</span><span class="nm">${thumbHTML(r.m)}${cardName(r.n,r.m)}${tags.length?`<span class="tags">${tags.join("")}</span>`:""} ${mv}</span><span class="cm">${r.m&&t!=="Land"?r.m.cmc:""}</span><span class="own ${have?"y":"n"}">${r.m&&r.m.basic?"":have?"tengo":"falta"}</span></div>`; };
+  const cmd = (d.commanders||[]).map(n=>{const m=cardOf(n); return `<div class="cr"><span class="q">1</span><span class="nm">${thumbHTML(m)}<b>${cardName(n,m)}</b></span><span class="cm">${m?m.cmc:"?"}</span><span class="own ${ownedOf(n)>0?"y":"n"}">${ownedOf(n)>0?"tengo":"falta"}</span></div>`;}).join("");
   const body = TYPE_ORDER.filter(t=>groups[t]).map(t=>{
     const rows = groups[t].sort((a,b)=>(a.m?a.m.cmc:99)-(b.m?b.m.cmc:99)||a.n.localeCompare(b.n));
     return `<div class="lg"><h4>${TYPE_ES[t]} · ${rows.reduce((a,r)=>a+r.q,0)}</h4>${rows.map(r=>row(r,t,"main")).join("")}</div>`;
@@ -2934,7 +3023,7 @@ function collHTML(){
   const lastSync = S.data.mbLog[0];
   return `<div class="coll-head"><div><h2>Mi colección</h2><div class="muted"><span class="num">${total.toLocaleString("es-CL")}</span> cartas · <span class="num">${idx.size.toLocaleString("es-CL")}</span> distintas · valor <span class="num">${money(value,{clp:true})}</span>${paid?` · pagaste ${money(paid)} (${pct(100*(value-paid)/paid)})`:""}</div></div></div>
   ${busyBanner()}
-  ${missingData&&!S.busy?`<div class="banner" style="margin-bottom:16px"><span><b class="num">${missingData}</b> cartas sin precio ni datos.</span><button class="btn sm primary" data-act="coll-fetch">Traer datos de Scryfall</button></div>`:""}
+  ${missingData&&!S.busy?`<div class="banner" style="margin-bottom:16px"><span><b class="num">${missingData}</b> cartas sin precio ni datos.</span><button class="btn sm primary" data-act="coll-fetch">Actualizar cartas</button></div>`:""}
   <div class="coll-grid">
     <div class="pane" style="padding:16px;min-width:0">
       <div class="row" style="margin-bottom:12px"><input type="search" id="coll-q" placeholder="Buscar carta o código de set…" value="${esc(S.collQ)}" style="flex:1;min-width:180px"><button class="chip" id="coll-avail" aria-pressed="${S.collAvail}">Solo libres</button></div>
@@ -3177,7 +3266,7 @@ function binderPaneHTML(b){
         <div class="row"><button class="btn sm primary" data-act="load-ck" ${S.busy?"disabled":""}>${S.ck?"Actualizar":"Descargar"} precios de Card Kingdom</button><label class="btn sm" for="ck-file" style="cursor:pointer">Subir archivo de Card Kingdom</label><input type="file" id="ck-file" accept=".json,application/json" hidden></div>
         ${S.ckFail||!S.ck?`<span class="muted" style="font-size:.88rem">Si la descarga falla: abre <a href="https://api.cardkingdom.com/api/v2/pricelist" target="_blank" rel="noopener">api.cardkingdom.com/api/v2/pricelist</a> en tu navegador, guarda la página (Ctrl+S) como archivo .json y súbelo con “Subir archivo de Card Kingdom”.</span>`:""}
       </div>`:""}
-      ${T.noPrice&&!S.busy?`<div class="banner"><span><b class="num">${T.noPrice}</b> sin ningún precio todavía.</span><button class="btn sm primary" data-act="binder-fetch">Traer datos de Scryfall</button></div>`:""}
+      ${T.noPrice&&!S.busy?`<div class="banner"><span><b class="num">${T.noPrice}</b> sin ningún precio todavía.</span><button class="btn sm primary" data-act="binder-fetch">Actualizar cartas</button></div>`:""}
       <div class="stats">
         <div class="stat"><div class="k">valor Card Kingdom</div><div class="v" style="font-size:1.1rem">${usd(T.ck)}</div><div class="muted num" style="font-size:.9rem">${clp(T.ck,step)}</div></div>
         <div class="stat good"><div class="k">tu precio de venta</div><div class="v" style="font-size:1.1rem">${showPrice(b,T.fin)}</div><div class="muted num" style="font-size:.9rem">${P.clp?usd(T.fin):clp(T.fin,step)}</div></div>
@@ -4011,7 +4100,7 @@ const icon = k => `<svg class="ti" viewBox="0 0 24 24" aria-hidden="true" fill="
 const TOOLS = [
   {k:"analisis", i:"chart", t:"Análisis", d:"Mecánicas, curva, bracket, combos e interacción de tu mazo."},
   {k:"ia", i:"spark", t:"Optimizar con IA", d:"Qué cortar, qué añadir y por qué, adaptado a tu mazo, tu colección y tu presupuesto."},
-  {k:"radiografia", i:"xray", t:"Radiografía del mazo", d:"El informe completo: cómo se juega, mulligan, debilidades y matchups."},
+  {k:"radiografia", i:"xray", t:"Cómo se juega", d:"El informe completo: cómo se juega, mulligan, debilidades y matchups."},
   {k:"mano", i:"hand", t:"Probar mano", d:"Tablero de solitario con mulligan, scry y vidas de los oponentes."},
   {k:"simulador", i:"dice", t:"Simulador", d:"Diez mil manos Monte Carlo: consistencia, maná por turno y reloj de victoria."},
   {k:"constructor", i:"tool", t:"Constructor", d:"Crea un mazo desde cero: guiado con EDHREC y tu colección, o libre."},
@@ -4224,7 +4313,7 @@ function radioLocal(d,A){
 function radioHTML(d,A){
   const R=radioLocal(d,A); const st=S.data.settings; const ai=d.radio; const busy=S.radioBusy===d.id;
   const list = arr => `<ul class="rx-list">${arr.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`;
-  return `<div class="sec"><h3>Radiografía del mazo</h3><p class="lede">Informe calculado con el análisis, el simulador y la función de cada carta. Con Claude conectado puedes pedir además una lectura estratégica escrita.</p></div>
+  return `<div class="sec"><h3>Cómo se juega este mazo</h3><p class="lede">Informe calculado con el análisis, el simulador y la función de cada carta. Con Claude conectado puedes pedir además una lectura estratégica escrita.</p></div>
     <div class="rx-grid">
       <div class="card-box"><h3>Plan de juego</h3>${list(R.plan)}</div>
       <div class="card-box"><h3>Cómo se juega</h3>${list(R.juego)}</div>
@@ -4298,7 +4387,7 @@ function manoHTML(d,A){
     <div class="gf-zone"><div class="gf-lbl">Campo · tierras (${lands.length})</div><div class="gf-row">${lands.map(c=>gfCard(c,{attr:`data-gfb="${c.u}"`, tapped:c.t, badge:`<span class="gf-x" data-gfg="${c.u}" title="Al cementerio">✕</span>`})).join("")||`<span class="muted">Vacío</span>`}</div></div>
     <div class="gf-zone gf-hand"><div class="gf-lbl">Mano</div><div class="gf-row">${handH||`<span class="muted">Sin cartas</span>`}</div></div>
     ${g.gy.length?`<div class="gf-zone"><div class="gf-lbl">Cementerio</div><div class="gf-row">${g.gy.map(c=>gfCard(c)).join("")}</div></div>`:""}
-    ${A.missing.length?`<p class="foot">${A.missing.length} cartas sin datos se muestran con su nombre. <button class="btn sm ghost" style="padding:0" data-act="fetch">Traer datos de Scryfall</button></p>`:""}`;
+    ${A.missing.length?`<p class="foot">${A.missing.length} cartas sin datos se muestran con su nombre. <button class="btn sm ghost" style="padding:0" data-act="fetch">Actualizar cartas</button></p>`:""}`;
 }
 function gfAct(a){
   const g=S.gf; const d=curDeck(); if (!g || !d) return;
@@ -4366,9 +4455,9 @@ function localMetaHTML(){
     const speed=(s&&s.avgTurn?s.avgTurn:8)+(s&&s.winAvg?s.winAvg*0.5:5);
     return {...x, A, s, B, fast, speed}; }).sort((a,b)=>a.speed-b.speed);
   const missing = rivals.some(d=>analyze(d).missing.length);
-  return `<div class="pane"><div class="pane-head"><div><h2>Mesa local</h2><div class="sub">Compara la velocidad de tus mazos con los de tus amigos, con el mismo simulador y los mismos criterios.</div></div></div>
+  return `<div class="pane"><div class="pane-head"><div><h2>Mazos de mis amigos</h2><div class="sub">Compara la velocidad de tus mazos con los de tus amigos, con el mismo simulador y los mismos criterios.</div></div></div>
     <div class="pane-body">
-      ${missing&&!S.busy?`<div class="banner"><span>Hay cartas de tus amigos sin datos.</span><button class="btn sm primary" data-t="local-fetch">Traer datos de Scryfall</button></div>`:""}
+      ${missing&&!S.busy?`<div class="banner"><span>Hay cartas de tus amigos sin datos.</span><button class="btn sm primary" data-t="local-fetch">Actualizar cartas</button></div>`:""}
       ${rows.length?`<div class="tbl-wrap"><table><thead><tr><th>#</th><th>Mazo</th><th>De</th><th class="n">Bracket</th><th class="n">Comandante en mesa</th><th class="n">Reloj de victoria</th><th class="n">Interacción</th><th class="n">Ramp</th><th class="n">Maná rápido</th><th class="n">Tutores</th><th class="n">CMC</th><th></th></tr></thead><tbody>
         ${rows.map((r,i)=>`<tr${r.own?' style="background:var(--accent-soft)"':""}><td class="num">${i+1}</td><td><b>${esc(r.d.name)}</b><br><span class="muted" style="font-size:.85rem">${esc((r.d.commanders||[]).join(" + "))}</span></td><td>${r.own?"Tú":esc(r.d.rival.owner||"Amigo")}</td>
           <td class="n">${r.B.b}</td><td class="n">${r.s&&r.s.avgTurn?"T"+r.s.avgTurn.toFixed(1):"—"}</td><td class="n">${r.s&&r.s.winAvg?"T"+r.s.winAvg.toFixed(1):"—"}</td><td class="n">${r.A.roles.removal+r.A.roles.wipe}</td><td class="n">${r.A.roles.ramp}</td><td class="n">${r.fast}</td><td class="n">${r.A.tutors.length}</td><td class="n">${r.A.avg.toFixed(2)}</td>
@@ -4434,7 +4523,7 @@ function sharedImportHTML(o){
   return `<div class="card-box" style="margin-bottom:18px;border-color:var(--accent)"><h3>Mazo compartido: ${esc(o.n)}</h3>
     <p style="margin:0">${esc(FORMATS[o.f]?FORMATS[o.f].name:o.f)}${o.c&&o.c.length?` · ${esc(o.c.join(" + "))}`:""} · deck ${q(o.m)}${o.s.length?` · sideboard ${q(o.s)}`:""}${o.y.length?` · maybeboard ${q(o.y)}`:""}</p>
     <details><summary class="muted" style="cursor:pointer">Ver lista</summary><div class="list-groups" style="margin-top:8px">${o.m.map(c=>`<div>${c[0]} ${esc(c[1])}</div>`).join("")}</div></details>
-    <div class="row"><button class="btn sm primary" data-t="share-import">Importar a mi Bóveda</button><button class="btn sm ghost" data-t="share-dismiss">Descartar</button><button class="btn sm ghost" data-t="share-rival">Agregar a mi Mesa local</button></div></div>`;
+    <div class="row"><button class="btn sm primary" data-t="share-import">Importar a mi Bóveda</button><button class="btn sm ghost" data-t="share-dismiss">Descartar</button><button class="btn sm ghost" data-t="share-rival">Agregar a mazos de mis amigos</button></div></div>`;
 }
 function compartirHTML(d,A){
   const code=shareCode(d); const hosted=/^https?:$/.test(location.protocol);
@@ -4477,7 +4566,7 @@ function deckReportHTML(d, {print=false}={}){
     <div><h4>Estructura</h4><table><tbody>${[["Tierras","land"],["Ramp","ramp"],["Robo","draw"],["Removal","removal"],["Barridos","wipe"],["Protección","protection"],["Tutores","tutor"],["Remates","wincon"]].map(([l,k])=>`<tr><td>${l}</td><td>${A.roles[k]}</td></tr>`).join("")}</tbody></table></div></div>
   ${sim?`<h4>Simulador</h4><ul>${sim.sixty?`<li>Mano inicial jugable: ${Math.round(sim.keep*100)}%</li>${sim.drops.map(x=>`<li>Tierra del turno ${x.t} a tiempo: ${Math.round(x.play*100)}% en la mano / ${Math.round(x.draw*100)}% robando</li>`).join("")}`:`<li>Comandante en mesa: turno ${sim.avgTurn?sim.avgTurn.toFixed(1):"—"} en promedio</li><li>Mulligan: ${Math.round(sim.pMull*100)}% · atascado: ${Math.round(sim.pScrew*100)}% · inundado: ${Math.round(sim.pFlood*100)}%</li>${sim.winAvg?`<li>Reloj de victoria: turno ${sim.winAvg.toFixed(1)}</li>`:""}`}</ul>`:""}
   ${A.isC?`<h4>Bracket</h4><ul><li>${Bk.b} · ${esc(BRACKETS[Bk.b].name)}: ${esc(Bk.why)}</li></ul>`:""}
-  <h2>Radiografía</h2><div class="two"><div><h4>Plan de juego</h4><ul>${R.plan.map(x=>`<li>${esc(x)}</li>`).join("")}</ul><h4>Mulligan</h4><ul>${R.mull.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div><div><h4>Debilidades</h4><ul>${R.deb.map(x=>`<li>${esc(x)}</li>`).join("")}</ul><h4>Matchups</h4><ul>${R.match.map(m=>`<li>${esc(m.n)}: ${m.l}</li>`).join("")}</ul></div></div>
+  <h2>Cómo se juega</h2><div class="two"><div><h4>Plan de juego</h4><ul>${R.plan.map(x=>`<li>${esc(x)}</li>`).join("")}</ul><h4>Mulligan</h4><ul>${R.mull.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div><div><h4>Debilidades</h4><ul>${R.deb.map(x=>`<li>${esc(x)}</li>`).join("")}</ul><h4>Matchups</h4><ul>${R.match.map(m=>`<li>${esc(m.n)}: ${m.l}</li>`).join("")}</ul></div></div>
   ${d.radio?`<h2>Lectura de Claude</h2><div style="font-family:Arial,sans-serif;font-size:13px">${mdLite(d.radio.text)}</div>`:""}
   <div class="foot">Generado con Bóveda EDH · datos de Scryfall, EDHREC y Commander Spellbook · precios ${cur()==="eur"?"Cardmarket (€)":"TCGplayer (US$)"}.</div>
   ${print?`<script>window.onload=function(){setTimeout(function(){window.print()},400)}<\/script>`:""}</body></html>`;
@@ -4642,10 +4731,8 @@ document.addEventListener("input", e=>{ if (e.target.id==="ia-notes") S.iaNotes=
 
 /* ---------- arranque de las herramientas ---------- */
 (function(){
-  if (location.hash.startsWith("#mazo=")){ const o=readShare(location.hash); if (o){ S.sharedPreview=o; S.view="tools"; } }
-  else if (!S.data.decks.length) S.view="tools";
-  const st=S.data.settings;
-  if (st.weekly && new Date().getDay()===1 && Date.now()-(st.weeklySeen||0) > 5*864e5 && S.data.decks.length) S.view="weekly";
+  if (location.hash.startsWith("#mazo=")){ const o=readShare(location.hash); if (o){ S.sharedPreview=o; S.view="home"; } }
+  else S.view="home";
   idb.get("news").then(n=>{ if (n) S.news=n; });
   render();
 })();
@@ -4850,7 +4937,7 @@ function accRender(){
   const host = document.querySelector(".top-right"); if (!host) return;
   let box = document.getElementById("acc");
   if (!box){ box = document.createElement("div"); box.id = "acc"; box.className = "acc"; host.prepend(box); }
-  box.innerHTML = accChipHTML() + (ACC.open ? accPanelHTML() : "");
+  box.innerHTML = accChipHTML() + (ACC.open ? accPanelHTML().replace(/<\/div>\s*$/, `<div class="acc-foot"><button class="btn sm" data-open-settings="1">Ajustes y respaldo</button></div></div>`) : "");
   const sync = document.getElementById("sync");
   if (sync && !S.busy && ACC.state==="on") sync.textContent = S.data.settings.lastRefresh ? `Precios del ${new Date(S.data.settings.lastRefresh).toLocaleDateString("es-CL")}` : "Guardado en tu cuenta";
 }
@@ -4865,6 +4952,7 @@ function accMerge(cloud){
 }
 
 document.addEventListener("click", async ev=>{
+  if (ev.target.closest("[data-open-settings]")){ ACC.open=false; accRender(); const bs=document.getElementById("btn-settings"); if (bs) bs.click(); return; }
   const chip = ev.target.closest("#acc-chip");
   if (chip){ ACC.open = !ACC.open; accRender(); return; }
   const b = ev.target.closest("[data-acc]");
@@ -4977,7 +5065,7 @@ function webCardLinksHTML(n){
 /* ---------- ajustes de la interfaz en la web ---------- */
 if (isWebView()){
   document.body.classList.add("web");
-  const relabel = () => { for (const b of document.querySelectorAll("#main button, #modal button")) if (/^Traer datos de Scryfall$/.test(b.textContent.trim())) b.textContent = "Completar datos con Claude"; };
+  const relabel = () => { for (const b of document.querySelectorAll("#main button, #modal button")) if (/^Actualizar cartas$/.test(b.textContent.trim())) b.textContent = "Completar datos con Claude"; };
   new MutationObserver(relabel).observe(document.getElementById("main"), {childList:true, subtree:true});
   new MutationObserver(relabel).observe(document.getElementById("modal"), {childList:true, subtree:true});
 }
@@ -5151,6 +5239,72 @@ if (LIVE){
   window.addEventListener("online", () => { SY.err = ""; syCheck(); });
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
 }
+
+/* =========================================================
+   Bóveda EDH — Inicio personal y bienvenida
+   ========================================================= */
+function homeWelcomeHTML(){
+  const st = S.data.settings; if (st.onboarded) return "";
+  const hasData = S.data.decks.some(d=>!d.rival) || (S.data.collection.items||[]).length;
+  const live = typeof LIVE!=="undefined" && LIVE;
+  const synced = (live && typeof SY!=="undefined" && SY.state==="on") || (typeof ACC!=="undefined" && ACC.state==="on");
+  const installed = typeof isStandalone==="function" && isStandalone();
+  const step = (done, n, title, text, actions) => `<li class="wz-step ${done?"done":""}"><span class="wz-n" aria-hidden="true">${done?"✓":n}</span><div><b>${title}</b><p>${text}</p>${done?"":`<div class="row">${actions}</div>`}</div></li>`;
+  const syncText = live ? "Crea tu código personal para tener lo mismo en el teléfono y el computador. Cada persona usa el suyo."
+    : (typeof ACC!=="undefined" && ACC.state!=="file") ? "Entra con tu cuenta de Claude (arriba a la derecha) para guardar tus datos en todos tus dispositivos."
+    : "Para sincronizar entre dispositivos, usa la versión en vivo: boveda-edh.netlify.app.";
+  return `<section class="card-box wz"><h3>Bienvenido a la Bóveda</h3><p class="muted" style="margin:0">Tres pasos y queda lista para usar desde el teléfono.</p>
+    <ol class="wz-list">
+      ${step(hasData, 1, "Trae tus cartas", "Importa un mazo o tu colección desde ManaBox: exporta la lista como texto o CSV y pégala.", `<button class="btn sm primary" data-home="new-deck">Nuevo mazo</button><button class="btn sm" data-home="coll">Subir colección</button>`)}
+      ${step(synced, 2, "Guarda tus datos", syncText, live ? `<button class="btn sm primary" data-home="sync">Crear mi código</button>` : (typeof ACC!=="undefined" && ACC.state!=="file") ? `<button class="btn sm" data-home="sync">Ver mi cuenta</button>` : `<a class="btn sm" href="https://boveda-edh.netlify.app" target="_blank" rel="noopener">Abrir la versión en vivo</a>`)}
+      ${live ? step(installed, 3, "Instálala en tu teléfono", "Queda con su ícono, abre a pantalla completa y funciona sin señal.", typeof installEvt!=="undefined" && installEvt ? `<button class="btn sm primary" data-sy="install">Instalar la app</button>` : `<span class="muted" style="font-size:.9rem">${typeof isIOS==="function" && isIOS() ? "En Safari: Compartir → Agregar a inicio." : "Menú del navegador (⋮) → Instalar app."}</span>`) : ""}
+    </ol>
+    <div class="row"><button class="btn sm ghost" data-home="done">Ocultar esta guía</button></div></section>`;
+}
+function homeHTML(){
+  const decks = S.data.decks.filter(d=>!d.rival).sort((a,b)=>(b.updated||0)-(a.updated||0));
+  const al = alerts();
+  const W = weeklyData();
+  const deckCard = d => { const A = analyze(d); const m = d.commanders && d.commanders[0] ? cardOf(d.commanders[0]) : null;
+    return `<button class="home-deck" data-home-deck="${esc(d.id)}">${m && m.img ? `<img src="${esc(artOf(m))}" alt="" loading="lazy">` : `<span class="home-deck-ph">${pipsHTML(A.ci)}</span>`}<span class="hd-t"><b>${esc(d.name)}</b><small>${esc(FORMATS[d.format].name)} · ${money(A.price)}</small></span></button>`; };
+  const alertRow = a => `<div class="alert"><span class="ic ${a.kind==="up"?"up":a.kind==="down"?"down":"tg"}" aria-hidden="true">${a.kind==="up"?"↑":a.kind==="down"?"↓":"★"}</span><div><div class="t">${cardName(a.n)} ${a.kind==="up"?`<span class="up">${pct(a.ch.pct)}</span>`:a.kind==="down"?`<span class="down">${pct(a.ch.pct)}</span>`:""}</div><div class="s">${esc(a.s||"")}</div></div></div>`;
+  const week = W.delta || W.changes.length || W.sales.length || W.up.length || W.down.length;
+  return `${S.sharedPreview && typeof sharedImportHTML==="function" ? sharedImportHTML(S.sharedPreview) : ""}
+  ${typeof installCardHTML==="function" && S.data.settings.onboarded ? installCardHTML(false) : ""}
+  <div class="home">
+    ${homeWelcomeHTML()}
+    <section class="home-sec"><div class="home-h"><h2>Tus mazos</h2><button class="btn sm primary" data-home="new-deck">+ Nuevo mazo</button></div>
+      ${decks.length ? `<div class="home-decks">${decks.slice(0,6).map(deckCard).join("")}</div>` : `<p class="muted">Aún no tienes mazos. Crea uno o impórtalo desde ManaBox.</p>`}</section>
+    <section class="home-sec"><div class="home-h"><h2>Alertas de precio</h2>${al.length ? `<button class="btn sm ghost" data-home="market">Ver las ${al.length}</button>` : ""}</div>
+      ${al.length ? al.slice(0,3).map(alertRow).join("") : `<p class="muted">Sin alertas por ahora. Aparecen cuando una carta tuya sube o una que buscas baja.</p>`}</section>
+    <section class="home-sec"><div class="home-h"><h2>Esta semana</h2><button class="btn sm ghost" data-home="weekly">Ver resumen</button></div>
+      ${week ? `<div class="stats home-stats"><div class="stat"><div class="k">tu colección</div><div class="v ${W.delta>0?"up":W.delta<0?"down":""}">${W.base?pct(100*W.delta/W.base):"—"}</div></div><div class="stat"><div class="k">mazos con cambios</div><div class="v">${W.changes.length}</div></div><div class="stat"><div class="k">ventas</div><div class="v">${W.sales.length}</div></div></div>` : `<p class="muted">Todavía no hay movimientos esta semana.</p>`}</section>
+    <section class="home-sec"><div class="home-h"><h2>Atajos</h2></div>
+      <div class="home-quick">
+        <button class="btn" data-home="coll">Mi colección</button><button class="btn" data-home="venta">Carpetas de venta</button>
+        <button class="btn" data-home="pauper-meta">Meta de Pauper</button><button class="btn" data-home="tools">Todas las herramientas</button>
+      </div></section>
+  </div>`;
+}
+function artOf(m){ return (m.art || m.img || "").replace("/normal/","/art_crop/"); }
+
+document.addEventListener("click", ev => {
+  const dk = ev.target.closest("[data-home-deck]");
+  if (dk){ const d = S.data.decks.find(x=>x.id===dk.dataset.homeDeck); if (!d) return; S.view=d.format; S.sel[d.format]=d.id; S.showMeta[d.format]=false; S.editing=null; S.deckTab="analisis"; render(); window.scrollTo(0,0); return; }
+  const b = ev.target.closest("[data-home]"); if (!b) return;
+  const go = v => { S.view=v; S.editing=null; render(); window.scrollTo(0,0); };
+  switch (b.dataset.home){
+    case "new-deck": S.view="commander"; S.showMeta.commander=false; S.editing={format:"commander", name:"", commanders:[], text:""}; render(); window.scrollTo(0,0); break;
+    case "coll": go("coll"); break;
+    case "venta": go("venta"); break;
+    case "market": go("market"); break;
+    case "weekly": go("weekly"); break;
+    case "tools": go("tools"); break;
+    case "pauper-meta": S.showMeta.pauper=true; go("pauper"); break;
+    case "sync": ACC.open = true; accRender(); window.scrollTo(0,0); break;
+    case "done": S.data.settings.onboarded = true; saveData(); render(); break;
+  }
+});
 
 </script>
 </body>
