@@ -69,7 +69,8 @@ function powerOf(d, A){
   const wsum = have.reduce((a,c)=>a+c.w,0) || 1;
   let raw = have.reduce((a,c)=>a+c.v*c.w,0) / wsum;
   raw += Math.min(1.2, A.gc.length*0.2) + Math.min(0.8, stax*0.2) + (A.xt.length ? 0.3 : 0);
-  const power = Math.round(Math.max(1, Math.min(10, 1 + raw*0.95)) * 10) / 10;
+  const abs = Math.max(1, Math.min(10, 1 + raw*0.95));
+  const power = Math.round(abs * 10) / 10;
   // bracket realista según el nivel y los elementos que definen cEDH
   const cedh = fast>=5 && A.tutors.length>=5 && (c2||0)>=1;
   const real = cedh || power>=8.8 ? 5 : power>=7.2 ? 4 : power>=5.4 ? 3 : power>=3 ? 2 : 1;
@@ -80,32 +81,32 @@ function powerOf(d, A){
   const salt = Math.round(Math.min(100, saltSum*2.2));
   const saltLabel = salt>=70 ? "Muy salado" : salt>=45 ? "Salado" : salt>=25 ? "Picante" : "Suave";
   const threatCards = rows.filter(r=>(r.m.tg||[]).some(k=>["stax","drawPay","theft","extraCombat"].includes(k)) || ((r.m.r||[]).includes("draw") && r.m.t!=="Instant" && r.m.t!=="Sorcery") || (r.m.sb||[]).includes("counter"));
-  const threat = Math.round(clamp10((threatCards.length*0.55 + stax*0.8 + counters*0.4) / (A.isC?1:0.6)) * 10) / 10;
-  return {power, comp, real, official, cedh, salt, saltLabel, saltTop:salty.slice(0,10), threat, threatCards, sim, c2};
+  const threat = Math.round(clamp10((threatCards.length*0.3 + stax*0.8 + A.gc.length*0.4) / (A.isC?1:0.6)) * 10) / 10;
+  return {power, abs, comp, real, official, cedh, salt, saltLabel, saltTop:salty.slice(0,10), threat, threatCards, sim, c2};
 }
 
 /* ---------- vista del mazo ---------- */
 const PL_ES = p => p>=9 ? "competitivo (cEDH)" : p>=7.5 ? "alto poder" : p>=6 ? "optimizado" : p>=4 ? "casual mejorado" : "casual";
 function powerHTML(d, A){
   const P = powerOf(d, A);
+  const R = typeof reportOf==="function" ? reportOf(d, A) : null;
+  // datos de cartas guardados antes de la ficha: se completan solos una vez por sesión
+  if (R && R.stale && !isWebView() && !S.busy){ S.rpAuto = S.rpAuto || {}; if (!S.rpAuto[d.id]){ S.rpAuto[d.id] = 1;
+    const names = A.rows.filter(r=>r.m && !r.m.basic && r.m.rv!==RF_V).map(r=>r.n).concat(A.cmdMeta.filter(m=>m && m.rv!==RF_V).map(m=>m.n));
+    setTimeout(async ()=>{ await fetchCards(names, {force:true, quiet:true, label:"Completando la ficha del mazo"}); bumpAnalysis(); render(); }, 50); } }
+  // historial del nivel: solo con datos completos, para que "subió/bajó" refleje cambios reales del mazo
+  if (R && !R.stale && !A.missing.length && typeof recordPower==="function" && recordPower(d, A)) setTimeout(()=>{ lsSet(LS_DATA, S.data, true); saveDataIdb(); }, 0);
   const bar = v => v==null ? `<span class="muted">—</span>` : `<span class="pw-bar"><i style="width:${v*10}%"></i></span><span class="num pw-v">${v.toFixed(1)}</span>`;
-  const bTone = P.real>P.official.b ? "warn" : P.real<P.official.b ? "neutral" : "good";
-  return `<div class="sec"><h3>Nivel de poder y sal</h3><p class="lede">Evaluación con los mismos criterios que usan herramientas como <a href="https://www.commandersalt.com/" target="_blank" rel="noopener">Commandersalt</a>: nivel de 1 a 10 con sus componentes a la vista, la sal que genera en la mesa y cuánto te ven como amenaza. Es una estimación: úsala para conversar el nivel antes de jugar.</p>
-    <div class="pw-hero">
-      <div class="pw-big"><div class="k">nivel de poder</div><div class="v num">${P.power.toFixed(1)}</div><div class="s">${PL_ES(P.power)}</div></div>
-      <div class="pw-big"><div class="k">sal</div><div class="v num">${P.salt}</div><div class="s">${P.saltLabel} · de 100</div></div>
-      <div class="pw-big"><div class="k">amenaza</div><div class="v num">${P.threat.toFixed(1)}</div><div class="s">qué tanto te apuntan</div></div>
-      <div class="pw-big"><div class="k">bracket</div><div class="v num">${P.official.b}<small> oficial</small> · ${P.real}<small> real</small></div><div class="s"><span class="pill ${bTone}">${P.real>P.official.b?"juega por sobre su bracket":P.real<P.official.b?"juega por debajo":"coinciden"}</span></div></div>
-    </div></div>
-  <div class="sec"><h3>Componentes</h3><div class="pw-comp">${P.comp.map(c=>`<div class="pw-row"><span class="pw-n">${c.es}</span>${bar(c.v)}<span class="muted pw-why">${esc(c.why)}</span></div>`).join("")}</div>
-    ${P.c2==null?`<p class="foot"><button class="btn sm ghost" style="padding:0" data-act="combos">Buscar combos</button> para que el nivel considere los combos (pesan 20%).</p>`:""}
-    <p class="foot">Se suman al nivel: Game Changers (${A.gc.length}), piezas de stax y turnos extra. El bracket oficial sigue la guía de Wizards (Game Changers, combos de 2 cartas, turnos extra, destrucción de tierras); el realista sale del nivel de poder.</p></div>
+  return `${R ? reportHTML(d, A) : ""}
   <div class="two">
     <div class="sec"><h3>Lo que más sala la mesa</h3>${P.saltTop.filter(x=>x.s>0.4).map(x=>`<div class="rec"><span>${cardName(x.n,x.m)}${SALT_SLUG[slug(x.n)]!=null||(S.salt&&S.salt.map[slug(x.n)]!=null)?` <span class="tag">top sal EDHREC</span>`:""}</span><span class="meta num">${x.s.toFixed(2)}</span></div>`).join("") || `<p class="muted">Nada especialmente salado.</p>`}
       <p class="foot">Sal de 0 a 3 según la votación de EDHREC (${S.salt?`actualizada ${new Date(S.salt.at).toLocaleDateString("es-CL")}`:esc(SALT_AT)}); las demás cartas se estiman por lo que hacen. ${isWebView()?"":`<button class="btn sm ghost" style="padding:0" data-pw="salt">Actualizar desde EDHREC</button>`}</p></div>
-    <div class="sec"><h3>Por qué te ven como amenaza</h3>${P.threatCards.length?`<div class="chips">${P.threatCards.slice(0,16).map(r=>`<span class="pill neutral" style="font-size:.9rem">${cardName(r.n,r.m)}</span>`).join("")}</div>`:`<p class="muted">Pocas cartas que llamen la atención de la mesa.</p>`}
+    <div class="sec"><h3>Por qué te ven como amenaza <span class="num muted" style="font-weight:400">${P.threat.toFixed(1)}/10</span></h3>${P.threatCards.length?`<div class="chips">${P.threatCards.slice(0,16).map(r=>`<span class="pill neutral" style="font-size:.9rem">${cardName(r.n,r.m)}</span>`).join("")}</div>`:`<p class="muted">Pocas cartas que llamen la atención de la mesa.</p>`}
       <p class="foot">Motores de robo, stax, contrahechizos, robo de permanentes y combates extra.</p></div>
   </div>
+  <details class="sec pw-det"><summary><h3 style="display:inline">Cómo se calcula el nivel</h3></summary><div class="pw-comp">${P.comp.map(c=>`<div class="pw-row"><span class="pw-n">${c.es}</span>${bar(c.v)}<span class="muted pw-why">${esc(c.why)}</span></div>`).join("")}</div>
+    ${P.c2==null?`<p class="foot"><button class="btn sm ghost" style="padding:0" data-act="combos">Buscar combos</button> para que el nivel considere los combos (pesan 20%).</p>`:""}
+    <p class="foot">Se suman al nivel: Game Changers (${A.gc.length}), piezas de stax y turnos extra. El bracket oficial sigue la guía de Wizards (Game Changers, combos de 2 cartas, turnos extra, destrucción de tierras); el realista sale del nivel de poder. Criterios inspirados en <a href="https://www.commandersalt.com/" target="_blank" rel="noopener">Commandersalt</a>.</p></details>
   <div class="sec"><h3>Compárate</h3><p class="lede">La tabla con todos tus mazos y los de tus amigos está en <button class="btn sm ghost" style="padding:0" data-act="show-local">Mazos de mis amigos</button>.</p></div>`;
 }
 // tabla (leaderboard) de todos los mazos de Commander: tuyos y de tus amigos

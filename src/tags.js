@@ -16,7 +16,7 @@ const TAG_DEFS = [
   {k:"dies", es:"aprovecha muertes", re:/whenever (this or )?(a|another|one or more)( other)?( nontoken)? creatures?( you control| an opponent controls)? (dies|die|is put into a graveyard)|whenever you sacrifice|whenever (a|another) (creature|permanent) you control is put into|a creature dying causes/},
   {k:"sacFodder", es:"deja cuerpos para sacrificar", re:/when (this|this creature) dies,? (create|return|you create)|\bpersist\b|\bundying\b/},
   // contadores
-  {k:"counters", es:"pone contadores +1/+1", re:/put (a|one|two|three|x|that many|\d+) \+1\/\+1 counters?|enters with (a|one|two|three|x|\d+) \+1\/\+1 counters?|\bmodular\b|\boutlast\b|\badapt\b|\bbolster\b|\bevolve\b/},
+  {k:"counters", es:"pone contadores +1/+1", re:/put (a|one|two|three|x|that many|\d+) \+1\/\+1 counters?|enters with (a|one|two|three|x|\d+) \+1\/\+1 counters?|\bmodular\b|\boutlast\b|\badapt\b|\bbolster\b|\bevolve\b|\bexplores?\b/},
   {k:"countersPay", es:"aprovecha contadores", re:/with (a|one or more) \+1\/\+1 counters? on (it|them)|for each \+1\/\+1 counter|double the number of|twice that many (of those )?counters|(one|two|that many) (additional|more) \+1\/\+1 counters?|if one or more \+1\/\+1 counters would/},
   {k:"proliferate", es:"prolifera", re:/proliferate/},
   // tierras

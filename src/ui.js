@@ -91,7 +91,7 @@ function deckHTML(d){
   const A = analyze(d);
   // cinco grupos; cada uno con sus vistas
   const G = A.isC ? [
-    ["resumen","Resumen",[["analisis","Análisis"],["nivel","Nivel y sal"],["mana","Base de maná"]]],
+    ["resumen","Resumen",[["analisis","Análisis"],["nivel","Ficha y nivel"],["mana","Base de maná"]]],
     ["lista","Lista",[["lista","Lista"]]],
     ["mejorar","Mejorar",[["sinergias","Sinergias"],["mejorar","Recomendaciones"],["ia","Con IA"],["brackets","Brackets"],["combos","Combos"]]],
     ["jugar","Jugar",[["mano","Probar mano"],["radiografia","Cómo se juega"]]],

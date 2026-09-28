@@ -191,7 +191,7 @@ function detectRoles(o, t, tl, pm){
   if (/counter target (\w+ )?spell/.test(o)) r.add("removal");
   if (/return target (nonland |creature |artifact |enchantment )?(permanent|creature)[^.]*to (its|their) owner'?s? hands?/.test(o)) r.add("removal");
   if (/target (player|opponent) sacrifices|fights? (target|another target|up to one target)|target creature gets -\d+\/-\d+|target creature gets -x\/-x/.test(o)) r.add("removal");
-  if (/(destroy|exile) all (other )?(creatures|nonland permanents|permanents|artifacts|enchantments|nonland|attacking)|(all|each) (other )?creatures? gets? -|deals (\d+|x) damage to each (creature|other creature)|return all (nonland )?(permanents|creatures) to|each player sacrifices (all|\w+) creatures?/.test(o)) r.add("wipe");
+  if (/(destroy|exile) all (other )?(creatures|nonland permanents|permanents|artifacts|enchantments|nonland|attacking)|(all|each) (other )?creatures? gets? -|deals (\d+|x) damage to each (creature|other creature)|return all (nonland )?(permanents|creatures) to|each player sacrifices (all|\w+) creatures?|return (all|each) [^.]*creatures?[^.]*to (its|their) owner'?s'? hands?|return to their owners' hands all creatures/.test(o)) r.add("wipe");
   const tut = o.match(/search your library for (a|an|up to (one|two|three)|any number of) ([^.]*?)card/);
   if (tut && !/\b(basic )?(land|forest|plains|island|swamp|mountain)s?\b/.test(tut[3])) r.add("tutor");
   if (/(creatures|permanents) you control (gain|have|get) [^.]*(hexproof|indestructible|protection|shroud)|target (creature|permanent) you control gains (hexproof|indestructible|protection|shroud)|phase out|can't be countered/.test(o)) r.add("protection");
@@ -230,6 +230,7 @@ function fromScry(c){
   return {
     n:c.name, cmc:c.cmc||0, ci:(c.color_identity||[]).join(""), col:(c.colors||f0.colors||[]).join(""), t, tl:tl.split(" // ")[0], cost, pm,
     r:detectRoles(o,t,tl,pm), sb:sbCats(o,c.name), tg:(typeof detectTags==="function"?detectTags(o,t,tl):[]), gc: c.game_changer===true,
+    ...(typeof cardFlags==="function" ? cardFlags(o,t,tl) : {}),
     xt:/take an extra turn/.test(o), mld:/destroy all lands|each player sacrifices (all|\w+) lands|lands don't untap|destroy all permanents/.test(o),
     tap: t==="Land" && /enters( the battlefield)? tapped\./.test(o) && !/unless|if you control|you may pay|you may reveal/.test(o),
     leg:/Legendary/.test(tl), lg:{commander:lg.commander||"", pauper:lg.pauper||"", pioneer:lg.pioneer||""},

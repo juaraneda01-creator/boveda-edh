@@ -178,7 +178,7 @@ function accWatch(){
 function accDownload(filename, text, type){
   if (!hasRuntime()) return false;
   if (!ACC.dl){ toast("Esta vista no permite descargar archivos. Copia el contenido o usa el archivo descargado."); return true; }
-  ACC.dl.save({filename, data: new Blob([text], {type:type+";charset=utf-8"})}).then(()=>toast("Archivo guardado.")).catch(e=>{ if (!e || e.code!=="cancelled" && e.code!=="declined") toast("No se pudo guardar el archivo."); });
+  ACC.dl.save({filename, data: text instanceof Blob ? text : new Blob([text], {type:type+";charset=utf-8"})}).then(()=>toast("Archivo guardado.")).catch(e=>{ if (!e || e.code!=="cancelled" && e.code!=="declined") toast("No se pudo guardar el archivo."); });
   return true;
 }
 

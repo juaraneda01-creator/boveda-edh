@@ -28,7 +28,7 @@ function mergeCardData(cd){
 }
 function download(filename, text, type="text/plain"){
   if (typeof accDownload==="function" && accDownload(filename, text, type)) return;
-  const url = URL.createObjectURL(new Blob([text],{type:type+";charset=utf-8"}));
+  const url = URL.createObjectURL(text instanceof Blob ? text : new Blob([text],{type:type+";charset=utf-8"}));
   const a = document.createElement("a"); a.href=url; a.download=filename; document.body.append(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url), 2000);
 }
