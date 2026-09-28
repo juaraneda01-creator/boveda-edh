@@ -17,7 +17,8 @@ function mesaEval(){
   const br = rows.map(r=>r.P.real), brSpread = Math.max(...br) - Math.min(...br);
   // cada mazo contra el promedio de los otros (no contra un promedio que lo incluye a él mismo)
   for (const r of rows){ const others = rows.filter(x=>x!==r); r.gap = others.length ? r.P.power - others.reduce((a,x)=>a+x.P.power,0)/others.length : 0; }
-  const verdict = spread <= 1 && brSpread <= 1 ? {k:"good", es:"Mesa pareja", s:"Los mazos están a un nivel parecido: debería ser una buena partida."}
+  const verdict = rows.length < 2 ? {k:"warn", es:"Falta un rival", s:"Elige al menos dos mazos para comparar la mesa."}
+    : spread <= 1 && brSpread <= 1 ? {k:"good", es:"Mesa pareja", s:"Los mazos están a un nivel parecido: debería ser una buena partida."}
     : spread <= 2 && brSpread <= 1 ? {k:"warn", es:"Mesa algo dispareja", s:"Hay diferencias, pero se puede jugar si todos lo saben."}
     : {k:"bad", es:"Mesa dispareja", s:"Hay mazos bastante por encima del resto: conviene conversarlo antes de jugar."};
   const tips = [];
@@ -28,13 +29,13 @@ function mesaEval(){
     tips.push(`${r.d.name} está ${r.gap.toFixed(1).replace(".",",")} niveles sobre el resto de la mesa.${alt && Math.abs(alt.p-avg) < Math.abs(r.gap) ? ` Podría jugar ${alt.x.name} (nivel ${alt.p.toFixed(1)}).` : ""}${gcs.length ? ` O sacar ${gcs.join(", ")} (Game Changer${gcs.length>1?"s":""}).` : ""}`);
   }
   for (const r of lo) tips.push(`${r.d.name} está ${Math.abs(r.gap).toFixed(1).replace(".",",")} niveles bajo el resto de la mesa: los demás podrían darle un poco de ventaja o no apuntarle primero.`);
-  const salty = rows.filter(r=>r.P.salt >= 60); if (salty.length) tips.push(`Avisa las cartas saladas de ${salty.map(r=>r.d.name).join(" y ")} (${salty.flatMap(r=>r.P.saltTop.filter(x=>x.s>=1.5).slice(0,2).map(x=>x.n)).join(", ")}).`);
+  const salty = rows.filter(r=>r.P.salt >= 60); if (salty.length){ const sc = salty.flatMap(r=>r.P.saltTop.filter(x=>x.s>=1.5).slice(0,2).map(x=>x.n)); tips.push(`Avisa las cartas saladas de ${salty.map(r=>r.d.name).join(" y ")}${sc.length?` (${sc.join(", ")})`:""}.`); }
   const combos = rows.filter(r=>r.P.c2); if (combos.length) tips.push(`${combos.map(r=>r.d.name).join(" y ")} ${combos.length>1?"tienen":"tiene"} combos de 2 cartas: acuerden si valen.`);
   return {rows, avg, spread, brSpread, verdict, tips};
 }
 function mesaText(M){
-  return ["Mesa de hoy — Bóveda EDH", ...M.rows.map(r=>`• ${r.d.name} (${r.owner}): nivel ${r.P.power.toFixed(1)} · bracket ${r.P.official.b}/${r.P.real} · sal ${r.P.salt}`), `${M.verdict.es}: diferencia de ${M.spread.toFixed(1)} niveles.`, ...M.tips.map(t=>"- "+t),
-    ...(S.mesa.sim ? ["Simulación: " + S.mesa.sim.decks.map(x=>`${x.name} ${Math.round(x.pct*100)}%`).join(" · ")] : [])].join("\n");
+  return ["Mesa de hoy — Bóveda EDH", ...M.rows.map(r=>`• ${r.d.name} (${r.owner}): nivel ${r.P.power.toFixed(1)} · bracket ${r.P.official.b}/${r.P.real} · sal ${r.P.salt}`), `${M.verdict.es}${M.rows.length>1?`: diferencia de ${M.spread.toFixed(1)} niveles`:""}.`, ...M.tips.map(t=>"- "+t),
+    ...(S.mesa.sim && S.mesa.sim.key===S.mesa.ids.join("|") ? ["Simulación: " + S.mesa.sim.decks.map(x=>`${x.name} ${Math.round(x.pct*100)}%`).join(" · ")] : [])].join("\n");
 }
 function mesaHTML(){
   const all = S.data.decks.filter(d=>d.format==="commander");
@@ -44,7 +45,7 @@ function mesaHTML(){
   const chip = d => `<button class="chip" data-mesa-deck="${esc(d.id)}" aria-pressed="${S.mesa.ids.includes(d.id)}" ${S.mesa.busy?"disabled":""}>${esc(d.name)}${d.rival?` <small>(${esc(d.rival.owner||"amigo")})</small>`:""}</button>`;
   return `<div class="sec mesa"><h3>Mesa de hoy</h3><p class="lede">Elige los mazos que van a jugar (hasta 4) y te digo si la mesa está pareja antes de empezar.</p>
     <div class="chips">${all.map(chip).join("")}</div>
-    ${M ? `<div class="banner ${M.verdict.k==="good"?"info":""} mesa-v mesa-${M.verdict.k}"><span><b>${M.verdict.es}.</b> ${esc(M.verdict.s)} <span class="muted">(diferencia de ${M.spread.toFixed(1).replace(".",",")} niveles)</span></span></div>
+    ${M ? `<div class="banner ${M.verdict.k==="good"?"info":""} mesa-v mesa-${M.verdict.k}"><span><b>${M.verdict.es}.</b> ${esc(M.verdict.s)} ${M.rows.length>1?`<span class="muted">(diferencia de ${M.spread.toFixed(1).replace(".",",")} niveles)</span>`:""}</span></div>
       <div class="tbl-wrap"><table><thead><tr><th>Mazo</th><th class="n">Nivel</th><th class="n">Bracket</th><th class="n">Sal</th><th class="n">Gana en</th></tr></thead><tbody>
       ${M.rows.map(r=>`<tr><td><b>${esc(r.d.name)}</b><br><span class="muted" style="font-size:.82rem">${esc(r.owner)}</span></td><td class="n ${r.gap>=1?"warn":r.gap<=-1?"muted":""}">${r.P.power.toFixed(1)}${Math.abs(r.gap)>=1?` <small>${r.gap>0?"▲":"▼"}</small>`:""}</td><td class="n">${r.P.official.b}/${r.P.real}</td><td class="n">${r.P.salt}</td><td class="n">${r.speed?`T${r.speed.toFixed(1).replace(".",",")}`:"—"}</td></tr>`).join("")}
       </tbody></table></div>

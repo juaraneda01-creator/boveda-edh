@@ -19,7 +19,7 @@ function simCard(r, cmd){
   c.evasive = has("evasion");
   c.anthem = has("wcCombat") ? 1 : 0;
   c.mana = 0;
-  if (!c.land && !c.perm && has("landRamp")) c.landRamp = /two basic land|up to two|two land/.test((m.tg||[]).join(" ")) ? 2 : 1;   // Cultivate, Rampant Growth: suman una tierra
+  if (!c.land && !c.perm && has("landRamp")){ c.landRamp = has("landRamp2") ? 2 : 1; if (has("landHand")) c.landHand = 1; }   // Rampant Growth +1; Explosive Vegetation +2; Cultivate +1 y otra a la mano
   else if (!c.land && has("ramp")){ c.mana = FAST_MANA.has(name) && /ring|vault|crypt/.test(name) ? 2 : 1; if (!c.perm) { c.ritual = FAST_MANA.has(name) ? 2 : 1; c.mana = 0; } }
   if (!c.land && c.perm && has("landRamp")) c.mana = Math.max(c.mana, 1);
   if (FAST_MANA.has(name) && c.perm && !c.land) c.fast = true;
@@ -51,7 +51,7 @@ function simGame(decks, rnd, {life=40, maxTurns=20}={}){
     // mulligan simple: menos de 2 o más de 5 tierras, se baraja una vez y se roban 7 (y se deja una abajo)
     const lands = hand.filter(c=>c.land).length;
     if (lands < 2 || lands > 5){ lib.push(...hand); for (let i=lib.length-1;i>0;i--){ const j = Math.floor(rnd()*(i+1)); [lib[i], lib[j]] = [lib[j], lib[i]]; } hand = lib.splice(0, 7); const worst = hand.findIndex(c=>c.cmc>=5) ; lib.push(hand.splice(worst>=0?worst:0, 1)[0]); }
-    return {D, seat, life, lib, hand, board:[], lands:0, landNames:[], cmdZone:D.cmds.map(c=>({...c})), cmdTax:0, alive:true, gy:0, how:null, spare:0};
+    return {D, seat, life, lib, hand, board:[], lands:0, landNames:[], cmdZone:D.cmds.map(c=>({...c, tax:0})), alive:true, gy:0, how:null, spare:0};
   });
   const alive = () => players.filter(p=>p.alive);
   const boardPow = p => { const anth = p.board.reduce((a,c)=>a+(c.anthem||0),0); const cr = p.board.filter(c=>c.creature); return cr.reduce((a,c)=>a+c.pow,0) + (anth ? anth*cr.length : 0) + p.board.reduce((a,c)=>a+(c.tokensMade||0),0); };
@@ -66,29 +66,42 @@ function simGame(decks, rnd, {life=40, maxTurns=20}={}){
       const card = q.hand.splice(idx, 1)[0]; if (!card.free) q.spare -= card.cmc; q.gy++;
       // la protección del objetivo lo salva una vez
       const pi = target.hand.findIndex(c=>c.protect && !c.perm && (c.free || c.cmc<=target.spare));
-      if (pi>=0 && kind!=="counter"){ const pc = target.hand.splice(pi,1)[0]; target.spare -= pc.cmc; target.gy++; return false; }
+      if (pi>=0 && kind!=="counter"){ const pc = target.hand.splice(pi,1)[0]; if (!pc.free) target.spare -= pc.cmc; target.gy++; return false; }
       return true;
     }
     return false;
   };
-  const wipeAll = () => { for (const q of players){ q.board = q.board.filter(x=>!x.creature || x.cmd && (q.cmdZone.push(x), q.cmdTax+=2, false)); for (const x of q.board) x.tokensMade = 0; } };
+  const wipeAll = () => { for (const q of players){ q.board = q.board.filter(x=>!x.creature || x.cmd && (q.cmdZone.push(x), x.tax=(x.tax||0)+2, false)); for (const x of q.board) x.tokensMade = 0; } };
   const removeTop = p => { const foes = alive().filter(q=>q!==p); if (!foes.length) return; const lead = foes.reduce((a,q)=>threat(q)>threat(a)?q:a, foes[0]);
     const big = lead.board.filter(c=>c.creature||c.drawEngine||c.drain).sort((a,b)=>(b.pow+(b.drain?4:0)+(b.drawEngine?3:0))-(a.pow+(a.drain?4:0)+(a.drawEngine?3:0)))[0];
-    if (big){ lead.board.splice(lead.board.indexOf(big),1); if (big.cmd){ lead.cmdZone.push(big); lead.cmdTax += 2; } } };
+    if (big){ lead.board.splice(lead.board.indexOf(big),1); if (big.cmd){ lead.cmdZone.push(big); big.tax = (big.tax||0) + 2; } } };
   // combo listo: todas las piezas en mesa (o tierras jugadas) salvo las que están en la mano y se pueden pagar ahora
   const comboReady = p => p.D.combos.some(cb=>{ let cost = 0;
     for (const n of cb){ if (p.board.some(c=>c.n.toLowerCase()===n) || p.landNames.includes(n) || p.cmdZone.length===0 && p.board.some(c=>c.cmd && c.n.toLowerCase()===n)) continue;
       const h = p.hand.find(c=>c.n.toLowerCase()===n && !c.land); if (!h) return false; cost += h.free ? 0 : h.cmc; }
     return cost <= p.spare; });
+  // tutor: la pieza que falta del combo más avanzado (que esté en la biblioteca); si no, el mejor motor o amenaza
+  const tutorPick = p => {
+    const have = n => p.hand.some(x=>x.n.toLowerCase()===n) || p.board.some(x=>x.n.toLowerCase()===n) || p.landNames.includes(n) || p.cmdZone.some(x=>x.n.toLowerCase()===n);
+    let best = -1, bestHave = -1;
+    for (const cb of p.D.combos){ const miss = cb.filter(n=>!have(n)); if (!miss.length) continue; const i = p.lib.findIndex(x=>x.n.toLowerCase()===miss[0]); if (i<0) continue; const h = cb.length - miss.length; if (h > bestHave){ bestHave = h; best = i; } }
+    if (best >= 0) return best;
+    let bi = -1, bs = 0; p.lib.forEach((x,i)=>{ const s = (x.drawEngine?6:0) + (x.drain?4:0) + x.pow + (x.mana?2:0); if (s > bs){ bs = s; bi = i; } }); return bi;
+  };
   const kill = (p, q, how) => { if (q.alive && q.life <= 0){ q.alive = false; p.how = how; } };
   const castFromHand = (p, mana, turn) => {
     // prioridad: ramp temprano, luego motores, amenazas y piezas de combo; se guarda maná para una respuesta si se tiene
     const keep = p.hand.some(c=>(c.counter||c.removal) && c.inst && !c.free) ? Math.min(3, Math.max(0, mana-2)) : 0;
     let budget = mana - keep;
     const score = c => (c.mana ? (turn<=4?10:3) : 0) + (c.drawEngine?6:0) + (c.tutor?5:0) + c.pow*1.2 + (c.drain?4:0) + (c.drainTurn?4:0) + (c.outlet?2:0) + (c.anthem?3:0) + (c.tokens?3:0) + (p.D.combos.some(cb=>cb.includes(c.n.toLowerCase()))?8:0) + (c.landRamp ? (turn<=5?9:2) : 0) + (c.perm && c.removal ? 4 : 0) - (!c.perm && (c.removal||c.counter||c.wipe||c.protect) ? 20 : 0);
-    const rituals = p.hand.filter(c=>c.ritual); for (const r of rituals){ if (budget>=r.cmc){ budget += r.ritual; p.hand.splice(p.hand.indexOf(r),1); p.gy++; } }
+    // rituales: solo si habilitan un hechizo que sin ellos no se paga; su maná no queda guardado para responder
+    let ritualMana = 0;
+    { const rituals = p.hand.filter(c=>c.ritual); const extra = rituals.reduce((a,r)=>a+Math.max(0, r.ritual-r.cmc),0) ;
+      const wants = extra>0 && p.hand.some(c=>!c.land && !c.ritual && c.cmc>budget && c.cmc<=budget+extra) || p.cmdZone.some(cm=>cm.cmc+(cm.tax||0)>budget && cm.cmc+(cm.tax||0)<=budget+extra);
+      if (wants) for (const r of rituals){ if (budget>=r.cmc && r.ritual>r.cmc){ budget += r.ritual - r.cmc; ritualMana += r.ritual; p.hand.splice(p.hand.indexOf(r),1); p.gy++; } } }
+    const budget0 = budget;
     // comandante
-    for (const cm of p.cmdZone.slice()){ const cost = cm.cmc + p.cmdTax; if (cost<=budget && turn>=2){ budget -= cost; p.cmdZone.splice(p.cmdZone.indexOf(cm),1); cm.sick = true; p.board.push(cm); } }
+    for (const cm of p.cmdZone.slice()){ const cost = cm.cmc + (cm.tax||0); if (cost<=budget && turn>=2){ budget -= cost; p.cmdZone.splice(p.cmdZone.indexOf(cm),1); cm.sick = true; p.board.push(cm); } }
     const opts = p.hand.filter(c=>!c.land && c.cmc<=budget).sort((a,b)=>score(b)-score(a));
     for (const c of opts){
       if (c.cmc>budget || score(c)<0) continue;
@@ -98,11 +111,13 @@ function simGame(decks, rnd, {life=40, maxTurns=20}={}){
       if (c.perm){ c.sick = true; p.board.push(c); if (c.removal) removeTop(p); }
       else p.gy++;
       if (c.landRamp) p.lands += c.landRamp;
+      if (c.landHand) p.hand.push({n:"Basic Land", land:true, cmc:0, pow:0});
       if (c.draw && !c.drawEngine) p.hand.push(...p.lib.splice(0, c.draw));
-      if (c.tutor){ const want = p.D.combos.flat().find(n=>!p.hand.concat(p.board).some(x=>x.n.toLowerCase()===n)); const i = want ? p.lib.findIndex(x=>x.n.toLowerCase()===want) : p.lib.findIndex(x=>x.pow>=4||x.drawEngine); if (i>=0) p.hand.push(p.lib.splice(i,1)[0]); }
+      if (c.tutor){ const i = tutorPick(p); if (i>=0) p.hand.push(p.lib.splice(i,1)[0]); }
       if (c.wipe && !c.perm) wipeAll();
     }
-    p.spare = Math.max(0, budget);
+    // el maná de rituales se gasta primero: lo que sobre de él se pierde
+    const spent = budget0 - budget; p.spare = Math.max(0, budget - Math.max(0, ritualMana - spent));
   };
   for (let turn=1; turn<=maxTurns; turn++){
     for (const p of players){
@@ -138,7 +153,7 @@ function simGame(decks, rnd, {life=40, maxTurns=20}={}){
         if (dmg>0){ tgt.life -= Math.round(dmg); kill(p, tgt, "combat"); }
         // quien va ganando recibe removal de los demás
         const lead = alive().reduce((a,q)=>threat(q)>threat(a)?q:a, alive()[0]);
-        if (lead && threat(lead) >= 8 && respond(lead, "removal")){ const big = lead.board.filter(c=>c.creature||c.drawEngine||c.drain).sort((a,b)=>(b.pow+(b.drain?4:0)+(b.drawEngine?3:0))-(a.pow+(a.drain?4:0)+(a.drawEngine?3:0)))[0]; if (big){ lead.board.splice(lead.board.indexOf(big),1); if (big.cmd){ lead.cmdZone.push(big); lead.cmdTax += 2; } } }
+        if (lead && threat(lead) >= 8 && respond(lead, "removal")){ const big = lead.board.filter(c=>c.creature||c.drawEngine||c.drain).sort((a,b)=>(b.pow+(b.drain?4:0)+(b.drawEngine?3:0))-(a.pow+(a.drain?4:0)+(a.drawEngine?3:0)))[0]; if (big){ lead.board.splice(lead.board.indexOf(big),1); if (big.cmd){ lead.cmdZone.push(big); big.tax = (big.tax||0) + 2; } } }
       }
       for (const q of players) if (q.alive && q.life<=0) q.alive = false;
       if (alive().length===1) return {winner:alive()[0].seat, turn, how:alive()[0].how||"combat"};

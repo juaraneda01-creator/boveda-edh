@@ -8,8 +8,15 @@
 const GAME_HOW = [["combat","Combate"],["combo","Combo"],["drain","Drenaje"],["cmdr","Daño de comandante"],["alt","Victoria alternativa"],["concede","Se rindieron"],["other","Otro"]];
 S.gm = S.gm || {res:null, turn:7, how:null, seat:null, opp:[], oppTxt:"", note:""};
 
-function gamesOf(d){ const own = (S.data.games||[]).filter(g=>g.deck===d.id); const grp = typeof grpGamesFor==="function" ? grpGamesFor(d) : []; return [...own, ...grp].sort((a,b)=>b.at-a.at); }
+// una partida anotada aquí y también en el grupo (mismo día, resultado y turno) se cuenta una sola vez
+const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+function gamesOf(d){
+  const grp = typeof grpGamesFor==="function" ? grpGamesFor(d) : [];
+  const own = (S.data.games||[]).filter(g=>g.deck===d.id).map(g=>grp.some(x=>sameDay(x.at, g.at) && x.res===g.res && (!g.turn || !x.turn || x.turn===g.turn)) ? {...g, dup:true} : g);
+  return [...own, ...grp].sort((a,b)=>b.at-a.at);
+}
 function gameStats(list){
+  list = list.filter(g=>!g.dup);
   const n = list.length, w = list.filter(g=>g.res==="win").length, dr = list.filter(g=>g.res==="draw").length;
   const winTurns = list.filter(g=>g.res==="win" && g.turn).map(g=>g.turn);
   const seats = [1,2,3,4].map(s=>{ const L = list.filter(g=>g.seat===s); return {s, n:L.length, w:L.filter(g=>g.res==="win").length}; });
@@ -52,7 +59,7 @@ function gamesHTML(d, A){
     ${st.how.length?`<h4 class="td-h">Cómo gana</h4><div class="chips">${st.how.map(([k,c])=>`<span class="pill neutral">${esc((GAME_HOW.find(h=>h[0]===k)||[k,k])[1])} · ${c}</span>`).join("")}</div>`:""}
     ${st.opp.length?`<h4 class="td-h">Contra cada rival</h4>${st.opp.slice(0,12).map(o=>`<div class="rec"><span>${esc(oppName(o.k))}</span><span class="meta num">${o.w}/${o.n} · ${Math.round(100*o.w/o.n)}%</span></div>`).join("")}`:""}
     <h4 class="td-h">Últimas partidas</h4>
-    ${list.slice(0, 15).map(g=>`<div class="rec gm-item"><span><b class="${g.res==="win"?"up":g.res==="loss"?"down":""}">${g.res==="win"?"Victoria":g.res==="loss"?"Derrota":"Empate"}</b>${g.turn?` · turno ${g.turn}`:""}${g.how?` · ${esc((GAME_HOW.find(h=>h[0]===g.how)||[g.how,g.how])[1]).toLowerCase()}`:""}${g.seat?` · asiento ${g.seat}`:""}<br><span class="muted" style="font-size:.85rem">${g.group?`<span class="pill neutral">grupo</span> `:""}${new Date(g.at).toLocaleDateString("es-CL",{day:"numeric",month:"short"})}${(g.opp||[]).length?` · vs ${esc(g.opp.map(oppName).join(", "))}`:""}${g.note?` · ${esc(g.note)}`:""}</span></span>${!g.group || g.mine ? `<button class="btn sm ghost" data-gm-del="${esc(g.id)}" aria-label="Borrar partida">Borrar</button>` : ""}</div>`).join("")}
+    ${list.slice(0, 15).map(g=>`<div class="rec gm-item"><span><b class="${g.res==="win"?"up":g.res==="loss"?"down":""}">${g.res==="win"?"Victoria":g.res==="loss"?"Derrota":"Empate"}</b>${g.turn?` · turno ${g.turn}`:""}${g.how?` · ${esc((GAME_HOW.find(h=>h[0]===g.how)||[g.how,g.how])[1]).toLowerCase()}`:""}${g.seat?` · asiento ${g.seat}`:""}<br><span class="muted" style="font-size:.85rem">${g.group?`<span class="pill neutral">grupo</span> `:""}${g.dup?`<span class="pill warn" title="También está anotada en el grupo: no se cuenta dos veces">repetida</span> `:""}${new Date(g.at).toLocaleDateString("es-CL",{day:"numeric",month:"short"})}${(g.opp||[]).length?` · vs ${esc(g.opp.map(oppName).join(", "))}`:""}${g.note?` · ${esc(g.note)}`:""}</span></span>${!g.group || g.mine ? `<button class="btn sm ghost" data-gm-del="${esc(g.id)}" aria-label="Borrar partida">Borrar</button>` : ""}</div>`).join("")}
   </div>` : `<div class="sec"><p class="muted">Aún no hay partidas anotadas con este mazo. Anota la primera arriba: con 5 o más ya se ve cómo rinde contra tu grupo.</p></div>`}`;
 }
 

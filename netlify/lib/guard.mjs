@@ -37,3 +37,17 @@ export async function readCapped(res, max){
   for (;;){ const {done, value} = await reader.read(); if (done) break; size += value.byteLength; if (size > max){ try { reader.cancel(); } catch {} return null; } parts.push(value); }
   const out = new Uint8Array(size); let o = 0; for (const p of parts){ out.set(p, o); o += p.byteLength; } return out;
 }
+// cuota diaria por conexión para crear cosas nuevas (códigos de sincronización, grupos):
+// frena a un programa que cree miles de ids; una persona normal no llega nunca al tope
+export function clientIp(req){ return req.headers.get("x-nf-client-connection-ip") || (req.headers.get("x-forwarded-for") || "?").split(",")[0].trim(); }
+export async function overDailyQuota(store, req, kind, max){
+  const { createHash } = await import("node:crypto");
+  const day = new Date().toISOString().slice(0, 10);
+  const key = `q/${kind}/${day}/` + createHash("sha256").update("boveda-quota:" + clientIp(req)).digest("hex").slice(0, 32);
+  try {
+    const cur = await store.get(key, {type:"json"}); const n = (cur && cur.n) || 0;
+    if (n >= max) return true;
+    await store.setJSON(key, {n: n + 1});
+  } catch {}   // si la cuota no se puede leer, no se bloquea a nadie
+  return false;
+}

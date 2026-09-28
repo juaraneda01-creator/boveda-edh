@@ -6,6 +6,7 @@ const limited = limiter(40);
 
 const FRESH = 20 * 3600e3;                 // precios del día
 const MAX_NAMES = 150;
+const NF_TTL = 24 * 3600e3;              // un nombre que Scryfall no reconoce no se vuelve a pedir en un día
 const json = (o, status = 200) => new Response(JSON.stringify(o), {status, headers:{"content-type":"application/json", "cache-control":"no-store"}});
 export const slug = s => String(s || "").toLowerCase().replace(/æ/g, "ae").replace(/œ/g, "oe").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const pick = (o, keys) => { const r = {}; if (!o) return r; for (const k of keys) if (o[k] != null) r[k] = o[k]; return r; };
@@ -36,9 +37,12 @@ async function handle(req){
   const store = getStore({name:"boveda-cards", consistency:"eventual"});
   const now = Date.now();
   const hits = await Promise.all(names.map(n => store.get("c/" + slug(n.split(" // ")[0]), {type:"json"}).catch(() => null)));
-  const data = [], miss = [];
-  names.forEach((n, i) => { const h = hits[i]; if (h && h.card && now - (h.at || 0) < FRESH) data.push(h.card); else miss.push({n, old:h && h.card}); });
-  const not_found = [];
+  const data = [], miss = [], not_found = [];
+  const cand = [];
+  names.forEach((n, i) => { const h = hits[i]; if (h && h.card && now - (h.at || 0) < FRESH) data.push(h.card); else cand.push({n, old:h && h.card}); });
+  // caché negativa: nombres que Scryfall no encontró hace poco
+  const nfHits = await Promise.all(cand.map(x => x.old ? null : store.get("nf/" + slug(x.n.split(" // ")[0]), {type:"json"}).catch(() => null)));
+  cand.forEach((x, i) => { const h = nfHits[i]; if (h && now - (h.at || 0) < NF_TTL) not_found.push({name:x.n}); else miss.push(x); });
   for (let i = 0; i < miss.length; i += 75){
     const chunk = miss.slice(i, i + 75);
     let j;
@@ -52,7 +56,7 @@ async function handle(req){
     const saves = [];
     for (const x of chunk){
       const c = byName.get(slug(x.n.split(" // ")[0])) || byName.get(slug(x.n)) || ((j.data || []).length + nf.size === chunk.length ? byPos.get(x.n) : null);
-      if (!c){ if (x.old) data.push(x.old); else not_found.push({name:x.n}); continue; }
+      if (!c){ if (x.old) data.push(x.old); else { not_found.push({name:x.n}); if (nf.has(slug(x.n.split(" // ")[0]))) saves.push(store.setJSON("nf/" + slug(x.n.split(" // ")[0]), {at: now}).catch(() => {})); } continue; }
       const t = trim(c); data.push(t);
       const keys = new Set([slug(x.n.split(" // ")[0]), slug(c.name.split(" // ")[0])]);
       for (const k of keys) saves.push(store.setJSON("c/" + k, {at: now, card: t}).catch(() => {}));

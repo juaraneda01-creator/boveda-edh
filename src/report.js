@@ -4,7 +4,7 @@
    base casual o cEDH, tabla nutricional, radiografía por áreas
    y tarjeta de regla 0 para conversar el nivel antes de jugar.
    ========================================================= */
-const RF_V = 5;   // versión de las marcas de cada carta; si sube, se vuelven a calcular
+const RF_V = 6;   // versión de las marcas de cada carta; si sube, se vuelven a calcular
 
 // marcas extra por carta, calculadas con el texto de Oracle (se guardan en m.rf y m.tq)
 function cardFlags(o, t, tl){
@@ -41,7 +41,9 @@ function cardFlags(o, t, tl){
   if (!perm && /draw|create|search your library|return|put [^.]*counter|onto the battlefield/.test(o)) f.add("oneShot");
   if (/when(ever)? [^.]*(enters|enter the battlefield)/.test(o)) f.add("etb");
   if (/when(ever)? [^.]*dies|when(ever)? [^.]*is put into a graveyard from the battlefield/.test(o)) f.add("dies");
-  if (/(search your library for|put) [^.]*\bland (card|cards)?[^.]*onto the battlefield|put (a|up to (one|two)) land cards? from your hand onto the battlefield|play (an|two) additional lands?|search your library for (a|up to (one|two|three)) basic land/.test(o) && !land) f.add("landRamp");
+  if (/(search your library for|put) [^.]*\bland (card|cards)?[^.]*onto the battlefield|put (a|up to (one|two)) land cards? from your hand onto the battlefield|play (an|two) additional lands?|search your library for (a|up to (one|two|three)) basic land/.test(o) && !land){ f.add("landRamp");
+    if (/two [^.]*land cards?[^.]*put them onto the battlefield|put (both|two) [^.]*lands? onto the battlefield/.test(o)) f.add("landRamp2");     // Explosive Vegetation, Skyshroud Claim
+    else if (/put one onto the battlefield[^.]*and the other into your hand/.test(o)) f.add("landHand"); }                                  // Cultivate, Kodama's Reach
   if (/(return|put) [^.]*from (your|a) graveyard (to|onto|into)|return target [^.]*card from your graveyard|return the chosen cards to the battlefield|return (that card|it) to the battlefield under your control|(^|\n)(undying|persist)\b/.test(o)) f.add("recursion");
   if (land){
     if (/search your library for/.test(o)) f.add("fetch");

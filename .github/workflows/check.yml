@@ -19,7 +19,7 @@ jobs:
       - name: Sintaxis de JavaScript
         run: node --check dist/app.js && node --check sw.js
       - name: Funciones de Netlify
-        run: node tests/functions_test.mjs && node tests/tags_test.mjs && node tests/cedh_test.mjs && node tests/cards_test.mjs && node tests/salt_test.mjs && node tests/group_test.mjs
+        run: node tests/functions_test.mjs && node tests/tags_test.mjs && node tests/cedh_test.mjs && node tests/cards_test.mjs && node tests/salt_test.mjs && node tests/group_test.mjs && node tests/cleanup_test.mjs
       - name: Instalar navegador de prueba
         run: pip install playwright && python -m playwright install --with-deps chromium
       - name: Recorrer la página

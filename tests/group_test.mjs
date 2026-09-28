@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 const LIB = new URL("../netlify/lib/", import.meta.url).href; import { join } from "node:path";
 const dir = mkdtempSync(join(tmpdir(), "grp-"));
 writeFileSync(join(dir, "blobs.mjs"), `const M=new Map(); let n=0; export const race={on:false}; export function getStore(){ return {
+  async delete(k){ M.delete(k); }, async get(k){ const v=M.get("Q"+k); return v?JSON.parse(v):null; }, async setJSON2(){},
   async getWithMetadata(k){ const v=M.get(k); return v?{data:JSON.parse(v.d), etag:v.e}:null; },
   async setJSON(k,val,o){ const v=M.get(k); if (race.on){ race.on=false; M.set(k,{d:JSON.stringify({...JSON.parse(v.d), games:[...JSON.parse(v.d).games, {id:"otro-dispositivo", players:[], by:"x"}]}), e:"e"+(++n)}); }
     const w=M.get(k); if (o.onlyIfNew && w) return {modified:false}; if (o.onlyIfMatch && (!w || w.e!==o.onlyIfMatch)) return {modified:false}; M.set(k,{d:JSON.stringify(val), e:"e"+(++n)}); return {modified:true}; } }; }`);
@@ -57,4 +58,21 @@ expect("quien no jugó no la borra", s === 403, s);
 expect("un jugador de la partida puede borrarla", !d.games.some(g=>g.id==="g0001"), d.games);
 [s] = await fn(new Request(U, {method:"POST", headers:{"sec-fetch-site":"cross-site"}, body:"{}"})).then(r=>[r.status]);
 expect("otro sitio no escribe", s === 403, s);
+// editar la propia partida
+[s, d] = await as("juan1", {op:"game", game:{id:"g0002", players:[{mid:"juan1", deck:"juan1:hk01", res:"win"}, {mid:"pedro2", deck:"pedro2:vj01", res:"loss"}], turn:6}});
+[s, d] = await as("juan1", {op:"game", game:{id:"g0002", players:[{mid:"juan1", deck:"juan1:hk01", res:"loss"}, {mid:"pedro2", deck:"pedro2:vj01", res:"win"}], turn:9}});
+expect("quien anotó puede corregir su partida", s === 200 && d.games.find(g=>g.id==="g0002").turn === 9 && d.games.filter(g=>g.id==="g0002").length === 1, d.games);
+expect("el creador administra", d.owner === "juan1", d.owner);
+[s] = await as("pedro2", {op:"kick", who:"ana3"});
+expect("solo quien administra expulsa", s === 403, s);
+[s, d] = await as("juan1", {op:"kick", who:"ana3"});
+expect("expulsar", s === 200 && !d.members.ana3 && !("left" in d), d);
+[s] = await as("ana3", {op:"join", name:"Ana"});
+expect("un id expulsado no vuelve a entrar", s === 403, s);
+[s] = await as("pedro2", {op:"rotate", to:"c".repeat(64)});
+expect("solo quien administra cambia el código", s === 403, s);
+[s, d] = await as("juan1", {op:"rotate", to:"c".repeat(64)});
+expect("cambiar el código conserva el grupo", s === 200 && d.members.pedro2 && d.games.length, d);
+expect("el código antiguo avisa", (await fn(new Request(U))).status === 410, null);
+{ const r = await fn(new Request("https://x/api/group?id=" + "c".repeat(64))); const j = await r.json(); expect("el código nuevo responde", r.status === 200 && j.name === "Los del jueves", j); }
 console.log("Grupo OK: crear/unirse, claves por miembro, mazos sin pisarse, partidas validadas y escrituras simultáneas sin pérdidas.");

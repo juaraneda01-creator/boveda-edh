@@ -70,7 +70,10 @@ async function tdCalibrate(){
       S.td.cal = `Calculando… ${rows.length} de ${top.length}`; render();
     }
     if (rows.length < 3){ toast("No hubo suficientes listas para calibrar."); return; }
-    const mean = rows.reduce((a,x)=>a+x.p,0)/rows.length;
+    // solo las listas sobre 8 dicen cuánto estirar el tramo alto; las que quedan bajo 8 suelen tener cartas sin datos
+    const hi = rows.filter(x=>x.p > 8);
+    if (hi.length < 3){ toast(`Solo ${hi.length} de ${rows.length} listas típicas pasan de nivel 8: muy pocas para calibrar con seguridad. Revisa que las cartas tengan datos.`); return; }
+    const mean = hi.reduce((a,x)=>a+x.p,0)/hi.length;
     if (mean <= 8.05){ toast(`Las listas típicas dan ${mean.toFixed(1)}: muy bajo para estirar el tramo alto con seguridad. No se calibró; revisa que las cartas tengan datos.`); return; }
     const k = Math.max(1, Math.min(2, (9.4 - 8) / (mean - 8)));
     S.data.settings.cedhCal = {at:Date.now(), mean:Math.round(mean*100)/100, k:Math.round(k*100)/100, rows};
@@ -110,7 +113,7 @@ function tdHTML(){
       ${sorted.map((c,i)=>`<tr${mine.has(tdCmdKey(c.name))?' class="td-mine"':""}><td class="num td-rank">${i+1}</td><td>${esc(c.name)}${mine.has(tdCmdKey(c.name))?` <span class="pill good">tu mazo</span>`:""}<br><span class="muted num" style="font-size:.8rem">${pct1(c.share)} del meta</span></td><td class="n">${c.top}/${c.n}</td><td class="n">${Math.round(c.conv*100)}%</td><td class="n">${Math.round(c.wr*100)}%</td></tr>`).join("")}
     </tbody></table></div>
     <p class="foot">Top/mazos = llegaron al top cut de los inscritos. Conv. = ese porcentaje. Vict. = % de partidas ganadas. ${S.td.sort!=="entries"?"Para conversión y % de victorias solo cuentan comandantes con 5 mazos o más.":""}</p>
-    ${seatN?`<h4 class="td-h">Asiento en la mesa</h4><div class="td-seats">${[1,2,3,4].map(i=>`<div class="td-seat"><small class="sc">asiento ${i}</small><b class="num">${pct1(A.seat[i]/seatN)}</b><span class="rp-track sm"><i style="width:${100*A.seat[i]/seatN/0.4}%"></i></span></div>`).join("")}<div class="td-seat"><small class="sc">empates</small><b class="num">${pct1(A.seat[5]/seatN)}</b><span class="rp-track sm"><i style="width:${100*A.seat[5]/seatN/0.4}%"></i></span></div></div>
+    ${seatN?`<h4 class="td-h">Asiento en la mesa</h4><div class="td-seats">${[1,2,3,4].map(i=>`<div class="td-seat"><small class="sc">asiento ${i}</small><b class="num">${pct1(A.seat[i]/seatN)}</b><span class="rp-track sm"><i style="width:${Math.min(100, 100*A.seat[i]/seatN/0.4).toFixed(1)}%"></i></span></div>`).join("")}<div class="td-seat"><small class="sc">empates</small><b class="num">${pct1(A.seat[5]/seatN)}</b><span class="rp-track sm"><i style="width:${Math.min(100, 100*A.seat[5]/seatN/0.4).toFixed(1)}%"></i></span></div></div>
       <p class="foot">De ${seatN.toLocaleString("es-CL")} mesas de 4. Partir primero suele ganar bastante más que el 25% esperado.</p>`:""}
     <h4 class="td-h">Últimos torneos</h4>
     <div class="td-tours">${A.tours.slice(0, 25).map(t=>`<div class="td-tour"><button class="td-tour-h" data-td-tour="${esc(t.id)}" aria-expanded="${S.td.open===t.id}"><span><b>${esc(t.n)}</b><br><span class="muted" style="font-size:.85rem">${tdDate(t.d)}${t.city?` · ${esc(t.city)}${t.st?", "+esc(t.st):""}`:""}</span></span><span class="num td-size">${t.s}<small> jug.</small></span></button>${S.td.open===t.id?tdTourHTML(t):""}</div>`).join("") || `<p class="muted">No hay torneos con este filtro.</p>`}</div>

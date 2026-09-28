@@ -10,7 +10,7 @@ const SALT_TOP = {"Stasis":3.06,"Winter Orb":2.96,"Vivi Ornitier":2.81,"Tergrid,
 const SALT_AT = "EDHREC, 28 de septiembre de 2026";
 const SALT_SLUG = Object.fromEntries(Object.entries(SALT_TOP).map(([k,v])=>[slug(k), v]));
 function saltOf(n, m){
-  const live = S.salt && S.salt.map && (S.salt.map[slug(n)] ?? S.salt.map[slug(String(n).split(" // ")[0])]);
+  const live = S.salt && S.salt.map && (S.salt.map[slug(n)] ?? S.salt.map[slug(String(n).split(" // ")[0])] ?? (m && m.n ? S.salt.map[slug(m.n)] ?? S.salt.map[slug(String(m.n).split(" // ")[0])] : undefined));
   if (live != null) return live;
   const full = S.salt && S.salt.done;   // con la lista completa, lo que no aparece tiene sal baja
   const v = SALT_SLUG[slug(n)] ?? SALT_SLUG[slug(String(n).split(" // ")[0])] ?? (m ? SALT_SLUG[slug(m.n)] : undefined);
@@ -86,7 +86,7 @@ function powerOf(d, A){
   const Y = typeof synergyOf==="function" ? synergyOf(d, A) : null;
   const scale = A.isC ? 1 : 0.6;
   const E = comboEngine(rows);
-  const tutorQ = rows.filter(r=>(r.m.r||[]).includes("tutor")).reduce((a,r)=>a + r.q*((r.m.tq!=null ? r.m.tq : 60)/100), 0);
+  const tutorQ = rows.filter(r=>!r.cmd && (r.m.r||[]).includes("tutor")).reduce((a,r)=>a + r.q*((r.m.tq!=null ? r.m.tq : 60)/100), 0);
   // tribal fuerte: la mayoría de las criaturas comparte tipo y hay cartas que lo aprovechan
   const crN = cnt(m=>m.t==="Creature"); const tb = Y && Y.tribes && Y.tribes[0];
   const tribeV = tb && crN ? Math.min(8, (tb.n/crN >= 0.6 ? 6 : tb.n/crN >= 0.4 ? 4 : 0) + Math.min(2, tb.pay.length*0.2)) : 0;

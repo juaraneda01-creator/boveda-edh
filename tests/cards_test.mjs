@@ -21,6 +21,7 @@ expect("segunda consulta desde el caché", calls === 1 && b.cached === 2 && b.da
 fail = false;
 const e = await post(["Aether Vial", "Nope", "Jace Mind Sculptor", "Fell Mire"]);
 expect("Æ, alias por posición y nombre de la segunda cara", e.data.map(x=>x.name).join("|") === "Æther Vial|Jace, the Mind Sculptor|Fell Mire" && e.not_found.length === 1, e);
+{ const c0 = calls; const g = await post(["Nope"]); expect("caché negativa: un nombre desconocido no vuelve a Scryfall", calls === c0 && g.not_found.length === 1, {calls, c0, g}); }
 const f = await post(["Æther Vial", "Jace Mind Sculptor"]);
 expect("alias guardados en caché", f.cached === 2, f);
 fail = true;

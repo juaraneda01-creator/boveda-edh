@@ -75,7 +75,9 @@ async function syPush(force=false){
       if (!merged){ SY.remote = rem; SY.state = "conflict"; ACC.open = true; }
       return;
     }
-    else if (r.status === 429){ SY.err = "Muchas sincronizaciones seguidas. Se reintentará en un minuto."; SY.dirty = true; setTimeout(()=>{ SY.err=""; syPush(); }, 60000); }
+    else if (r.status === 429){ const j = await r.json().catch(()=>({}));
+      if (/hoy/.test(j.error||"")){ SY.err = "Se crearon demasiados códigos hoy desde esta conexión. Prueba mañana o usa un código que ya tengas."; SY.dirty = true; }
+      else { SY.err = "Muchas sincronizaciones seguidas. Se reintentará en un minuto."; SY.dirty = true; setTimeout(()=>{ SY.err=""; syPush(); }, 60000); } }
     else if (!r.ok){ SY.err = r.status===413 ? "Tus datos pasan el máximo de 5 MB para sincronizar." : "No se pudo sincronizar. Se reintentará con el próximo cambio."; SY.dirty = true; }
     else {
       const j = await r.json().catch(()=>({}));
