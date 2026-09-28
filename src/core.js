@@ -228,7 +228,7 @@ function fromScry(c){
   const t = mainType(tl); const pm = c.produced_mana || []; const lg=c.legalities||{}; const pr=printFrom(c);
   return {
     n:c.name, cmc:c.cmc||0, ci:(c.color_identity||[]).join(""), col:(c.colors||f0.colors||[]).join(""), t, tl:tl.split(" // ")[0], cost, pm,
-    r:detectRoles(o,t,tl,pm), sb:sbCats(o,c.name), gc: c.game_changer===true,
+    r:detectRoles(o,t,tl,pm), sb:sbCats(o,c.name), tg:(typeof detectTags==="function"?detectTags(o,t,tl):[]), gc: c.game_changer===true,
     xt:/take an extra turn/.test(o), mld:/destroy all lands|each player sacrifices (all|\w+) lands|lands don't untap|destroy all permanents/.test(o),
     tap: t==="Land" && /enters( the battlefield)? tapped\./.test(o) && !/unless|if you control|you may pay|you may reveal/.test(o),
     leg:/Legendary/.test(tl), lg:{commander:lg.commander||"", pauper:lg.pauper||"", pioneer:lg.pioneer||""},
@@ -1017,6 +1017,8 @@ function claudePrompt(d, A){
 ${head}
 Presupuesto: ${budget}
 Estadísticas: ${A.main} cartas${A.isC?"":` + ${A.sideN} de sideboard`}; tierras ${A.roles.land}; ramp ${A.roles.ramp}; robo ${A.roles.draw}; removal ${A.roles.removal}; barridos ${A.roles.wipe}; CMC promedio ${A.avg.toFixed(2)}; curva 0-7+: ${A.curve.join(", ")}${A.isC?`; Game Changers: ${A.gc.join(", ")||"ninguno"}`:""}.
+
+${typeof synergyPromptText==="function"?synergyPromptText(d,A):""}
 
 Lista:
 ${deckText(d)}

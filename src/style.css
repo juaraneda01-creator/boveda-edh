@@ -551,3 +551,19 @@ body.web [data-act="fetch-meta"],body.web [data-act="fetch-meta-all"],body.web [
   .subchips .chip{flex:none}
   .pane-head h2,.fmt-head h2{font-size:1.55rem}
 }
+
+/* ---------- sinergias ---------- */
+.sy-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.sy-th{gap:10px}
+.sy-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sy-top b{font-size:1.05rem}
+.sy-score{margin-left:auto;font-weight:700;font-size:1.2rem}
+.sy-sides{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.sy-lab{font-size:.88rem;color:var(--muted)}
+.sy-lab .num{color:var(--ink);font-weight:700}
+.sy-bar{display:block;height:6px;background:var(--sunk);border-radius:4px;margin:4px 0 6px;overflow:hidden}
+.sy-bar i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.sy-cards{font-size:.85rem;line-height:1.45}
+.sy-need{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.9rem;border-top:1px solid var(--line);padding-top:8px}
+.sy-adds .rec{font-size:.9rem}
+@media (max-width:640px){.sy-grid{grid-template-columns:1fr}.sy-sides{grid-template-columns:1fr}}

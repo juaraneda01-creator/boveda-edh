@@ -93,18 +93,18 @@ function deckHTML(d){
   const G = A.isC ? [
     ["resumen","Resumen",[["analisis","Análisis"],["mana","Base de maná"]]],
     ["lista","Lista",[["lista","Lista"]]],
-    ["mejorar","Mejorar",[["mejorar","Recomendaciones"],["ia","Con IA"],["brackets","Brackets"],["combos","Combos"]]],
+    ["mejorar","Mejorar",[["sinergias","Sinergias"],["mejorar","Recomendaciones"],["ia","Con IA"],["brackets","Brackets"],["combos","Combos"]]],
     ["jugar","Jugar",[["mano","Probar mano"],["radiografia","Cómo se juega"]]],
     ["precio","Precio",[["precio","Valor"],["versiones","Versiones"],["manabox","ManaBox"],["compartir","Compartir"]]]]
   : [
     ["resumen","Resumen",[["analisis","Análisis"],["mana","Base de maná"]]],
     ["lista","Lista",[["lista","Lista"]]],
-    ["mejorar","Mejorar",[["meta","Contra el meta"],["ia","Con IA"]]],
+    ["mejorar","Mejorar",[["sinergias","Sinergias"],["meta","Contra el meta"],["ia","Con IA"]]],
     ["jugar","Jugar",[["mano","Probar mano"],["radiografia","Cómo se juega"]]],
     ["precio","Precio",[["precio","Valor"],["versiones","Versiones"],["manabox","ManaBox"],["compartir","Compartir"]]]];
   const tabs = G.flatMap(g=>g[2]);
   if (!tabs.some(t=>t[0]===S.deckTab)) S.deckTab="analisis";
-  const body = {analisis:analysisHTML, lista:listHTML, mana:manaHTML, combos:combosHTML, brackets:bracketsHTML, mejorar:improveHTML, precio:priceHTML, meta:deckMetaHTML, manabox:mbDeckHTML, ia:iaHTML, radiografia:radioHTML, mano:manoHTML, versiones:versionesHTML, compartir:compartirHTML}[S.deckTab](d,A);
+  const body = {analisis:analysisHTML, lista:listHTML, mana:manaHTML, combos:combosHTML, brackets:bracketsHTML, mejorar:improveHTML, precio:priceHTML, meta:deckMetaHTML, manabox:mbDeckHTML, ia:iaHTML, radiografia:radioHTML, mano:manoHTML, versiones:versionesHTML, compartir:compartirHTML, sinergias:synergyHTML}[S.deckTab](d,A);
   const pendN = d.mb ? boardDiff(mbBase(d.mb), boardsOf(d)).n : 0;
   return `<div class="pane">
     <div class="pane-head">
@@ -603,6 +603,7 @@ function renderModal(){
         <div class="legal">${lgs}${m&&m.gc?`<span class="pill warn">Game Changer</span>`:""}${m&&m.rsv?`<span class="pill neutral">Lista reservada</span>`:""}</div>
         <div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr))"><div class="stat"><div class="k">referencia</div><div class="v" style="font-size:1.1rem">${money(m&&(e?m.eur:m.usd))}</div></div><div class="stat"><div class="k">más barata</div><div class="v" style="font-size:1.1rem">${money(m&&(e?m.minE:m.min))}</div></div><div class="stat"><div class="k">tienes</div><div class="v" style="font-size:1.1rem">${owned.reduce((a,o)=>a+o.q,0)}</div></div></div>
         ${m&&!m.basic&&m.t!=="Land"?`<div><div class="muted" style="font-size:.85rem;margin-bottom:4px">Funciones en tus análisis${m.rOv?" (editadas por ti)":""}:</div><div class="chips">${Object.keys(ROLE_ES).map(r=>`<button class="chip" data-role="${r}" aria-pressed="${(m.r||[]).includes(r)}" style="padding:2px 10px;font-size:.85rem">${ROLE_ES[r]}</button>`).join("")}${m.rOv?`<button class="btn sm ghost" data-act="role-reset">Restablecer</button>`:""}</div></div>`:""}
+        ${m&&typeof tagChipsHTML==="function"&&tagChipsHTML(m)?`<div><div class="muted" style="font-size:.85rem;margin-bottom:4px">Qué hace (etiquetas de sinergia):</div>${tagChipsHTML(m)}</div>`:""}
         ${fc?`<div><span class="fc ${fc.label}">${FC_ES[fc.label]}</span> <span class="muted" style="font-size:.85rem">confianza ${fc.conf}</span><p class="muted" style="margin:6px 0 0;font-size:.9rem">${esc(fc.why.join(" · ")||"Sin señales suficientes todavía.")}</p></div>`:""}
         ${sparkSVG(key)}
         <div class="row">${inWish?`<span class="pill good">En tu lista de búsqueda</span>`:`<input type="number" id="modal-target" min="0" step="0.01" placeholder="Precio objetivo" style="width:150px"><button class="btn sm primary" data-act="modal-wish">Agregar a búsqueda</button>`}
