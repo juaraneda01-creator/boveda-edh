@@ -1413,7 +1413,7 @@ let toastT; function toast(msg){ const t=$("#toast"); t.textContent=msg; t.hidde
 const LS_DATA="boveda-edh:data";
 function lsGet(k, def){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):def; }catch{ return def; } }
 const isWebView = () => !!(window.claude && typeof window.claude.use==="function");
-const offlineMsg = site => isWebView() ? `La versión web no puede conectarse a ${site}. Para eso usa el archivo descargado.` : `No se pudo conectar con ${site}. Revisa tu conexión a internet.`;
+const offlineMsg = site => isWebView() ? `La versión web no puede conectarse a ${site}. Para eso usa la versión en vivo: boveda-edh.netlify.app.` : `No se pudo conectar con ${site}. Revisa tu conexión a internet.`;
 let lsWarned=false;
 function lsSet(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ if (!lsWarned && !(typeof ACC!=="undefined" && ACC.uid)){ lsWarned=true; setTimeout(()=>toast("El navegador no dejó guardar aquí. Inicia sesión con tu cuenta o descarga un respaldo desde Ajustes."),50); } return false; } }
 const idb = (()=>{
@@ -3483,7 +3483,7 @@ async function importFromLink(url, fmtHint){
   return r;
 }
 function linkBoxHTML(where){
-  if (isWebView()) return `<div class="card-box link-box"><h3>Importar desde un enlace</h3><p class="muted" style="margin:0">En la versión web no se pueden leer enlaces de otros sitios. Desde ManaBox: abre el mazo → ⋯ → Exportar → Texto, copia y pega la lista en el cuadro “Deck” (el banquillo y las cartas probables se separan solos). Moxfield, Archidekt y MTGGoldfish también tienen “Exportar como texto”. Para importar con el enlace, usa el archivo descargado.</p></div>`;
+  if (isWebView()) return `<div class="card-box link-box"><h3>Importar desde un enlace</h3><p class="muted" style="margin:0">En la versión web no se pueden leer enlaces de otros sitios. Desde ManaBox: abre el mazo → ⋯ → Exportar → Texto, copia y pega la lista en el cuadro “Deck” (el banquillo y las cartas probables se separan solos). Moxfield, Archidekt y MTGGoldfish también tienen “Exportar como texto”. Para importar con el enlace, usa la <a href="https://boveda-edh.netlify.app" target="_blank" rel="noopener">versión en vivo</a>.</p></div>`;
   return `<div class="card-box link-box"><h3>Importar desde un enlace</h3><p class="muted" style="margin:0">Moxfield, Archidekt, ManaBox (enlace compartido), MTGGoldfish, MTGTop8, TappedOut, Deckstats, MTGDecks o Melee. El mazo debe ser público.</p>
     <div class="row"><input type="url" id="${where}-url" placeholder="https://moxfield.com/decks/…" style="flex:1;min-width:220px">
     ${where==="hub"?`<select id="hub-url-fmt" aria-label="Formato"><option value="">Formato: detectar</option><option value="commander">Commander</option><option value="pauper">Pauper</option><option value="pioneer">Pioneer</option></select>`:""}
@@ -4564,6 +4564,8 @@ document.addEventListener("input", e=>{ if (e.target.id==="ia-notes") S.iaNotes=
    ========================================================= */
 var ACC = {state:"init", db:null, uid:null, name:"", avatar:"", color:"", open:false, busy:false, dirty:false, timer:null, cache:{}, cloudAt:0, syncAt:0, conflict:null, err:"", dl:null};
 const WEB_URL = "https://claude.ai/artifact/NQtKCrx1WzVMyRq6RPvJk4";
+const LIVE_URL = "https://boveda-edh.netlify.app";
+const isLive = () => /netlify\.app$/i.test(location.hostname||"");
 const ACC_CHUNK = 1200;         // registros de colección por documento
 const ACC_MAX = 240*1024;       // margen bajo el límite de 256 KiB por documento
 const hasRuntime = () => !!(window.claude && typeof window.claude.use === "function");
@@ -4721,7 +4723,7 @@ function accChipHTML(){
   const st = ACC.state;
   const av = ACC.avatar ? `<img class="acc-av" src="${esc(ACC.avatar)}" alt="">` : `<span class="acc-av acc-av0" aria-hidden="true">${ACC.name?esc(ACC.name.slice(0,1).toUpperCase()):`<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>`}</span>`;
   const label = st==="on" ? (ACC.busy?"Guardando…":ACC.dirty?"Cambios sin subir":ACC.err?"Sin sincronizar":"Sincronizado")
-    : st==="conflict" ? "Elige qué datos usar" : st==="connecting"||st==="init" ? "Conectando…" : st==="file" ? "Iniciar sesión" : st==="guest" ? "Sin sesión" : st==="error" ? "Sin conexión" : "Sin cuenta";
+    : st==="conflict" ? "Elige qué datos usar" : st==="connecting"||st==="init" ? "Conectando…" : st==="file" ? (isLive() ? "Datos en este navegador" : "Iniciar sesión") : st==="guest" ? "Sin sesión" : st==="error" ? "Sin conexión" : "Sin cuenta";
   const who = st==="on"||st==="conflict" ? (ACC.name||"Tu cuenta") : "Cuenta";
   return `<button class="acc-chip ${st==="on"&&!ACC.err&&!ACC.dirty?"ok":st==="conflict"||ACC.err?"warn":""}" id="acc-chip" aria-expanded="${ACC.open}">${av}<span><b>${esc(who)}</b><small>${esc(label)}</small></span></button>`;
 }
@@ -4731,15 +4733,15 @@ function accPanelHTML(){
   if (st==="on") body = `<p><b>${esc(ACC.name||"Sesión iniciada")}</b><br><span class="muted">Tus mazos, colección, carpetas de venta y lista de búsqueda se guardan en tu cuenta y aparecen en cualquier dispositivo donde abras esta página con la misma cuenta. Solo tú los ves.</span></p>
     <p class="muted" style="font-size:.88rem">Último guardado: ${ACC.syncAt?ago(ACC.syncAt):"—"}. Datos de cartas en tu cuenta: ${Object.keys(S.cards).length} cartas${ACC.cardsAt?`, actualizados ${ago(ACC.cardsAt)}`:""}. La clave de API de Claude no se sube: queda solo en este navegador.</p>
     ${ACC.err?`<p class="down" style="font-size:.9rem">${esc(ACC.err)}</p>`:""}
-    <p class="muted" style="font-size:.88rem">Esta versión no puede conectarse a Scryfall. Para traer precios y datos de cartas: en el archivo descargado usa “Ajustes y respaldo → Descargar respaldo”, y aquí “Importar respaldo”. Quedan guardados en tu cuenta.</p>
+    <p class="muted" style="font-size:.88rem">Esta versión no puede conectarse a Scryfall. Para traer precios y datos de cartas: abre la <a href="${LIVE_URL}" target="_blank" rel="noopener">versión en vivo</a> (o el archivo descargado), trae los precios y usa “Ajustes y respaldo → Descargar respaldo”; luego aquí “Importar respaldo”. Quedan guardados en tu cuenta.</p>
     <div class="row"><button class="btn sm primary" data-acc="push">Guardar ahora</button><button class="btn sm" data-acc="pull">Volver a cargar desde la cuenta</button></div>`;
   else if (st==="conflict") body = `<p><b>Tu cuenta ya tiene datos</b> (guardados ${ago(ACC.conflict.cloudAt)}), y este navegador también tiene mazos o colección que no están en la cuenta.</p>
     <div class="acc-choice"><button class="btn primary" data-acc="use-cloud">Usar los datos de mi cuenta</button><span class="muted">Reemplaza lo de este navegador (se guarda una copia local por si acaso).</span></div>
     <div class="acc-choice"><button class="btn" data-acc="use-local">Subir los datos de este navegador</button><span class="muted">Reemplaza lo guardado en la cuenta.</span></div>
     <div class="acc-choice"><button class="btn" data-acc="merge">Juntar ambos</button><span class="muted">Suma los mazos y registros que falten en cada lado.</span></div>`;
-  else if (st==="file") body = `<p><b>Estás usando el archivo descargado.</b> Aquí los datos viven solo en este navegador.</p>
-    <p class="muted">Para iniciar sesión con tu cuenta y tener tus datos en todos tus dispositivos, abre la versión web. Para llevar tus datos: aquí descarga un respaldo (Ajustes y respaldo), y en la versión web, después de iniciar sesión, usa “Importar respaldo” en Ajustes y respaldo.</p>
-    <div class="row"><a class="btn sm primary" href="${WEB_URL}" target="_blank" rel="noopener">Abrir la versión web</a><button class="btn sm" data-act="backup">Descargar respaldo</button></div>`;
+  else if (st==="file") body = `<p><b>${isLive() ? "Versión en vivo (Netlify)." : "Estás usando el archivo descargado."}</b> Aquí los datos viven solo en este navegador${isLive() ? ", y Scryfall, EDHREC e importar por enlace funcionan en vivo" : ""}.</p>
+    <p class="muted">Para iniciar sesión con tu cuenta de Claude y tener tus datos en todos tus dispositivos, usa la versión de claude.ai. Para pasar datos entre versiones: en una, “Ajustes y respaldo → Descargar respaldo”; en la otra, “Importar respaldo”. El respaldo incluye precios y datos de las cartas.</p>
+    <div class="row"><a class="btn sm primary" href="${WEB_URL}" target="_blank" rel="noopener">Versión con cuenta (claude.ai)</a>${isLive() ? "" : `<a class="btn sm" href="${LIVE_URL}" target="_blank" rel="noopener">Versión en vivo</a>`}<button class="btn sm" data-act="backup">Descargar respaldo</button></div>`;
   else if (st==="guest") body = `<p><b>No hay una sesión de Claude en esta vista.</b></p><p class="muted">Entra a claude.ai con tu cuenta y vuelve a abrir esta página. Mientras tanto, lo que hagas queda solo en este navegador.</p>`;
   else if (st==="unavailable") body = `<p><b>La cuenta no está disponible en esta vista.</b></p><p class="muted">Abre la página desde claude.ai con tu sesión iniciada. Mientras tanto, lo que hagas queda solo en este navegador.</p>`;
   else if (st==="error") body = `<p><b>${esc(ACC.err||"No se pudo conectar con tu cuenta.")}</b></p><div class="row"><button class="btn sm primary" data-acc="retry">Reintentar</button></div>`;
@@ -4813,14 +4815,14 @@ function CK_CARD(n){ return "https://www.cardkingdom.com/catalog/search?search=h
 function webBlocked(what){
   if (!userAsked()) return;
   const msg = {
-    precios: "Los precios no se pueden consultar desde la versión web. Tráelos en el archivo descargado y pásalos con “Importar respaldo”.",
+    precios: "Los precios no se pueden consultar desde la versión web. Tráelos en la versión en vivo (boveda-edh.netlify.app) y pásalos con “Importar respaldo”.",
     edhrec: "EDHREC no se puede consultar desde aquí. Abre la página del comandante en EDHREC con el enlace.",
-    combos: "La búsqueda de combos necesita el archivo descargado (Commander Spellbook no se puede consultar desde aquí).",
+    combos: "La búsqueda de combos funciona en la versión en vivo, boveda-edh.netlify.app (Commander Spellbook no se puede consultar desde aquí).",
     cedh: "EDHTop16 no se puede consultar desde aquí. Usa el enlace para verlo en su página.",
     versiones: "Las versiones y sus precios se ven en Scryfall o Card Kingdom con los enlaces de la ficha.",
-    novedades: "Las novedades necesitan el archivo descargado.",
-    ck: "La lista de Card Kingdom se carga en el archivo descargado, o sube aquí su archivo JSON.",
-  }[what] || "Esta función necesita el archivo descargado.";
+    novedades: "Las novedades funcionan en la versión en vivo: boveda-edh.netlify.app.",
+    ck: "La lista de Card Kingdom se carga en la versión en vivo (boveda-edh.netlify.app), o sube aquí su archivo JSON.",
+  }[what] || "Esta función está en la versión en vivo: boveda-edh.netlify.app.";
   toast(msg);
 }
 
