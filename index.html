@@ -5097,14 +5097,15 @@ document.addEventListener("input", ev=>{
 });
 
 /* ---------- arranque ---------- */
-(async ()=>{
+// S.boot: la cuenta y la sincronización esperan a que termine de cargar lo guardado en el navegador,
+// así lo que llega de la nube no queda pisado por la copia local más antigua.
+S.boot = (async ()=>{
   render();
   if (await loadDataIdb()) render();
   await loadCaches();
   render();
-  refreshGC();
-  if (S.data.settings.autoRefresh) refreshPrices(false);
 })();
+S.boot.then(()=>{ refreshGC(); if (S.data.settings.autoRefresh) refreshPrices(false); });
 
 /* =========================================================
    Bóveda EDH — herramientas (estilo EDH Optimizer)
@@ -5882,16 +5883,30 @@ function accSchedule(ms=2500){ clearTimeout(ACC.timer); ACC.timer = setTimeout(a
 function accOnSave(){ if (typeof syncOnSave==="function") syncOnSave(); if (ACC && ACC.uid && ACC.state==="on"){ ACC.dirty = true; accSchedule(); accRender(); } }
 
 /* ---------- bajar ---------- */
+// datos de cartas de la cuenta: completan lo que falta aquí o reemplazan lo que tiene datos más viejos o incompletos
+async function accMergeCards(cm){
+  let n=0;
+  for (const doc of Object.values(cm||{})) for (const [k,c] of Object.entries((doc&&doc.c)||{})){
+    const cur=S.cards[k];
+    if (c && (!cur || (c.at||0) > (cur.at||0) || ((c.at||0) === (cur.at||0) && (c.rv||0) >= (cur.rv||0)))){ S.cards[k]=c; n++; }
+  }
+  if (n){ saveCaches(); render(); }
+  return n;
+}
+async function accPullCards(){
+  if (!ACC.db || !ACC.uid) return 0;
+  try {
+    const q = await accRoot().collection("cards").get(); const m = {}; for (const d of q.docs) m[d.id] = d.data();
+    const r = (await accRoot().get()).data() || {}; ACC.cardDocs = r.cards||ACC.cardDocs||0; ACC.cardsAt = Math.max(ACC.cardsAt||0, r.cardsAt||0);
+    return await accMergeCards(m);
+  } catch { return 0; }
+}
 async function accPull(rootSnap){
   const root = accRoot(); const r = rootSnap ? rootSnap.data() : (await root.get()).data();
   if (!r) return null;
   const grab = async col => { const q = await root.collection(col).get(); const m = {}; for (const d of q.docs) m[d.id] = d.data(); return m; };
   const [decks, coll, binders] = await Promise.all([grab("decks"), grab("coll"), grab("binders")]);
-  if (r.cards && (r.cardsAt||0) > (ACC.cardsAt||0)){
-    const cm = await grab("cards"); let n=0;
-    for (const doc of Object.values(cm)) for (const [k,c] of Object.entries(doc.c||{})){ const cur=S.cards[k]; if (c && (!cur || (c.at||0) >= (cur.at||0))){ S.cards[k]=c; n++; } }
-    if (n) saveCaches();
-  }
+  if (r.cards && (r.cardsAt||0) > (ACC.cardsAt||0)) await accMergeCards(await grab("cards"));
   ACC.cardDocs = r.cards||0; ACC.cardsAt = r.cardsAt||0;
   ACC.cache = {decks:{}, coll:{}, binders:{}};
   for (const [k,m] of Object.entries({decks, coll, binders})) for (const [id, b] of Object.entries(m)) ACC.cache[k][id] = JSON.stringify(b);
@@ -5917,6 +5932,7 @@ const isEmptyData = d => !d.decks.length && !(d.collection.items||[]).length && 
 async function accInit(){
   if (!hasRuntime()){ ACC.state = "file"; accRender(); return; }
   ACC.state = "connecting"; accRender();
+  try { await S.boot; } catch {}
   const dl = await claude.use("downloads"); ACC.dl = dl;
   const user = await claude.use("user");
   const db = await claude.use("db");
@@ -5926,6 +5942,7 @@ async function accInit(){
   Object.assign(ACC, {db, uid:me.id, name:me.name, avatar:me.avatarUrl, color:me.color});
   try {
     const snap = await accRoot().get();
+    if (snap.exists && (snap.data().cards||0)) await accPullCards();   // las cartas no generan conflicto: se traen siempre
     if (!snap.exists){ ACC.state = "on"; await accPush(); toast("Sesión iniciada: tus datos quedaron guardados en tu cuenta."); }
     else {
       const cloudAt = snap.data().savedAt||0; ACC.cloudAt = cloudAt;
@@ -6079,6 +6096,13 @@ async function webFetchCards(names, {force=false, quiet=false}={}){
   const todo = [...new Map(names.filter(Boolean).map(n=>[slug(n), String(n).trim()])).values()]
     .filter(n => !BASICS.has(slug(n)) && (force ? true : !S.cards[slug(n)]));
   if (!todo.length){ toast("Estas cartas ya tienen datos. Los precios se actualizan con “Importar respaldo” desde el archivo."); return 0; }
+  // primero lo guardado en tu cuenta de Claude (sin gastar uso de Claude)
+  if (typeof accPullCards==="function" && ACC.uid){
+    const got = await accPullCards();
+    const left = todo.filter(n => !S.cards[slug(n)]);
+    if (got && !left.length){ toast(`Datos de las cartas traídos desde tu cuenta.`); render(); return got; }
+    if (left.length < todo.length){ toast(`Traje ${todo.length-left.length} cartas desde tu cuenta; completo las otras ${left.length} con Claude.`); return got + await claudeFill(left); }
+  }
   return claudeFill(todo);
 }
 async function claudeFill(names){
@@ -6243,6 +6267,7 @@ function syEmpty(d){ return !d.decks.length && !(d.collection.items||[]).length 
 // al abrir o volver a la app: si otro dispositivo guardó algo nuevo, se carga
 async function syCheck(){
   if (!LIVE || SY.state!=="on" || SY.busy) return;
+  try { await S.boot; } catch {}
   try {
     const remote = await syPull();
     if (!remote){ await syPush(true); return; }
@@ -6253,6 +6278,7 @@ async function syCheck(){
   } catch { SY.err = "Sin conexión: se sincroniza cuando vuelva la señal."; accRender(); }
 }
 async function syConnect(code, isNew){
+  try { await S.boot; } catch {}
   SY.code = syNorm(code); SY.at = 0; SY.state = "on"; SY.err = ""; sySave();
   if (isNew){ await syPush(true); toast("Listo: este dispositivo queda sincronizado con tu código."); return; }
   let remote;

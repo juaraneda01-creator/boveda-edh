@@ -95,6 +95,7 @@ function syEmpty(d){ return !d.decks.length && !(d.collection.items||[]).length 
 // al abrir o volver a la app: si otro dispositivo guardó algo nuevo, se carga
 async function syCheck(){
   if (!LIVE || SY.state!=="on" || SY.busy) return;
+  try { await S.boot; } catch {}
   try {
     const remote = await syPull();
     if (!remote){ await syPush(true); return; }
@@ -105,6 +106,7 @@ async function syCheck(){
   } catch { SY.err = "Sin conexión: se sincroniza cuando vuelva la señal."; accRender(); }
 }
 async function syConnect(code, isNew){
+  try { await S.boot; } catch {}
   SY.code = syNorm(code); SY.at = 0; SY.state = "on"; SY.err = ""; sySave();
   if (isNew){ await syPush(true); toast("Listo: este dispositivo queda sincronizado con tu código."); return; }
   let remote;

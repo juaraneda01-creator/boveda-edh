@@ -104,16 +104,30 @@ function accSchedule(ms=2500){ clearTimeout(ACC.timer); ACC.timer = setTimeout(a
 function accOnSave(){ if (typeof syncOnSave==="function") syncOnSave(); if (ACC && ACC.uid && ACC.state==="on"){ ACC.dirty = true; accSchedule(); accRender(); } }
 
 /* ---------- bajar ---------- */
+// datos de cartas de la cuenta: completan lo que falta aquí o reemplazan lo que tiene datos más viejos o incompletos
+async function accMergeCards(cm){
+  let n=0;
+  for (const doc of Object.values(cm||{})) for (const [k,c] of Object.entries((doc&&doc.c)||{})){
+    const cur=S.cards[k];
+    if (c && (!cur || (c.at||0) > (cur.at||0) || ((c.at||0) === (cur.at||0) && (c.rv||0) >= (cur.rv||0)))){ S.cards[k]=c; n++; }
+  }
+  if (n){ saveCaches(); render(); }
+  return n;
+}
+async function accPullCards(){
+  if (!ACC.db || !ACC.uid) return 0;
+  try {
+    const q = await accRoot().collection("cards").get(); const m = {}; for (const d of q.docs) m[d.id] = d.data();
+    const r = (await accRoot().get()).data() || {}; ACC.cardDocs = r.cards||ACC.cardDocs||0; ACC.cardsAt = Math.max(ACC.cardsAt||0, r.cardsAt||0);
+    return await accMergeCards(m);
+  } catch { return 0; }
+}
 async function accPull(rootSnap){
   const root = accRoot(); const r = rootSnap ? rootSnap.data() : (await root.get()).data();
   if (!r) return null;
   const grab = async col => { const q = await root.collection(col).get(); const m = {}; for (const d of q.docs) m[d.id] = d.data(); return m; };
   const [decks, coll, binders] = await Promise.all([grab("decks"), grab("coll"), grab("binders")]);
-  if (r.cards && (r.cardsAt||0) > (ACC.cardsAt||0)){
-    const cm = await grab("cards"); let n=0;
-    for (const doc of Object.values(cm)) for (const [k,c] of Object.entries(doc.c||{})){ const cur=S.cards[k]; if (c && (!cur || (c.at||0) >= (cur.at||0))){ S.cards[k]=c; n++; } }
-    if (n) saveCaches();
-  }
+  if (r.cards && (r.cardsAt||0) > (ACC.cardsAt||0)) await accMergeCards(await grab("cards"));
   ACC.cardDocs = r.cards||0; ACC.cardsAt = r.cardsAt||0;
   ACC.cache = {decks:{}, coll:{}, binders:{}};
   for (const [k,m] of Object.entries({decks, coll, binders})) for (const [id, b] of Object.entries(m)) ACC.cache[k][id] = JSON.stringify(b);
@@ -139,6 +153,7 @@ const isEmptyData = d => !d.decks.length && !(d.collection.items||[]).length && 
 async function accInit(){
   if (!hasRuntime()){ ACC.state = "file"; accRender(); return; }
   ACC.state = "connecting"; accRender();
+  try { await S.boot; } catch {}
   const dl = await claude.use("downloads"); ACC.dl = dl;
   const user = await claude.use("user");
   const db = await claude.use("db");
@@ -148,6 +163,7 @@ async function accInit(){
   Object.assign(ACC, {db, uid:me.id, name:me.name, avatar:me.avatarUrl, color:me.color});
   try {
     const snap = await accRoot().get();
+    if (snap.exists && (snap.data().cards||0)) await accPullCards();   // las cartas no generan conflicto: se traen siempre
     if (!snap.exists){ ACC.state = "on"; await accPush(); toast("Sesión iniciada: tus datos quedaron guardados en tu cuenta."); }
     else {
       const cloudAt = snap.data().savedAt||0; ACC.cloudAt = cloudAt;

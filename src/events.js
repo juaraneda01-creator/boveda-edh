@@ -380,11 +380,12 @@ document.addEventListener("input", ev=>{
 });
 
 /* ---------- arranque ---------- */
-(async ()=>{
+// S.boot: la cuenta y la sincronización esperan a que termine de cargar lo guardado en el navegador,
+// así lo que llega de la nube no queda pisado por la copia local más antigua.
+S.boot = (async ()=>{
   render();
   if (await loadDataIdb()) render();
   await loadCaches();
   render();
-  refreshGC();
-  if (S.data.settings.autoRefresh) refreshPrices(false);
 })();
+S.boot.then(()=>{ refreshGC(); if (S.data.settings.autoRefresh) refreshPrices(false); });

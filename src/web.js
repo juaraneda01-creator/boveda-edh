@@ -37,6 +37,13 @@ async function webFetchCards(names, {force=false, quiet=false}={}){
   const todo = [...new Map(names.filter(Boolean).map(n=>[slug(n), String(n).trim()])).values()]
     .filter(n => !BASICS.has(slug(n)) && (force ? true : !S.cards[slug(n)]));
   if (!todo.length){ toast("Estas cartas ya tienen datos. Los precios se actualizan con “Importar respaldo” desde el archivo."); return 0; }
+  // primero lo guardado en tu cuenta de Claude (sin gastar uso de Claude)
+  if (typeof accPullCards==="function" && ACC.uid){
+    const got = await accPullCards();
+    const left = todo.filter(n => !S.cards[slug(n)]);
+    if (got && !left.length){ toast(`Datos de las cartas traídos desde tu cuenta.`); render(); return got; }
+    if (left.length < todo.length){ toast(`Traje ${todo.length-left.length} cartas desde tu cuenta; completo las otras ${left.length} con Claude.`); return got + await claudeFill(left); }
+  }
   return claudeFill(todo);
 }
 async function claudeFill(names){
