@@ -500,6 +500,12 @@ body.web [data-act="fetch-meta"],body.web [data-act="fetch-meta-all"],body.web [
   input[type=text],input[type=search],input[type=number],input[type=url],select,textarea{font-size:16px}
 }
 @media (display-mode: standalone){ .top{padding-top:env(safe-area-inset-top,0px)} }
+.chat-box{margin-top:14px;border-color:var(--accent)}
+.chat-box h3{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.steps{margin:0;padding-left:20px;display:grid;gap:6px;color:var(--muted);font-size:.95rem}
+.steps b{color:var(--ink)}
+.api-adv{margin-top:12px}
+.api-adv summary{cursor:pointer;padding:6px 0}
 </style>
 </head>
 <body>
@@ -2533,7 +2539,7 @@ function renderSettings(){
     <label class="row" style="gap:8px"><input type="checkbox" id="set-autorefresh" ${st.autoRefresh?"checked":""}> Actualizar precios una vez al día al abrir</label>
     <h3 style="font-size:1.1rem;margin-top:6px">Claude (opcional)</h3>
     <p class="muted" style="margin:0;font-size:.9rem">Para “Optimizar con IA” y la radiografía con IA, pega una clave de la API de Anthropic (console.anthropic.com). Se guarda solo en este navegador y el uso se cobra en tu cuenta de Anthropic.</p>
-    <div class="field"><label for="set-ai-key">Clave de API</label><input type="password" id="set-ai-key" autocomplete="off" placeholder="sk-ant-…" value="${esc(st.aiKey||"")}"></div>
+    <div class="field"><label for="set-ai-key">Clave de API (opcional, se cobra aparte; sin ella la IA usa tu chat de Claude)</label><input type="password" id="set-ai-key" autocomplete="off" placeholder="sk-ant-…" value="${esc(st.aiKey||"")}"></div>
     <div class="field"><label for="set-ai-model">Modelo</label><select id="set-ai-model">${[["claude-sonnet-5","Claude Sonnet 5 (recomendado)"],["claude-opus-5-5","Claude Opus 5.5 (más profundo)"],["claude-haiku-4-5-20251001","Claude Haiku 4.5 (más rápido)"]].map(([v,l])=>`<option value="${v}" ${st.aiModel===v?"selected":""}>${l}</option>`).join("")}</select></div>
     <label class="row" style="gap:8px"><input type="checkbox" id="set-weekly" ${st.weekly?"checked":""}> Mostrarme el resumen semanal cada lunes</label>
     <h3 style="font-size:1.1rem;margin-top:6px">Respaldo</h3>
@@ -4083,6 +4089,23 @@ function aiKeyBox(){ return `<div class="card-box"><h3>Conecta Claude</h3><p cla
   <div class="row"><input type="password" id="ia-key" autocomplete="off" placeholder="sk-ant-…" style="flex:1;min-width:220px"><button class="btn sm primary" data-t="ia-save-key">Guardar clave</button></div>
   <p class="foot" style="margin:0">¿Prefieres no usar una clave? <button class="btn sm ghost" style="padding:0" data-act="prompt">Copia el resumen del mazo</button> y pégalo en claude.ai.</p></div>`; }
 
+/* ---------- IA con el chat de Claude (sin clave ni costo extra) ---------- */
+function chatBoxHTML(kind){
+  const what = kind==="ia" ? "los cambios sugeridos" : "la radiografía";
+  return `<div class="card-box chat-box"><h3>Con tu chat de Claude <span class="pill good">sin costo extra</span></h3>
+    <ol class="steps">
+      <li>Toca <b>Abrir en Claude</b>: se copia la consulta con tu mazo y se abre un chat nuevo. Si el chat aparece vacío, mantén presionado y elige <b>Pegar</b>.</li>
+      <li>Cuando Claude termine, toca <b>Copiar</b> bajo su respuesta.</li>
+      <li>Vuelve aquí, pégala abajo y toca <b>Aplicar</b>: verás ${what} dentro de la Bóveda.</li>
+    </ol>
+    <div class="row"><a class="btn primary" data-chat-open="${kind}" href="https://claude.ai/new" target="_blank" rel="noopener">Abrir en Claude</a><button class="btn sm ghost" data-t="chat-copy" data-v="${kind}">Solo copiar la consulta</button></div>
+    <div class="field"><label for="chat-ans-${kind}">Respuesta de Claude</label><textarea id="chat-ans-${kind}" style="min-height:110px" spellcheck="false" placeholder="Pega aquí la respuesta completa de Claude"></textarea></div>
+    <div class="row"><button class="btn" data-t="chat-apply" data-v="${kind}">Aplicar respuesta</button></div></div>`;
+}
+function chatPromptOf(kind, d){ return kind==="ia" ? iaPrompt(d) : radioPrompt(d); }
+function claudeChatURL(prompt){ const q = encodeURIComponent(prompt); return q.length <= 7000 ? "https://claude.ai/new?q=" + q : "https://claude.ai/new"; }
+function apiDetailsHTML(){ return `<details class="api-adv"><summary class="muted">Opción avanzada: usar una clave de API (se cobra aparte por uso)</summary>${aiKeyBox()}</details>`; }
+
 /* ---------- Optimizar con IA ---------- */
 function iaHTML(d,A){
   const st=S.data.settings; const r=d.ai2; const busy=S.iaBusy===d.id;
@@ -4090,13 +4113,14 @@ function iaHTML(d,A){
   const budgets=[["own","Solo mi colección"],["2","Hasta US$2"],["10","Hasta US$10"],["inf","Sin límite"]];
   S.iaGoal = S.iaGoal || "enfocado";
   const form = `<div class="sec"><h3>Optimizar con IA</h3><p class="lede">Claude revisa tu lista con sus números (roles, curva, bracket, simulador), tu colección y tu presupuesto, y propone qué cortar y qué añadir, con el motivo de cada cambio.</p>
-    ${st.aiKey||isWebView()?"":aiKeyBox()}
     <div style="display:grid;gap:12px;margin-top:12px">
       ${A.isC?`<div class="field"><label>Nivel de mesa</label><div class="chips">${goals.map(([k,l])=>`<button class="chip" data-t="ia-goal" data-v="${k}" aria-pressed="${S.iaGoal===k}">${l}</button>`).join("")}</div></div>`:""}
       <div class="field"><label>Presupuesto por carta nueva</label><div class="chips">${budgets.map(([k,l])=>`<button class="chip" data-budget="${k}" aria-pressed="${S.optBudget===k}">${l}</button>`).join("")}</div></div>
       <div class="field"><label for="ia-notes">Qué quieres mejorar (opcional)</label><input type="text" id="ia-notes" value="${esc(S.iaNotes||"")}" placeholder="${A.isC?"Ej.: más interacción, menos dependencia del comandante":"Ej.: mejorar el matchup contra UR Aggro"}"></div>
-      <div class="row">${busy?`<span class="muted">Claude está analizando tu mazo; suele tardar entre 20 y 60 segundos…</span>`:`<button class="btn primary" data-t="ia-run" ${st.aiKey||isWebView()?"":"disabled"}>${r?"Volver a optimizar":"Optimizar con IA"}</button>`}<span class="foot">Modelo: ${esc(st.aiModel||"claude-sonnet-5")} (cámbialo en Ajustes)</span></div>
-    </div></div>`;
+      ${isWebView()||st.aiKey?`<div class="row">${busy?`<span class="muted">Claude está analizando tu mazo; suele tardar entre 20 y 60 segundos…</span>`:`<button class="btn primary" data-t="ia-run">${r?"Volver a optimizar":"Optimizar con IA"}</button>`}${isWebView()?`<span class="foot">Usa tu sesión de Claude, sin costo extra.</span>`:`<span class="foot">Con tu clave de API · modelo ${esc(st.aiModel||"claude-sonnet-5")}</span>`}</div>`:""}
+    </div>
+    ${isWebView()?"":chatBoxHTML("ia")}
+    ${isWebView()||st.aiKey?"":apiDetailsHTML()}</div>`;
   if (!r) return form;
   const inDeck = new Set([...A.rows,...A.side].map(x=>slug(x.n)));
   return form + `<div class="sec"><div class="foot">Resultado del ${new Date(r.at).toLocaleString("es-CL",{dateStyle:"medium",timeStyle:"short"})} · ${esc(r.model||"")}</div>
@@ -4108,7 +4132,7 @@ function iaHTML(d,A){
       <div>${done?`<span class="pill good">aplicado</span>`:`<button class="btn sm primary" data-swap-out="${esc(c.sale)}" data-swap-in="${esc(c.entra)}">Aplicar</button>`}</div></div>`; }).join("")}</div>
     ${(r.notas||[]).length?`<h3 style="margin-top:16px">Notas</h3><ul>${r.notas.map(n=>`<li>${esc(n)}</li>`).join("")}</ul>`:""}</div>`;
 }
-async function runIA(d){
+function iaPrompt(d){
   const A=analyze(d); const sim=simulate(d,A);
   const goal = {casual:"casual, bracket 2",enfocado:"mejorado, bracket 3",optimizado:"optimizado, bracket 4",cedh:"cEDH, bracket 5"}[S.iaGoal||"enfocado"];
   const extra = `${A.isC?`Nivel de mesa buscado: ${goal}.`:""}
@@ -4122,9 +4146,13 @@ Devuelve SOLO un objeto JSON con esta forma:
  "cambios":[{"sale":"carta que está en la lista","entra":"carta nueva","motivo":"una frase","seccion":"deck" o "sideboard"}],
  "notas":["2 a 4 consejos cortos de juego o construcción"]}
 Entre 6 y 12 cambios. Cada "sale" debe estar en la lista; cada "entra" debe ser legal en el formato, respetar identidad de color y presupuesto, y no estar ya en el mazo. Nombres de cartas en inglés.`;
+  return claudePrompt(d,A)+"\n\n"+extra;
+}
+async function runIA(d){
+  const A=analyze(d);
   S.iaBusy=d.id; render();
   try{
-    const txt = await askClaude(claudePrompt(d,A)+"\n\n"+extra, {max:4000});
+    const txt = await askClaude(iaPrompt(d), {max:4000});
     const j = parseJSONLoose(txt); if (!j || !Array.isArray(j.cambios)) throw {code:"fmt", message:"La respuesta no vino en el formato esperado. Intenta de nuevo."};
     const cur1=S.data.decks.find(x=>x.id===d.id); cur1.ai2={at:Date.now(), model:S.data.settings.aiModel, ...j}; saveDeck(cur1,{silent:true,noLog:true});
     S.iaBusy=null; render();
@@ -4205,12 +4233,14 @@ function radioHTML(d,A){
     </div>
     <div class="sec"><h3>Matchups</h3><div class="tbl-wrap"><table><thead><tr><th>Contra</th><th>Pronóstico</th><th>Por qué</th></tr></thead><tbody>${R.match.map(m=>`<tr><td><b>${esc(m.n)}</b></td><td><span class="pill ${m.c}">${m.l}</span></td><td class="muted">${esc(m.why)}</td></tr>`).join("")}</tbody></table></div></div>
     <div class="sec"><h3>Lectura estratégica con Claude</h3>
-      ${st.aiKey||isWebView()?`<div class="row">${busy?`<span class="muted">Claude está escribiendo la radiografía…</span>`:`<button class="btn ${ai?"":"primary"}" data-t="radio-run">${ai?"Volver a generar":"Generar con IA"}</button>`}${ai?`<span class="foot">Del ${new Date(ai.at).toLocaleString("es-CL",{dateStyle:"medium",timeStyle:"short"})}</span>`:""}</div>`:aiKeyBox()}
+      ${st.aiKey||isWebView()?`<div class="row">${busy?`<span class="muted">Claude está escribiendo la radiografía…</span>`:`<button class="btn ${ai?"":"primary"}" data-t="radio-run">${ai?"Volver a generar":"Generar con IA"}</button>`}</div>`:""}
+      ${isWebView()?"":chatBoxHTML("radio")}
+      ${ai?`<p class="foot">Lectura del ${new Date(ai.at).toLocaleString("es-CL",{dateStyle:"medium",timeStyle:"short"})}</p>`:""}
       ${ai?`<div class="md">${mdLite(ai.text)}</div>`:""}</div>`;
 }
-async function runRadio(d){
+function radioPrompt(d){
   const A=analyze(d); const R=radioLocal(d,A);
-  const prompt = claudePrompt(d,A) + `
+  return claudePrompt(d,A) + `
 
 Datos calculados por la app:
 Plan: ${R.plan.join(" ")}
@@ -4226,6 +4256,9 @@ En vez de la lista de cambios, escribe una radiografía del mazo en español con
 ## Debilidades y cómo cubrirlas
 ## Matchups
 Sé concreto: nombra cartas de la lista. Máximo 450 palabras.`;
+}
+async function runRadio(d){
+  const prompt = radioPrompt(d);
   S.radioBusy=d.id; render();
   try{ const txt=await askClaude(prompt,{max:2500}); const cur1=S.data.decks.find(x=>x.id===d.id); cur1.radio={at:Date.now(), text:txt}; saveDeck(cur1,{silent:true,noLog:true}); }
   catch(e){ toast(aiErrText(e)); }
@@ -4539,6 +4572,11 @@ function weeklyHTML(){
 /* ---------- eventos de las herramientas ---------- */
 document.addEventListener("click", async ev=>{
   const tc = ev.target.closest("[data-tool]"); if (tc){ openTool(tc.dataset.tool); return; }
+  const co = ev.target.closest("[data-chat-open]");
+  if (co){ const d=curDeck(); if (!d){ ev.preventDefault(); return; } S.iaNotes=($("#ia-notes")||{}).value||S.iaNotes||"";
+    const p=chatPromptOf(co.dataset.chatOpen, d); co.href=claudeChatURL(p);
+    try { navigator.clipboard.writeText(p).then(()=>toast("Consulta copiada. Si el chat de Claude aparece vacío, pégala.")).catch(()=>{}); } catch {}
+    return; }
   const gb = ev.target.closest("[data-gfg]"); if (gb && S.gf){ ev.stopPropagation(); const u=+gb.dataset.gfg; const i=S.gf.bf.findIndex(c=>c.u===u); if (i>=0) S.gf.gy.push(S.gf.bf.splice(i,1)[0]); render(); return; }
   const b = ev.target.closest("button"); if (!b) return;
   if (b.dataset.act==="show-local"){ S.showMeta.commander="local"; S.editing=null; S.view="commander"; render(); return; }
@@ -4556,6 +4594,14 @@ document.addEventListener("click", async ev=>{
     case "ia-goal": S.iaGoal=b.dataset.v; render(); break;
     case "ia-run": S.iaNotes=($("#ia-notes")||{}).value||""; if (d) await runIA(d); break;
     case "radio-run": if (d) await runRadio(d); break;
+    case "chat-copy": if (d){ S.iaNotes=($("#ia-notes")||{}).value||S.iaNotes||""; copyText(chatPromptOf(b.dataset.v, d)); } break;
+    case "chat-apply": { if (!d) break; const kind=b.dataset.v; const txt=(($("#chat-ans-"+kind)||{}).value||"").trim();
+      if (!txt){ toast("Pega primero la respuesta de Claude."); break; }
+      const cur1=S.data.decks.find(x=>x.id===d.id);
+      if (kind==="ia"){ const j=parseJSONLoose(txt); if (!j || !Array.isArray(j.cambios)){ toast("No encontré la lista de cambios en ese texto. Copia la respuesta completa de Claude."); break; }
+        cur1.ai2={at:Date.now(), model:"chat de Claude", ...j}; saveDeck(cur1,{silent:true,noLog:true}); render(); toast(`${j.cambios.length} cambios listos para aplicar.`); fetchCards(j.cambios.map(c=>c.entra),{quiet:true}).then(render); }
+      else { cur1.radio={at:Date.now(), text:txt.replace(/^[^#]*?(?=##)/s,"")}; saveDeck(cur1,{silent:true,noLog:true}); render(); toast("Radiografía guardada en el mazo."); }
+      break; }
     case "bld-budget": S.bldBudget=b.dataset.v; for (const x of document.querySelectorAll('[data-t="bld-budget"]')) x.setAttribute("aria-pressed", x.dataset.v===S.bldBudget); break;
     case "bld-run": await runBuilder(); break;
     case "local-fetch": await fetchCards(S.data.decks.filter(x=>x.rival).flatMap(allNames),{label:"Trayendo datos de los mazos de tus amigos"}); break;
