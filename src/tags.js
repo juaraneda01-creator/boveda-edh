@@ -57,6 +57,8 @@ const TAG_DEFS = [
   {k:"untap", es:"endereza permanentes", re:/untap (target|another target|all|up to \w+ target) (\w+ )?(permanent|creature|artifact|land)/},
   {k:"tapPay", es:"habilidades de girar", re:/\{t\}(, [^:]*)?: (?!add)/},
   {k:"planeswalker", es:"planeswalker", ty:t=>t==="Planeswalker"},
+  {k:"stax", es:"restringe a los rivales (stax)", re:/(players|opponents|each player|your opponents) can't (cast|untap|search|draw|activate|attack|play)|don't untap during|spells (your opponents cast )?cost \{\d\} more|can't cast more than one|skip (their|your) (untap|draw)|lands (don't|do not) untap|nonbasic lands are (mountains|islands)/},
+  {k:"theft", es:"roba permanentes", re:/gain control of (target|all|each)/},
   {k:"energy", es:"energía", re:/\{e\}|energy counter/},
   {k:"poison", es:"veneno", re:/\binfect\b|\btoxic\b|poison counter/},
 ];

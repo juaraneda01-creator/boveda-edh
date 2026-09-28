@@ -91,7 +91,7 @@ function deckHTML(d){
   const A = analyze(d);
   // cinco grupos; cada uno con sus vistas
   const G = A.isC ? [
-    ["resumen","Resumen",[["analisis","Análisis"],["mana","Base de maná"]]],
+    ["resumen","Resumen",[["analisis","Análisis"],["nivel","Nivel y sal"],["mana","Base de maná"]]],
     ["lista","Lista",[["lista","Lista"]]],
     ["mejorar","Mejorar",[["sinergias","Sinergias"],["mejorar","Recomendaciones"],["ia","Con IA"],["brackets","Brackets"],["combos","Combos"]]],
     ["jugar","Jugar",[["mano","Probar mano"],["radiografia","Cómo se juega"]]],
@@ -104,7 +104,7 @@ function deckHTML(d){
     ["precio","Precio",[["precio","Valor"],["versiones","Versiones"],["manabox","ManaBox"],["compartir","Compartir"]]]];
   const tabs = G.flatMap(g=>g[2]);
   if (!tabs.some(t=>t[0]===S.deckTab)) S.deckTab="analisis";
-  const body = {analisis:analysisHTML, lista:listHTML, mana:manaHTML, combos:combosHTML, brackets:bracketsHTML, mejorar:improveHTML, precio:priceHTML, meta:deckMetaHTML, manabox:mbDeckHTML, ia:iaHTML, radiografia:radioHTML, mano:manoHTML, versiones:versionesHTML, compartir:compartirHTML, sinergias:synergyHTML}[S.deckTab](d,A);
+  const body = {analisis:analysisHTML, lista:listHTML, mana:manaHTML, combos:combosHTML, brackets:bracketsHTML, mejorar:improveHTML, precio:priceHTML, meta:deckMetaHTML, manabox:mbDeckHTML, ia:iaHTML, radiografia:radioHTML, mano:manoHTML, versiones:versionesHTML, compartir:compartirHTML, sinergias:synergyHTML, nivel:powerHTML}[S.deckTab](d,A);
   const pendN = d.mb ? boardDiff(mbBase(d.mb), boardsOf(d)).n : 0;
   return `<div class="pane">
     <div class="pane-head">

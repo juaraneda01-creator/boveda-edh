@@ -1018,7 +1018,7 @@ ${head}
 Presupuesto: ${budget}
 Estadísticas: ${A.main} cartas${A.isC?"":` + ${A.sideN} de sideboard`}; tierras ${A.roles.land}; ramp ${A.roles.ramp}; robo ${A.roles.draw}; removal ${A.roles.removal}; barridos ${A.roles.wipe}; CMC promedio ${A.avg.toFixed(2)}; curva 0-7+: ${A.curve.join(", ")}${A.isC?`; Game Changers: ${A.gc.join(", ")||"ninguno"}`:""}.
 
-${typeof synergyPromptText==="function"?synergyPromptText(d,A):""}
+${typeof synergyPromptText==="function"?synergyPromptText(d,A):""}${A.isC&&typeof powerPromptText==="function"?" "+powerPromptText(d,A):""}
 
 Lista:
 ${deckText(d)}

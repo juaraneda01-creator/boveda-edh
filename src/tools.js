@@ -383,6 +383,7 @@ function localMetaHTML(){
   const missing = rivals.some(d=>analyze(d).missing.length);
   return `<div class="pane"><div class="pane-head"><div><h2>Mazos de mis amigos</h2><div class="sub">Compara la velocidad de tus mazos con los de tus amigos, con el mismo simulador y los mismos criterios.</div></div></div>
     <div class="pane-body">
+      ${typeof powerBoardHTML==="function"?powerBoardHTML():""}
       ${missing&&!S.busy?`<div class="banner"><span>Hay cartas de tus amigos sin datos.</span><button class="btn sm primary" data-t="local-fetch">Actualizar cartas</button></div>`:""}
       ${rows.length?`<div class="tbl-wrap"><table><thead><tr><th>#</th><th>Mazo</th><th>De</th><th class="n">Bracket</th><th class="n">Comandante en mesa</th><th class="n">Reloj de victoria</th><th class="n">Interacción</th><th class="n">Ramp</th><th class="n">Maná rápido</th><th class="n">Tutores</th><th class="n">CMC</th><th></th></tr></thead><tbody>
         ${rows.map((r,i)=>`<tr${r.own?' style="background:var(--accent-soft)"':""}><td class="num">${i+1}</td><td><b>${esc(r.d.name)}</b><br><span class="muted" style="font-size:.85rem">${esc((r.d.commanders||[]).join(" + "))}</span></td><td>${r.own?"Tú":esc(r.d.rival.owner||"Amigo")}</td>
