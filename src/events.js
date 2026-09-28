@@ -144,7 +144,7 @@ document.addEventListener("click", async ev=>{
     case "cancel": S.editing=null; render(); break;
     case "askdel": S.confirmDel=true; render(); break;
     case "nodel": S.confirmDel=false; render(); break;
-    case "del": S.data.decks=S.data.decks.filter(x=>x.id!==d.id); S.sel[f]=null; S.confirmDel=false; saveData(); render(); break;
+    case "del": if (S.data.group && !d.rival) S.data.grpDel=[...new Set([...(S.data.grpDel||[]), d.id])].slice(-200); S.data.decks=S.data.decks.filter(x=>x.id!==d.id); S.sel[f]=null; S.confirmDel=false; saveData(); render(); break;
     case "fetch": await fetchCards(deckNames(d)); break;
     case "refresh-deck": await fetchCards(deckNames(d), {force:true, label:"Actualizando precios"}); snapshotPrices(); render(); break;
     case "combos": if (d) await loadCombos(d); break;

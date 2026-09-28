@@ -96,9 +96,36 @@ export async function buildDataset(key, {days = DAYS, min = MIN_PLAYERS} = {}){
 }
 
 export async function saveDataset(store, built){
+  // en paralelo y por tandas; "data" al final para que nadie vea un índice que apunta a torneos aún no guardados
+  const jobs = [() => store.setJSON("cmdCards", built.cmdCards), ...built.details.slice(0, 120).filter(t => t.id).map(t => () => store.setJSON("t-" + t.id, t))];
+  for (let i = 0; i < jobs.length; i += 12) await Promise.all(jobs.slice(i, i + 12).map(f => f()));
   await store.setJSON("data", built.data);
-  await store.setJSON("cmdCards", built.cmdCards);
-  for (const t of built.details.slice(0, 120)) if (t.id) await store.setJSON("t-" + t.id, t);
+}
+
+// una sola reconstrucción a la vez: el candado vence solo a los 15 minutos
+export const LOCK_MS = 15 * 60e3;
+export async function takeLock(store){
+  const cur = await store.getWithMetadata("lock", {type:"json"}).catch(() => null);
+  if (cur && cur.data && Date.now() - (cur.data.at || 0) < LOCK_MS) return false;
+  const r = await store.setJSON("lock", {at: Date.now()}, cur && cur.etag ? {onlyIfMatch: cur.etag} : {onlyIfNew: true});
+  return !r || r.modified !== false;
+}
+export async function refreshDataset(store, key){
+  if (!(await takeLock(store))) return "ocupado";
+  try { await saveDataset(store, await buildDataset(key)); await store.setJSON("lock", {at: 0}); return "ok"; }
+  catch(e){ await store.setJSON("meta-err", {at: Date.now(), msg: String(e && e.message || e).slice(0, 200)}).catch(() => {}); return "error"; }   // el candado queda: no se reintenta en cada visita
+}
+// firma para que solo la propia app pueda pedir una reconstrucción
+export const refreshSig = async key => { const { createHash } = await import("node:crypto"); return createHash("sha256").update("boveda-cedh-refresh:" + key).digest("hex"); };
+export async function kickRefresh(store, key, base){
+  const cur = await store.get("lock", {type:"json"}).catch(() => null);
+  if (cur && Date.now() - (cur.at || 0) < LOCK_MS) return false;
+  try {
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 2500);
+    await fetch(new URL("/.netlify/functions/cedh-refresh-background", base), {method:"POST", headers:{"x-boveda-refresh": await refreshSig(key)}, signal: ctl.signal}).catch(() => {});
+    clearTimeout(t);
+  } catch {}
+  return true;
 }
 
 export async function deckFromTopdeck(key, tid, pid){

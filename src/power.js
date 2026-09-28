@@ -99,16 +99,18 @@ function powerOf(d, A){
     {k:"combo", es:"Combos", v:c2==null ? (E.loops ? clamp10(E.loops*1.6) : null) : clamp10(c2*3.5 + c3*1.2 + E.loops*0.8), why:c2==null ? (E.loops ? `motor de sacrificio (${E.outlets} salidas, ${E.drains} drenajes); busca combos para confirmar` : "sin revisar (usa Buscar combos)") : `${c2} de 2 cartas, ${c3} de 3${E.loops?", motor de sacrificio":""}`, w:0.2},
     {k:"synergy", es:"Sinergia", v:Y ? clamp10(Math.max(Y.cohesion/10, tribeV)) : null, why:Y ? `cohesión ${Y.cohesion}%${tribeV>Y.cohesion/10?", tribal fuerte":""}` : "", w:0.08},
   ];
-  const have = comp.filter(c=>c.v!=null);
-  const wsum = have.reduce((a,c)=>a+c.w,0) || 1;
-  let raw = have.reduce((a,c)=>a+c.v*c.w,0) / wsum;
-  raw += Math.min(0.6, A.gc.length*0.1) + Math.min(0.8, stax*0.2) + (A.xt.length ? 0.3 : 0);
   // bonificación de aceleración temprana (muchas piezas de maná de 1): como la que suma Commandersalt
-  const early = A.isC ? Math.max(0, oneDrops - 5) * 0.25 : 0; raw += Math.min(1, early);
-  const abs0 = Math.max(1, Math.min(10, 1 + raw*0.95));
-  // calibración con listas de torneo: estira solo el tramo sobre 8 (lo casual no se mueve)
+  const early = A.isC ? Math.max(0, oneDrops - 5) * 0.25 : 0;
+  const bonus = Math.min(0.6, A.gc.length*0.1) + Math.min(0.8, stax*0.2) + (A.xt.length ? 0.3 : 0) + Math.min(1, early);
+  const absOf = list => { const wsum = list.reduce((a,c)=>a+c.w,0) || 1; const raw = list.reduce((a,c)=>a+c.v*c.w,0) / wsum + bonus; return Math.max(1, Math.min(10, 1 + raw*0.95)); };
+  const have = comp.filter(c=>c.v!=null);
+  const abs0 = absOf(have);
+  // base sin combos: es la que se calibra (las listas típicas de torneo no traen combos revisados)
+  const absNC = absOf(have.filter(c=>c.k!=="combo"));
+  // calibración con listas de torneo: estira solo el tramo sobre 8 de la base; lo que suman o restan los combos va aparte, sin estirar
   const cal = !S.noCal && S.data && S.data.settings && S.data.settings.cedhCal;
-  const abs = cal && cal.k > 1 && abs0 > 8 ? Math.min(10, 8 + (abs0 - 8) * cal.k) : abs0;
+  const k = cal ? Math.min(2, +cal.k || 1) : 1;
+  const abs = k > 1 && absNC > 8 ? Math.max(1, Math.min(10, 8 + (absNC - 8) * k + (abs0 - absNC))) : abs0;
   const power = Math.round(abs * 10) / 10;
   // bracket realista según el nivel y los elementos que definen cEDH
   const cedh = fast>=5 && A.tutors.length>=5 && (c2||0)>=1;
@@ -121,7 +123,7 @@ function powerOf(d, A){
   const saltLabel = salt>=70 ? "Muy salado" : salt>=45 ? "Salado" : salt>=25 ? "Picante" : "Suave";
   const threatCards = rows.filter(r=>(r.m.tg||[]).some(k=>["stax","drawPay","theft","extraCombat"].includes(k)) || ((r.m.r||[]).includes("draw") && r.m.t!=="Instant" && r.m.t!=="Sorcery") || (r.m.sb||[]).includes("counter"));
   const threat = Math.round(clamp10((threatCards.length*0.3 + stax*0.8 + A.gc.length*0.4) / (A.isC?1:0.6)) * 10) / 10;
-  return {power, abs, abs0, comp, E, early, real, official, cedh, salt, saltLabel, saltTop:salty.slice(0,10), threat, threatCards, sim, c2};
+  return {power, abs, abs0, absNC, comp, E, early, real, official, cedh, salt, saltLabel, saltTop:salty.slice(0,10), threat, threatCards, sim, c2};
 }
 
 /* ---------- vista del mazo ---------- */

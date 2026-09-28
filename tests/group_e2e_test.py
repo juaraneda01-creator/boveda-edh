@@ -33,7 +33,7 @@ try:
         if not code: fails.append("no se creó el grupo")
         B, eb = phone(b, "voja.txt", "Voja, Jaws of the Conclave", "Voja")
         B.fill("#grp-me", "Pedro"); B.fill("#grp-code", code or ""); B.click('[data-grp="join"]'); B.wait_for_timeout(800)
-        if "Los del jueves" not in B.inner_text(".grp"): fails.append("Pedro no ve el grupo")
+        if "Los del jueves" not in B.inner_text(".grp"): fails.append("Pedro no ve el grupo: " + B.inner_text(".grp")[:300] + " code=%s" % code)
         A.click('[data-grp="refresh"]'); A.wait_for_timeout(1200)
         rivals = A.evaluate("S.data.decks.filter(d=>d.rival&&d.rival.group).map(d=>d.name+'|'+d.rival.owner+'|'+d.cards.length)")
         if not rivals or not rivals[0].startswith("Voja|Pedro"): fails.append("Juan no recibió el mazo de Pedro: %s" % rivals)

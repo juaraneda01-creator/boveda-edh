@@ -29,18 +29,26 @@ with sync_playwright() as p:
     pg.evaluate("""async (lists)=>{ S.data.settings.autoRefresh=false; for (const [cmd, cards] of Object.entries(lists)){ const d={id:'m-'+slug(cmd),format:'commander',name:cmd,commanders:[cmd],cards:cards.map(n=>({n,q:1})),side:[],maybe:[],log:[],created:1,updated:1}; S.data.decks.push(d); await fetchCards(allNames(d),{quiet:true}); } S.view='commander'; S.showMeta.commander=true; S.sel.commander=null; render(); }""", lists)
     before = pg.evaluate("Object.fromEntries(S.data.decks.map(d=>[d.name, powerOf(d, analyze(d)).power]))")
     pg.click('[data-td="load"]'); pg.wait_for_timeout(500)
-    pg.click('[data-td-cal="run"]'); pg.wait_for_function("S.data.settings.cedhCal && !S.td.cal", timeout=60000)
+    # estas listas son casuales (dan menos de 8): no se debe calibrar con ellas
+    pg.click('[data-td-cal="run"]'); pg.wait_for_function("!S.td.cal", timeout=60000); pg.wait_for_timeout(300)
+    low = pg.evaluate("S.data.settings.cedhCal || null")
+    # calibración como la dejaría un meta de torneo real (listas típicas en 8,6 → ×2)
+    pg.evaluate("S.data.settings.cedhCal={at:Date.now(), mean:8.6, k:2, rows:[{c:'a',p:8.6},{c:'b',p:8.6},{c:'c',p:8.6}]}; saveData(); bumpAnalysis(); render();")
     cal = pg.evaluate("S.data.settings.cedhCal"); pg.evaluate("bumpAnalysis()")
+    nc = pg.evaluate("Object.fromEntries(S.data.decks.map(d=>{ S.noCal=true; try { const P=powerOf(d, analyzeRaw(d)); return [d.name, [P.absNC, P.abs0]]; } finally { S.noCal=false; } }))")
     after = pg.evaluate("Object.fromEntries(S.data.decks.map(d=>[d.name, powerOf(d, analyze(d)).power]))")
     pg.click('[data-td-cal="off"]'); pg.wait_for_timeout(200)
     off = pg.evaluate("Object.fromEntries(S.data.decks.map(d=>[d.name, powerOf(d, analyze(d)).power]))")
     b.close()
 fails = []
-if not cal or len(cal["rows"]) != 3 or cal["k"] <= 1: fails.append("calibración: %s" % cal)
+if low: fails.append("calibró con listas bajo 8: %s" % low)
 for n, v in before.items():
-    if v <= 8 and after[n] != v: fails.append(f"{n} casual cambió {v} → {after[n]}")
-    if v > 8 and not after[n] > v: fails.append(f"{n} alto no subió {v} → {after[n]}")
+    base, full = nc[n]
+    if base <= 8 and after[n] != v: fails.append(f"{n} con base {base:.2f} (≤ 8) cambió {v} → {after[n]}")
+    if base > 8:
+        want = round(min(10, 8 + (base-8)*2 + (full-base)), 1)
+        if abs(after[n] - want) > 0.051: fails.append(f"{n}: se estira la base sin combos y el combo va aparte: esperaba {want}, dio {after[n]}")
 if off != before: fails.append("quitar la calibración no vuelve atrás")
 if errs: fails.append(str(errs))
 if fails: print("FALLA calibración:\n  " + "\n  ".join(fails)); sys.exit(1)
-print("Calibración OK: %s → %s (×%s)" % (before, after, cal["k"]))
+print("Calibración OK: no calibra con listas casuales; con ×2 %s → %s y quitarla vuelve atrás." % (before, after))

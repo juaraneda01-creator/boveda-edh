@@ -14,11 +14,18 @@ if (LIVE){
   const nativeFetch = window.fetch.bind(window);
   window.fetch = (input, init) => {
     try {
-      const url = typeof input === "string" ? input : input.url;
+      const isReq = typeof Request!=="undefined" && input instanceof Request;
+      const url = isReq ? input.url : (input && input.href) ? input.href : String(input);
       const u = new URL(url, location.href);
-      if (PROXY_HOSTS.has(u.hostname)) return nativeFetch("/api/proxy?url=" + encodeURIComponent(u.href), init);
+      // por el puente conservando método, cabeceras y cuerpo (también si llega un Request)
+      const via = target => {
+        const p = "/api/proxy?url=" + encodeURIComponent(target);
+        if (isReq && !init){ const m = input.method || "GET"; return (/^(GET|HEAD)$/.test(m) ? Promise.resolve(undefined) : input.clone().text()).then(body => nativeFetch(p, {method:m, headers:input.headers, body})); }
+        return nativeFetch(p, init);
+      };
+      if (PROXY_HOSTS.has(u.hostname)) return via(u.href);
       // los puentes públicos ya no hacen falta: se reemplazan por el propio
-      if (/^(corsproxy\.io|api\.allorigins\.win)$/.test(u.hostname)){ const inner = u.searchParams.get("url"); let ih=""; try { ih = new URL(inner).hostname; } catch {} if (inner && PROXY_HOSTS.has(ih)) return nativeFetch("/api/proxy?url=" + encodeURIComponent(inner), init); }
+      if (/^(corsproxy\.io|api\.allorigins\.win)$/.test(u.hostname)){ const inner = u.searchParams.get("url"); let ih=""; try { ih = new URL(inner).hostname; } catch {} if (inner && PROXY_HOSTS.has(ih)) return via(inner); }
     } catch {}
     return nativeFetch(input, init);
   };
@@ -89,8 +96,10 @@ function syApply(remote){
   S.data._mod = S.data._syMod = Date.now(); SY.at = remote.at; sySave(); syBaseSave(remote.d);
   lsSet(LS_DATA, S.data, true); if (typeof saveDataIdb==="function") saveDataIdb();
   for (const f of Object.keys(S.sel)) if (!S.data.decks.some(x=>x.id===S.sel[f])) S.sel[f] = null;
-  S.editing = null; render();
+  S.editing = null; render(); grpAfterSync();
 }
+// después de traer datos de otro dispositivo: releer el grupo y publicar los mazos al día
+function grpAfterSync(){ if (typeof grpRefresh==="function"){ if (!S.data.group && typeof grpForget==="function") grpForget(); else setTimeout(grpRefresh, 400); } }
 function syEmpty(d){ return !d.decks.length && !(d.collection.items||[]).length && !(d.binders||[]).length && !(d.wishlist||[]).length; }
 // al abrir o volver a la app: si otro dispositivo guardó algo nuevo, se carga
 async function syCheck(){
@@ -152,7 +161,8 @@ function syMerge(base, loc, rem){
   const noKey = o => { const x = {...(o||{})}; delete x.aiKey; return x; };
   const scalar = k => k==="settings" ? (syJ(noKey(loc.settings))!==syJ(noKey(base.settings)) ? loc.settings : rem.settings) : (syJ(loc[k])!==syJ(base[k]) ? loc[k] : rem[k]);
   const out = {...rem, ...loc, decks:d.list, binders:bi.list, collection:{...loc.collection, items:co.list, v:(loc.collection.v||0)+1}, wishlist:wi.list, games:gm.list,
-    settings: {...scalar("settings"), aiKey: loc.settings && loc.settings.aiKey}, dismissed: scalar("dismissed"), roles: scalar("roles"), mbLog: scalar("mbLog")};
+    settings: {...scalar("settings"), aiKey: loc.settings && loc.settings.aiKey}, dismissed: scalar("dismissed"), roles: scalar("roles"), mbLog: scalar("mbLog"),
+    group: scalar("group"), grpDel: [...new Set([...(loc.grpDel||[]), ...(rem.grpDel||[])])].slice(-200)};
   return {d: out, clash: d.clash + bi.clash + co.clash + wi.clash};
 }
 async function syAutoMerge(remote){
@@ -163,7 +173,7 @@ async function syAutoMerge(remote){
   S.data = loadData(m.d); S.data._mod = Date.now(); S.data._syMod = 0; SY.at = remote.at; sySave();
   lsSet(LS_DATA, S.data, true); if (typeof saveDataIdb==="function") saveDataIdb();
   for (const f of Object.keys(S.sel)) if (!S.data.decks.some(x=>x.id===S.sel[f])) S.sel[f] = null;
-  S.editing = null; render();
+  S.editing = null; render(); grpAfterSync();
   toast(m.clash ? `Se unieron los cambios de tus dispositivos. En ${m.clash} registro${m.clash>1?"s":""} cambiado${m.clash>1?"s":""} en ambos se quedó la versión más reciente.` : "Se unieron los cambios de tus dispositivos.");
   SY.busy = false; await syPush();   // sin forzar: si otro dispositivo guardó entremedio, se vuelve a unir
   return true;

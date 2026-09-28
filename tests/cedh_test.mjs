@@ -1,12 +1,17 @@
 // Prueba del meta cEDH con respuestas simuladas de TopDeck.gg.
 import { readFileSync, writeFileSync, mkdtempSync, mkdirSync } from "node:fs";
-import { tmpdir } from "node:os"; import { join } from "node:path";
+import { tmpdir } from "node:os";
+const LIB = new URL("../netlify/lib/", import.meta.url).href; import { join } from "node:path";
 const dir = mkdtempSync(join(tmpdir(), "cedh-")); mkdirSync(join(dir, "functions")); mkdirSync(join(dir, "lib"));
-writeFileSync(join(dir, "blobs.mjs"), `const M=new Map(); export function getStore(){ return {
-  async get(k,o){ const v=M.get(k); return v==null?null:(o&&o.type==="json"?JSON.parse(v):v); }, async setJSON(k,v){ M.set(k, JSON.stringify(v)); } }; }`);
+writeFileSync(join(dir, "blobs.mjs"), `const M=new Map(), E=new Map(); let n=0; export function getStore(){ return {
+  async get(k,o){ const v=M.get(k); return v==null?null:(o&&o.type==="json"?JSON.parse(v):v); },
+  async getWithMetadata(k){ const v=M.get(k); return v==null?null:{data:JSON.parse(v), etag:E.get(k)}; },
+  async setJSON(k,v,o){ if (o && o.onlyIfNew && M.has(k)) return {modified:false}; if (o && o.onlyIfMatch && E.get(k)!==o.onlyIfMatch) return {modified:false}; M.set(k, JSON.stringify(v)); E.set(k, "e"+(++n)); return {modified:true}; },
+  async delete(k){ M.delete(k); } }; }`);
 const root = new URL("../netlify/", import.meta.url);
 writeFileSync(join(dir, "lib/cedh.mjs"), readFileSync(new URL("lib/cedh.mjs", root), "utf8"));
-writeFileSync(join(dir, "functions/cedh.mjs"), readFileSync(new URL("functions/cedh.mjs", root), "utf8").replace("@netlify/blobs", "../blobs.mjs"));
+writeFileSync(join(dir, "functions/bg.mjs"), readFileSync(new URL("functions/cedh-refresh-background.mjs", root), "utf8").replace("@netlify/blobs", "../blobs.mjs").replace(/\.\.\/lib\//g, LIB));
+writeFileSync(join(dir, "functions/cedh.mjs"), readFileSync(new URL("functions/cedh.mjs", root), "utf8").replace("@netlify/blobs", "../blobs.mjs").replace(/\.\.\/lib\//g, LIB));
 // 24 jugadores: 12 Kinnan (4 al top), 12 Thrasios/Tymna; un torneo chico que debe quedar fuera
 const player = (i) => { const kin = i % 2 === 0; return {name:"P" + i, id:"p" + i, wins:kin?4:2, draws:1, losses:kin?1:3, winRate:kin?.7:.4,
   deckObj: kin ? {Commanders:{"Kinnan, Bonder Prodigy":{count:1}}, Mainboard:{"Sol Ring":{count:1}, "Basalt Monolith":{count:1}, ...(i<8?{"Rhystic Study":{count:1}}:{})}}
@@ -15,7 +20,9 @@ const big = {TID:"big-24", tournamentName:"Big cEDH", startDate:1790000000, topC
   rounds:[{round:1, tables:[{table:1, players:[{id:"p0"},{id:"p1"},{id:"p2"},{id:"p3"}], winner_id:"p0", status:"Completed"}, {table:2, players:[{id:"p4"},{id:"p5"},{id:"p6"},{id:"p7"}], winner_id:"Draw", status:"Completed"}]}]};
 const small = {TID:"small", tournamentName:"Chico", startDate:1790000000, topCut:4, standings:Array.from({length:10}, (_, i) => player(i)), rounds:[]};
 let calls = [];
-globalThis.fetch = async (url, init) => { calls.push([url, init && init.headers && init.headers.Authorization, init && init.body]);
+let kicks = [];
+globalThis.fetch = async (url, init) => { if (String(url).includes("cedh-refresh-background")){ kicks.push(init.headers["x-boveda-refresh"]); return new Response("", {status:202}); }
+  calls.push([url, init && init.headers && init.headers.Authorization, init && init.body]);
   if (/\/players\//.test(url)) return new Response(JSON.stringify({name:"steez", deckObj:{Commanders:{"Kinnan, Bonder Prodigy":{count:1}}, Mainboard:{"Sol Ring":{count:1}, "Island":{count:10}}}}), {status:200});
   return new Response(JSON.stringify([big, small]), {status:200}); };
 const expect = (name, got, want) => { if (JSON.stringify(got) !== JSON.stringify(want)){ console.error(`FALLA ${name}: ${JSON.stringify(got)} (esperado ${JSON.stringify(want)})`); process.exit(1); } };
@@ -24,6 +31,12 @@ const fn = (await import(join(dir, "functions/cedh.mjs"))).default;
 const get = async q => { const r = await fn(new Request("https://x/api/cedh?" + q)); return [r.status, await r.json()]; };
 expect("sin clave", (await get("q=data"))[0], 501);
 process.env.TOPDECK_KEY = "k-123";
+const [s0, d0] = await get("q=data");
+expect("sin datos: no se arma en la consulta, se pide en segundo plano", [s0, d0.code, calls.length, kicks.length], [503, "building", 0, 1]);
+const bg = (await import(join(dir, "functions/bg.mjs"))).default;
+await bg(new Request("https://x/.netlify/functions/cedh-refresh-background", {method:"POST", headers:{"x-boveda-refresh":"falsa"}}));
+expect("sin firma no reconstruye", calls.length, 0);
+await bg(new Request("https://x/.netlify/functions/cedh-refresh-background", {method:"POST", headers:{"x-boveda-refresh":kicks[0]}}));
 const [s, d] = await get("q=data");
 expect("con clave", s, 200);
 expect("clave en cabecera", calls[0][1], "k-123");
@@ -40,6 +53,7 @@ expect("pareja en otro orden", c2.lists, 12);
 const [, t] = await get("q=t&id=big-24");
 expect("posiciones del torneo", [t.std.length, t.std[0].cmd, t.std[1].list], [24, "Kinnan, Bonder Prodigy", true]);
 const [dks, dk] = await get("q=deck&id=big-24/p0"); if (!dk.raw) console.error(dks, dk);
+const nCalls = calls.length; await get("q=deck&id=big-24/p0"); expect("lista guardada: no vuelve a TopDeck", calls.length, nCalls);
 expect("lista importable", dk.raw.split("\n").slice(0, 5), ["Commander", "1 Kinnan, Bonder Prodigy", "", "Deck", "1 Sol Ring"]);
 expect("enlace inválido", (await get("q=deck&id=../etc"))[0], 400);
 console.log("cEDH OK: TopDeck.gg filtrado a 24+ jugadores, asientos, cartas por comandante y listas.");

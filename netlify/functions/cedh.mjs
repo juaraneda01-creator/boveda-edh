@@ -1,31 +1,25 @@
 // Meta cEDH de torneos (TopDeck.gg). Los datos se guardan y se renuevan a diario.
 import { getStore } from "@netlify/blobs";
-import { buildDataset, saveDataset, deckFromTopdeck, slugName } from "../lib/cedh.mjs";
+import { limiter, crossSite, readJSON } from "../lib/guard.mjs";
+const limited = limiter(30), deckLimited = limiter(8);
+import { kickRefresh, deckFromTopdeck, slugName } from "../lib/cedh.mjs";
 
 const json = (o, status = 200, cache = "no-store") => new Response(JSON.stringify(o), {status, headers:{"content-type":"application/json", "cache-control":cache}});
-const HITS = new Map();
-function limited(req){
-  const ip = req.headers.get("x-nf-client-connection-ip") || req.headers.get("x-forwarded-for") || "?";
-  const now = Date.now(), recent = (HITS.get(ip) || []).filter(t => now - t < 60000); recent.push(now); HITS.set(ip, recent);
-  if (HITS.size > 5000) HITS.clear();
-  return recent.length > 30;
-}
 const STALE = 20 * 3600e3;
 
 export default async (req) => {
   if (limited(req)) return json({error:"demasiadas consultas"}, 429);
+  if (crossSite(req)) return json({error:"solo desde la Bóveda"}, 403);
   const u = new URL(req.url), q = u.searchParams.get("q") || "data";
   const key = process.env.TOPDECK_KEY || "";
   const store = getStore({name:"boveda-cedh", consistency:"strong"});
   try {
     if (q === "status"){ const d = await store.get("data", {type:"json"}); return json({key:!!key, at:d ? d.at : null, tours:d ? d.tours.length : 0}); }
     if (q === "data"){
-      let d = await store.get("data", {type:"json"});
-      if ((!d || Date.now() - d.at > STALE) && key && u.searchParams.get("refresh") !== "0"){
-        try { const b = await buildDataset(key); await saveDataset(store, b); d = b.data; }
-        catch(e){ if (!d) throw e; }
-      }
-      if (!d) return json({error:key ? "sin datos todavía" : "sin_clave"}, key ? 503 : 501);
+      // nunca se reconstruye dentro de la consulta: se sirve lo guardado y, si está viejo, se pide en segundo plano
+      const d = await store.get("data", {type:"json"});
+      if ((!d || Date.now() - d.at > STALE) && key && u.searchParams.get("refresh") !== "0") await kickRefresh(store, key, process.env.URL || u.origin);
+      if (!d) return json({error:key ? "Preparando los datos de torneos: vuelve a intentar en unos minutos." : "sin_clave", code:key ? "building" : ""}, key ? 503 : 501);
       return json(d, 200, "public, max-age=1800");
     }
     if (q === "cmd"){
@@ -43,11 +37,19 @@ export default async (req) => {
       if (!key) return json({error:"sin_clave"}, 501);
       const [tid, pid] = String(u.searchParams.get("id") || "").split("/");
       if (!/^[\w-]{1,80}$/.test(tid || "") || !/^[\w-]{1,80}$/.test(pid || "")) return json({error:"enlace inválido"}, 400);
-      return json(await deckFromTopdeck(key, tid, pid), 200, "public, max-age=86400");
+      // cada lista se guarda; las de torneos que no están en los datos (enlaces pegados) tienen un tope más estricto
+      const ck = "d-" + tid + "-" + pid;
+      const hit = await store.get(ck, {type:"json"}).catch(() => null);
+      if (hit && hit.raw) return json(hit, 200, "public, max-age=86400");
+      const t = await store.get("t-" + tid, {type:"json"}).catch(() => null);
+      if (!(t && (t.std || []).some(p => p.pid === pid)) && deckLimited(req)) return json({error:"Demasiadas listas seguidas: espera un minuto."}, 429);
+      const dk = await deckFromTopdeck(key, tid, pid); await store.setJSON(ck, dk).catch(() => {});
+      return json(dk, 200, "public, max-age=86400");
     }
     return json({error:"consulta no válida"}, 400);
   } catch(e){
-    return json({error:e.message || "error", code:e.code || ""}, e.code === "key" ? 502 : e.code === "rate" ? 429 : 502);
+    const msg = e.code === "key" ? "La clave de TopDeck.gg no es válida." : e.code === "rate" ? "TopDeck.gg pidió esperar un momento." : "TopDeck.gg no respondió.";
+    return json({error:msg, code:e.code || ""}, e.code === "rate" ? 429 : 502);
   }
 };
 

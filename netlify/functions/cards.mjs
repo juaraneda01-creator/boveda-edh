@@ -1,18 +1,13 @@
 // Base de cartas propia: datos de Scryfall guardados en compacto (Netlify Blobs) y renovados a diario.
 // El teléfono descarga ~10 veces menos datos y no depende de que Scryfall responda en ese momento.
 import { getStore } from "@netlify/blobs";
+import { limiter, crossSite, readJSON } from "../lib/guard.mjs";
+const limited = limiter(40);
 
 const FRESH = 20 * 3600e3;                 // precios del día
 const MAX_NAMES = 150;
 const json = (o, status = 200) => new Response(JSON.stringify(o), {status, headers:{"content-type":"application/json", "cache-control":"no-store"}});
-const HITS = new Map();
-function limited(req){
-  const ip = req.headers.get("x-nf-client-connection-ip") || req.headers.get("x-forwarded-for") || "?";
-  const now = Date.now(), recent = (HITS.get(ip) || []).filter(t => now - t < 60000); recent.push(now); HITS.set(ip, recent);
-  if (HITS.size > 5000) HITS.clear();
-  return recent.length > 40;
-}
-export const slug = s => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+export const slug = s => String(s || "").toLowerCase().replace(/æ/g, "ae").replace(/œ/g, "oe").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const pick = (o, keys) => { const r = {}; if (!o) return r; for (const k of keys) if (o[k] != null) r[k] = o[k]; return r; };
 // solo lo que la app usa
 export function trim(c){
@@ -30,10 +25,12 @@ async function scryfall(names){
   return r.json();
 }
 
-export default async (req) => {
+export default async (req) => { try { return await handle(req); } catch(e){ return json({error: e.status ? e.message : "error interno"}, e.status || 500); } };
+async function handle(req){
   if (limited(req)) return json({error:"demasiadas consultas"}, 429);
+  if (crossSite(req)) return json({error:"solo desde la Bóveda"}, 403);
   if (req.method !== "POST") return json({error:"método no permitido"}, 405);
-  let body; try { body = await req.json(); } catch { return json({error:"cuerpo inválido"}, 400); }
+  const body = await readJSON(req, 64 * 1024);
   const names = [...new Set((Array.isArray(body.names) ? body.names : []).map(n => String(n || "").trim()).filter(Boolean))].slice(0, MAX_NAMES);
   if (!names.length) return json({data:[], not_found:[]});
   const store = getStore({name:"boveda-cards", consistency:"eventual"});
@@ -47,10 +44,14 @@ export default async (req) => {
     let j;
     try { j = await scryfall(chunk.map(x => x.n)); }
     catch(e){ for (const x of chunk) x.old ? data.push(x.old) : not_found.push({name:x.n}); continue; }   // si Scryfall falla, se usa lo guardado aunque sea de ayer
-    const byName = new Map(); for (const c of j.data || []) byName.set(slug(c.name.split(" // ")[0]), c);
+    // por nombre y por cada cara; y por posición: Scryfall devuelve en el orden pedido, sin los no encontrados
+    const byName = new Map();
+    for (const c of j.data || []){ byName.set(slug(c.name.split(" // ")[0]), c); byName.set(slug(c.name), c); for (const f of c.card_faces || []) if (f && f.name && !byName.has(slug(f.name))) byName.set(slug(f.name), c); }
+    const nf = new Set((j.not_found || []).map(o => slug(o && o.name)));
+    const byPos = new Map(); { let k = 0; const list = j.data || []; for (const x of chunk){ if (nf.has(slug(x.n.split(" // ")[0]))) continue; if (k < list.length) byPos.set(x.n, list[k++]); } }
     const saves = [];
     for (const x of chunk){
-      const c = byName.get(slug(x.n.split(" // ")[0]));
+      const c = byName.get(slug(x.n.split(" // ")[0])) || byName.get(slug(x.n)) || ((j.data || []).length + nf.size === chunk.length ? byPos.get(x.n) : null);
       if (!c){ if (x.old) data.push(x.old); else not_found.push({name:x.n}); continue; }
       const t = trim(c); data.push(t);
       const keys = new Set([slug(x.n.split(" // ")[0]), slug(c.name.split(" // ")[0])]);
@@ -60,6 +61,6 @@ export default async (req) => {
     if (i + 75 < miss.length) await new Promise(r => setTimeout(r, 110));
   }
   return json({data, not_found, cached: names.length - miss.length});
-};
+}
 
 export const config = { path: "/api/cards" };

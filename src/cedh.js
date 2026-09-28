@@ -66,12 +66,13 @@ async function tdCalibrate(){
       if (cards.length < 70) continue;
       const d = {id:"cal-"+slug(c.name), format:"commander", name:c.name, commanders:c.name.split(" / "), cards:cards.map(x=>({n:x[0], q:1})), side:[], maybe:[], log:[]};
       await fetchCards(allNames(d), {quiet:true});
-      S.noCal = true; try { const P = powerOf(d, analyzeRaw(d)); rows.push({c:c.name, p:Math.round(P.abs0*100)/100, lists:j.lists}); } finally { S.noCal = false; }
+      S.noCal = true; try { const P = powerOf(d, analyzeRaw(d)); rows.push({c:c.name, p:Math.round(P.absNC*100)/100, lists:j.lists}); } finally { S.noCal = false; }
       S.td.cal = `Calculando… ${rows.length} de ${top.length}`; render();
     }
     if (rows.length < 3){ toast("No hubo suficientes listas para calibrar."); return; }
     const mean = rows.reduce((a,x)=>a+x.p,0)/rows.length;
-    const k = mean > 8.05 ? Math.max(1, Math.min(2.5, (9.4 - 8) / (mean - 8))) : 2.5;
+    if (mean <= 8.05){ toast(`Las listas típicas dan ${mean.toFixed(1)}: muy bajo para estirar el tramo alto con seguridad. No se calibró; revisa que las cartas tengan datos.`); return; }
+    const k = Math.max(1, Math.min(2, (9.4 - 8) / (mean - 8)));
     S.data.settings.cedhCal = {at:Date.now(), mean:Math.round(mean*100)/100, k:Math.round(k*100)/100, rows};
     saveData(); bumpAnalysis();
     toast(k > 1.02 ? `Calibrado: las listas de torneo daban ${mean.toFixed(1)}; el tramo sobre 8 se estira ×${k.toFixed(2)}.` : "Las listas de torneo ya dan nivel cEDH: no hace falta ajustar.");

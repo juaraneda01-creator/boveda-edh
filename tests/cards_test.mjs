@@ -1,13 +1,14 @@
 // Base de cartas propia: primera consulta va a Scryfall, la segunda sale del caché; datos compactos.
 import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os"; import { join } from "node:path";
+import { tmpdir } from "node:os";
+const LIB = new URL("../netlify/lib/", import.meta.url).href; import { join } from "node:path";
 const dir = mkdtempSync(join(tmpdir(), "cards-"));
 writeFileSync(join(dir, "blobs.mjs"), `const M=new Map(); export function getStore(){ return { async get(k,o){ const v=M.get(k); return v==null?null:JSON.parse(v); }, async setJSON(k,v){ M.set(k, JSON.stringify(v)); } }; }`);
-writeFileSync(join(dir, "cards.mjs"), readFileSync(new URL("../netlify/functions/cards.mjs", import.meta.url), "utf8").replace("@netlify/blobs", "./blobs.mjs"));
+writeFileSync(join(dir, "cards.mjs"), readFileSync(new URL("../netlify/functions/cards.mjs", import.meta.url), "utf8").replace("@netlify/blobs", "./blobs.mjs").replace(/\.\.\/lib\//g, LIB));
 let calls = 0, fail = false;
 const big = n => ({object:"card", id:"x-"+n, name:n, cmc:1, type_line:"Artifact", oracle_text:"{T}: Add {C}{C}.", mana_cost:"{1}", color_identity:[], colors:[], produced_mana:["C"], prices:{usd:"1.50", tix:"0.1"}, legalities:{commander:"legal", vintage:"restricted"}, image_uris:{normal:"n", small:"s", art_crop:"a", png:"p", large:"l"}, all_parts:new Array(50).fill({x:"relleno"}), set:"cmm", collector_number:"1", game_changer:false});
 globalThis.fetch = async (url, init) => { calls++; if (fail) throw new Error("caído"); const ids = JSON.parse(init.body).identifiers;
-  return new Response(JSON.stringify({data: ids.filter(i=>i.name!=="Nope").map(i=>i.name==="Fell the Profane" ? {...big("Fell the Profane // Fell Mire"), card_faces:[{name:"Fell the Profane", oracle_text:"Destroy target creature."},{name:"Fell Mire"}]} : big(i.name)), not_found: ids.filter(i=>i.name==="Nope")}), {status:200}); };
+  return new Response(JSON.stringify({data: ids.filter(i=>i.name!=="Nope").map(i=>i.name==="Aether Vial" ? big("Æther Vial") : i.name==="Lim-Dul's Vault" ? big("Lim-Dûl's Vault") : i.name==="Jace Mind Sculptor" ? big("Jace, the Mind Sculptor") : i.name==="Fell the Profane" ? {...big("Fell the Profane // Fell Mire"), card_faces:[{name:"Fell the Profane", oracle_text:"Destroy target creature."},{name:"Fell Mire"}]} : big(i.name)), not_found: ids.filter(i=>i.name==="Nope")}), {status:200}); };
 const fn = (await import(join(dir, "cards.mjs"))).default;
 const post = async names => { const r = await fn(new Request("https://x/api/cards", {method:"POST", body: JSON.stringify({names})})); return r.json(); };
 const expect = (name, ok, got) => { if (!ok){ console.error(`FALLA ${name}: ${JSON.stringify(got)}`); process.exit(1); } };
@@ -17,6 +18,11 @@ expect("datos compactos", !a.data[0].all_parts && !a.data[0].prices.tix && !a.da
 expect("mucho más liviano", JSON.stringify(a.data[0]).length * 3 < JSON.stringify(big("Sol Ring")).length, JSON.stringify(a.data[0]).length);
 const b = await post(["Sol Ring", "Fell the Profane"]);
 expect("segunda consulta desde el caché", calls === 1 && b.cached === 2 && b.data.length === 2, {calls, b});
+fail = false;
+const e = await post(["Aether Vial", "Nope", "Jace Mind Sculptor", "Fell Mire"]);
+expect("Æ, alias por posición y nombre de la segunda cara", e.data.map(x=>x.name).join("|") === "Æther Vial|Jace, the Mind Sculptor|Fell Mire" && e.not_found.length === 1, e);
+const f = await post(["Æther Vial", "Jace Mind Sculptor"]);
+expect("alias guardados en caché", f.cached === 2, f);
 fail = true;
 const c = await post(["Sol Ring", "Mana Vault"]);
 expect("Scryfall caído: lo guardado sigue sirviendo", c.data.length === 1 && c.not_found.length === 1, c);

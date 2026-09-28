@@ -249,6 +249,11 @@ function accMerge(cloud){
   for (const w of cloud.d.wishlist||[]) if (!d.wishlist.some(x=>slug(x.n)===slug(w.n) && (x.pk||"")===(w.pk||""))) d.wishlist.push(w);
   const bid = new Set(d.binders.map(b=>b.id)); for (const b of cloud.d.binders||[]) if (!bid.has(b.id)) d.binders.push(b);
   const gid = new Set((d.games||[]).map(g=>g.id)); for (const g of cloud.d.games||[]) if (!gid.has(g.id)) (d.games = d.games||[]).push(g);
+  // grupo: se queda el de este dispositivo; si no tiene, el de la cuenta. Sin grupo no quedan mazos del grupo.
+  if (!d.group && cloud.d.group) d.group = cloud.d.group;
+  d.grpDel = [...new Set([...(d.grpDel||[]), ...(cloud.d.grpDel||[])])].slice(-200);
+  if (!d.group) d.decks = d.decks.filter(x=>!(x.rival && x.rival.group));
+  else { const seen = new Set(); d.decks = d.decks.filter(x=>!(x.rival && x.rival.group) || (!seen.has(x.rival.gkey) && seen.add(x.rival.gkey))); }
 }
 
 document.addEventListener("click", async ev=>{

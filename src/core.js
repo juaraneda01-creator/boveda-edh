@@ -67,6 +67,7 @@ function loadData(raw){
   d.mbLog = Array.isArray(d.mbLog)?d.mbLog:[];
   d.games = (Array.isArray(d.games)?d.games:[]).filter(g=>g && g.id && g.deck && ["win","loss","draw"].includes(g.res)).map(g=>({...g, turn:Math.max(0, Math.min(30, parseInt(g.turn,10)||0)), seat:[1,2,3,4].includes(+g.seat)?+g.seat:null, opp:(Array.isArray(g.opp)?g.opp:[]).map(String).slice(0,6), note:String(g.note||"").slice(0,200)}));
   d.roles = d.roles||{};
+  d.grpDel = (Array.isArray(d.grpDel)?d.grpDel:[]).map(String).slice(-200);
   d.binders = Array.isArray(d.binders)?d.binders:[];
   for (const b of d.binders){ b.items=b.items||[]; b.sales=b.sales||[]; b.pricing=Object.assign({src:"ck", pct:100, min:0, clp:true, round:100, syncColl:true}, b.pricing||{}); if (b.pricing.src==="market") b.pricing.src="ck"; if (!b.pricing.v2){ b.pricing.clp=true; b.pricing.v2=true; } }
   return d;
