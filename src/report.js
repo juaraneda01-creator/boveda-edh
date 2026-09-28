@@ -265,7 +265,7 @@ function reportHTML(d, A){
   const base = S.rpBase || "casual"; const B = R.BASE[base];
   const hist = (d.pwHist||[]).slice(-2);
   const hp = x => x.p0!=null ? x.p0 : x.p;   // nivel sin calibrar (el antiguo guardaba el calibrado)
-  const prev = hist.length>=2 && Math.abs(hp(hist[1])-hp(hist[0]))>=0.05 ? hist[0] : null;
+  const prev = hist.length>=2 && (hist[0].p0==null)===(hist[1].p0==null) && Math.abs(hp(hist[1])-hp(hist[0]))>=0.05 ? hist[0] : null;
   const bTone = P.real>P.official.b ? "warn" : P.real<P.official.b ? "neutral" : "good";
   const lineLv = (es, n, lv) => `<div class="rp-line"><span>${es}</span>${lvBar(lv)}<span class="rp-lvt lv-${lv.k}">${lv.k==="none"?"—":`${lv.es}`}${n!=null?` <small class="num">${n}</small>`:""}</span></div>`;
   const compRows = [["Creature","Criaturas"],["Artifact","Artefactos"],["Enchantment","Encantamientos"],["Instant","Instantáneos"],["Sorcery","Conjuros"],["Planeswalker","Planeswalkers"],["Battle","Batallas"]].filter(([k])=>R.comp[k]);
@@ -279,10 +279,10 @@ function reportHTML(d, A){
       <div class="k sc">nivel práctico</div>
       ${repMeterHTML(P.power)}
       <div class="rp-abs"><span class="muted">Puntaje exacto</span> <b class="num">${R.abs.toFixed(2)}</b> <span class="muted">· cEDH = 10</span></div>
-      ${prev ? `<div class="rp-chg ${hp(hist[1])>hp(prev)?"up":"down"}">${hp(hist[1])>hp(prev)?"Subió":"Bajó"} de ${hp(prev).toFixed(1)} a ${hp(hist[1]).toFixed(1)}${S.data.settings.cedhCal && hp(hist[1])>8 ? " (sin calibrar)" : ""} desde el ${new Date(hist[1].at).toLocaleDateString("es-CL")}</div>` : ""}
+      ${prev ? `<div class="rp-chg ${hp(hist[1])>hp(prev)?"up":"down"}">${hp(hist[1])>hp(prev)?"Subió":"Bajó"} de ${hp(prev).toFixed(1)} a ${hp(hist[1]).toFixed(1)}${Math.abs(P.abs - P.abs0) > 0.001 ? " (sin calibrar)" : ""} desde el ${new Date(hist[1].at).toLocaleDateString("es-CL")}</div>` : ""}
       <div class="rp-cs">${d.csRef ? `<span>Commandersalt: <b class="num">${Number(d.csRef.p).toFixed(2)}</b> <span class="muted">(${(P.power - d.csRef.p >= 0 ? "+" : "") + (P.power - d.csRef.p).toFixed(1)} aquí)</span></span>` : `<span class="muted">¿Lo mediste en Commandersalt?</span>`}
         <input type="text" id="rp-cs" inputmode="decimal" placeholder="Ej: 6,6" value="${d.csRef?esc(String(d.csRef.p)):""}" aria-label="Nivel en Commandersalt"><button class="btn sm" data-rp="cs">Guardar</button></div>
-      <details class="rp-what"><summary>¿Qué significa?</summary>${S.data.settings.cedhCal && P.abs0>8 ? `<p class="muted">Tramo alto calibrado con listas de torneo (sin calibrar daría ${P.abs0.toFixed(1)}).</p>` : ""}<p>El nivel práctico mide qué tan fuerte juega el mazo en la mesa, de 1 a 10, donde 10 es cEDH. Sale de seis pilares (consistencia, eficiencia, velocidad, interacción, remates y resiliencia) más los Game Changers, el stax y los combos. Es una estimación para conversar antes de jugar, no un veredicto.</p></details>
+      <details class="rp-what"><summary>¿Qué significa?</summary>${Math.abs(P.abs - P.abs0) > 0.001 ? `<p class="muted">Tramo alto calibrado con listas de torneo (sin calibrar daría ${P.abs0.toFixed(1)}).</p>` : ""}<p>El nivel práctico mide qué tan fuerte juega el mazo en la mesa, de 1 a 10, donde 10 es cEDH. Sale de seis pilares (consistencia, eficiencia, velocidad, interacción, remates y resiliencia) más los Game Changers, el stax y los combos. Es una estimación para conversar antes de jugar, no un veredicto.</p></details>
     </div>
     <div class="rp-hero-r">
       <div class="rp-type"><div class="k sc">evaluación</div><b>${R.type.es}</b><span class="muted">${R.type.s}</span>
@@ -474,7 +474,8 @@ function recordPower(d, A){
   const last = h[h.length-1];
   // se guarda el nivel sin calibrar: si cambia la calibración, el historial no inventa un salto
   const p0 = Math.round(P.abs0*10)/10;
-  if (!last || Math.abs((last.p0!=null ? last.p0 : last.p) - p0) >= 0.05){ h.push({at:Date.now(), p:P.power, p0}); if (h.length>20) h.splice(0, h.length-20); return true; }
+  if (last && last.p0==null){ last.p0 = p0; return true; }   // historial antiguo (guardaba el calibrado): se completa sin inventar un cambio
+  if (!last || Math.abs(last.p0 - p0) >= 0.05){ h.push({at:Date.now(), p:P.power, p0}); if (h.length>20) h.splice(0, h.length-20); return true; }
   return false;
 }
 

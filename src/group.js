@@ -9,34 +9,41 @@
 const grpForm = turn => ({players:{}, seats:{}, winner:null, turn:turn||7, how:null, gid:null});
 S.grp = S.grp || {doc:null, err:"", busy:false, saving:false, show:false, f:grpForm(), pubHash:"", in:{me:"", name:"", code:""}};
 
-// identidad del miembro: fija para esta persona (viaja con sus ajustes a sus otros dispositivos)
+// identidad del miembro: vive dentro de S.data.group (viaja entera a tus otros dispositivos al sincronizar)
+const grpNewTok = () => [...crypto.getRandomValues(new Uint8Array(24))].map(x=>x.toString(16).padStart(2,"0")).join("");
 function grpIdent(){
-  const st = S.data.settings;
-  if (!st.grpMid) st.grpMid = (S.data.group && S.data.group.mid) || uid();
-  if (!st.grpTok){ const r = crypto.getRandomValues(new Uint8Array(24)); st.grpTok = [...r].map(x=>x.toString(16).padStart(2,"0")).join(""); }
-  return {mid: st.grpMid, tok: st.grpTok};
+  const G = S.data.group; if (!G) return null;
+  if (!G.mid) G.mid = uid();
+  if (!G.tok){ G.tok = grpNewTok(); saveData(); }   // grupos de antes de las claves: se crea una sola vez y se sincroniza con el grupo
+  return {mid: G.mid, tok: G.tok};
 }
+// solo se acepta un documento igual o más nuevo que el que ya se ve (una respuesta lenta no borra lo recién anotado)
+function grpSetDoc(doc){ if (doc && (!S.grp.doc || (doc.at||0) >= (S.grp.doc.at||0))) S.grp.doc = doc; return S.grp.doc; }
 
 function grpState(){ return S.data.group || null; }
 async function grpId(code){ const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("boveda-group:" + syNorm(code))); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join(""); }
 async function grpCall(method, body){
   const G = grpState(); if (!G) throw new Error("sin grupo");
-  const I = grpIdent(); if (G.mid !== I.mid){ G.mid = I.mid; saveData(); }
+  const I = grpIdent();
   const r = await fetch("/api/group?id=" + await grpId(G.code), method==="GET" ? {cache:"no-store"} : {method:"POST", headers:{"content-type":"application/json"}, body: JSON.stringify({...body, mid:I.mid, tok:I.tok})});
   const j = await r.json().catch(()=>({}));
   if (!r.ok) throw Object.assign(new Error(j.error || ("HTTP " + r.status)), {status:r.status});
   return j;
 }
+const GRP_MAX_DECKS = 25, GRP_MAX_LIST = 9000;
 function grpMyDecks(){
-  return S.data.decks.filter(d=>d.format==="commander" && !d.rival).map(d=>{ const A = analyze(d); const P = powerOf(d, A);
-    return {id:d.id, name:d.name, commanders:d.commanders||[], format:"commander", power:P.power, br:[P.official.b, P.real], salt:P.salt, list:deckText(d), upd:d.updated||d.created||0}; });
+  // los 25 más recientes (el grupo no guarda más por persona)
+  return S.data.decks.filter(d=>d.format==="commander" && !d.rival).sort((a,b)=>(b.updated||0)-(a.updated||0)).slice(0, GRP_MAX_DECKS).map(d=>{ const A = analyze(d); const P = powerOf(d, A);
+    return {id:d.id, name:d.name, commanders:d.commanders||[], format:"commander", power:P.power, br:[P.official.b, P.real], salt:P.salt, list:(t=>{ if (t.length<=GRP_MAX_LIST) return t; const c=t.slice(0,GRP_MAX_LIST); return c.slice(0, c.lastIndexOf("\n")); })(deckText(d)), upd:d.updated||d.created||0}; });
 }
 async function grpPublish(force){
   // solo se publican los cambios; lo borrado se avisa con su id (así un dispositivo atrasado no borra lo de otro)
-  const decks = grpMyDecks(), del = (S.data.grpDel||[]).filter(id=>!decks.some(d=>d.id===id));
+  // también se retiran los mazos que dejaron de ser de Commander o que quedaron fuera de los 25
+  const decks = grpMyDecks(), mine = new Set(decks.map(d=>d.id));
+  const del = [...new Set([...(S.data.grpDel||[]), ...S.data.decks.filter(d=>!d.rival && !mine.has(d.id) && S.grp.doc && Object.hasOwn(S.grp.doc.decks||{}, grpState().mid+":"+d.id)).map(d=>d.id)])].filter(id=>!mine.has(id));
   const h = JSON.stringify([decks.map(d=>[d.id, d.name, d.list, d.power, d.upd]), del]);
   if (!force && h === S.grp.pubHash) return;
-  S.grp.doc = await grpCall("POST", {op:"decks", decks, del}); S.grp.pubHash = h;
+  grpSetDoc(await grpCall("POST", {op:"decks", decks, del})); S.grp.pubHash = h;
   if (del.length){ S.data.grpDel = (S.data.grpDel||[]).filter(id=>!del.includes(id)); saveData(); }
   grpImport();
 }
@@ -60,7 +67,7 @@ function grpImport(){
 }
 async function grpRefresh(){
   if (!grpState() || S.grp.busy) return; S.grp.busy = true; S.grp.err = "";
-  try { S.grp.doc = await grpCall("GET"); grpImport(); await grpPublish(false); }
+  try { grpSetDoc(await grpCall("GET")); grpImport(); await grpPublish(false); }
   catch(e){ S.grp.err = e.status===404 ? "Ese grupo ya no existe." : e.status===403 ? "El grupo no reconoce este dispositivo: sal y vuelve a unirte con el código." : "No se pudo conectar con el grupo. " + e.message; }
   finally { S.grp.busy = false; render(); }
 }
@@ -109,7 +116,7 @@ function grpHTML(){
     <div class="gm-form">
       ${members.map(([mid,m])=>{ const ds = decksBy(mid); const sel = F.players[mid];
         return `<div class="gm-row"><span class="gm-l">${esc(m.name)}</span><div class="chips">${chip("pl", mid+"|", "No juega", !sel)}${ds.map(([k,d])=>chip("pl", mid+"|"+k, esc(d.name), sel===k)).join("")}</div></div>`; }).join("")}
-      ${playing.length>=2?`<div class="gm-row"><span class="gm-l">Asientos</span><div class="grp-seats">${playing.map(([mid,m])=>`<span>${esc(m.name)}</span><div class="chips">${[1,2,3,4].slice(0, Math.max(2, playing.length)).map(s=>chip("seat", mid+"|"+s, String(s), F.seats[mid]===s)).join("")}</div>`).join("")}</div></div>
+      ${playing.length>=2?`<div class="gm-row"><span class="gm-l">Asientos</span><div class="grp-seats">${playing.map(([mid,m])=>`<span>${esc(m.name)}</span><div class="chips">${[1,2,3,4,5,6].slice(0, Math.max(2, playing.length)).map(s=>chip("seat", mid+"|"+s, String(s), F.seats[mid]===s)).join("")}</div>`).join("")}</div></div>
       <div class="gm-row"><span class="gm-l">Ganó</span><div class="chips">${playing.map(([mid,m])=>chip("win", mid, esc(m.name), F.winner===mid)).join("")}${chip("win", "draw", "Empate", F.winner==="draw")}</div></div>
       <div class="gm-row"><span class="gm-l">Turno</span><div class="gm-step"><button class="btn sm" data-grp-turn="-1">−</button><b class="num">${F.turn}</b><button class="btn sm" data-grp-turn="1">+</button></div></div>
       <div class="gm-row"><span class="gm-l">Cómo terminó</span><div class="chips">${GAME_HOW.map(([k,es])=>chip("how", k, es, F.how===k)).join("")}</div></div>
@@ -139,7 +146,7 @@ document.addEventListener("click", async ev => {
     const code = act==="create" ? syNewCode() : syNorm(($("#grp-code")||{}).value);
     if (code.replace(/-/g,"").length < 12){ toast("Revisa el código: son 16 letras y números."); return; }
     const gname = String(($("#grp-name")||{}).value||"").trim().slice(0, 60) || "Mi grupo";
-    const prev = S.data.group; S.data.settings.nick = me; S.data.group = {code, mid: grpIdent().mid, name: me}; S.grp.busy = true; S.grp.err = ""; render();
+    const prev = S.data.group; S.data.settings.nick = me; S.data.group = {code, mid: uid(), tok: grpNewTok(), name: me}; S.grp.busy = true; S.grp.err = ""; render();
     try { S.grp.doc = await grpCall("POST", {op:act, name:me, group: act==="create" ? gname : ""});
       S.grp.f = grpForm(); S.grp.in = {me:"", name:"", code:""}; S.grpInvite = ""; S.grp.pubHash = ""; saveData();
       S.grp.busy = false; await grpPublish(true).catch(()=>{}); S.grp.show = act==="create"; toast(act==="create" ? "Grupo creado. Copia la invitación y mándala a tu grupo." : "Te uniste al grupo."); }
@@ -154,13 +161,15 @@ document.addEventListener("click", async ev => {
     if (S.grp.busy || !confirm("¿Salir del grupo? Tus mazos dejan de verse allá.")) return;
     S.grp.busy = true; render();
     try { await grpCall("POST", {op:"leave"}); }
-    catch(e){ if (e.status!==404 && e.status!==403){ S.grp.busy = false; render(); toast("No se pudo salir ahora (sin conexión). Intenta de nuevo."); return; } }
+    catch(e){
+      if (e.status===403 && !confirm("El grupo no reconoce la clave de este dispositivo, así que no se pudo avisar. ¿Salir solo aquí? (Tus mazos seguirán visibles en el grupo.)")){ S.grp.busy = false; render(); return; }
+      if (e.status!==404 && e.status!==403){ S.grp.busy = false; render(); toast("No se pudo salir ahora (sin conexión). Intenta de nuevo."); return; } }
     S.data.decks = S.data.decks.filter(d=>!(d.rival && d.rival.group)); S.data.group = null; S.data.grpDel = []; S.grp.doc = null; S.grp.f = grpForm(); S.grp.pubHash = ""; S.grp.busy = false;
     saveData(); render(); toast("Saliste del grupo."); return; }
   if (act==="save"){
     const mids = Object.keys(F.players); if (mids.length < 2 || !F.winner || S.grp.saving) return;
     F.gid = F.gid || uid();   // el mismo id si se toca dos veces o se reintenta: no se duplica
-    const game = {id:F.gid, at:Date.now(), turn:F.turn, how:F.how, players: mids.map(mid=>({mid, deck:F.players[mid], seat:F.seats[mid]||null, res: F.winner==="draw" ? "draw" : F.winner===mid ? "win" : "loss"}))};
+    const game = {id:F.gid, at:Date.now(), turn:F.turn, how:F.how, players: mids.map(mid=>({mid, deck:F.players[mid], seat:F.seats[mid] && F.seats[mid] <= Math.max(2, mids.length) ? F.seats[mid] : null, res: F.winner==="draw" ? "draw" : F.winner===mid ? "win" : "loss"}))};
     S.grp.saving = true; render();
     try { S.grp.doc = await grpCall("POST", {op:"game", game}); S.grp.f = {...grpForm(F.turn), players:F.players}; toast("Partida guardada para todo el grupo."); }
     catch(e){ toast("No se pudo guardar: " + e.message); }

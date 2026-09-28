@@ -34,6 +34,11 @@ expect("un dispositivo atrasado no pisa la versión nueva", d.decks["juan1:hk01"
 expect("publicar uno no borra los demás", d.decks["juan1:hk01"] && d.decks["juan1:zz01"], d.decks);
 [s, d] = await as("juan1", {op:"decks", decks:[], del:["zz01"]});
 expect("borrado explícito", !d.decks["juan1:zz01"] && d.decks["juan1:hk01"], d.decks);
+[s, d] = await as("juan1", {op:"decks", decks:[{id:"zz01", name:"Otro", upd:1}]});
+expect("un dispositivo atrasado no revive lo borrado", !d.decks["juan1:zz01"], d.decks);
+[s, d] = await as("juan1", {op:"decks", decks:[{id:"ln01", name:"Larga", list:"1 Sol Ring\n".repeat(1000), upd:2}]});
+expect("lista cortada en un salto de línea", d.decks["juan1:ln01"].list.endsWith("Sol Ring"), d.decks["juan1:ln01"].list.slice(-20));
+[s, d] = await as("juan1", {op:"decks", decks:[], del:["ln01"]});
 [s, d] = await as("pedro2", {op:"decks", decks:[{id:"vj01", name:"Voja", commanders:["Voja"], power:8.2, br:[3,4]}]});
 expect("mazos de cada uno", Object.keys(d.decks).length === 2, d.decks);
 [s] = await as("intruso", {op:"decks", decks:[]});

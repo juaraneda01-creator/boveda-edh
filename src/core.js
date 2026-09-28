@@ -683,9 +683,11 @@ const simCache = new Map();
 function hyper(N,K,n,k){ const C=(a,b)=>{ if(b<0||b>a) return 0; let r=1; for(let i=1;i<=b;i++) r=r*(a-b+i)/i; return r; }; return C(K,k)*C(N-K,n-k)/C(N,n); }
 function atLeast(N,K,n,k){ let s=0; for (let i=k;i<=Math.min(n,K);i++) s+=hyper(N,K,n,i); return s; }
 function simulate(d, A){
-  const key = JSON.stringify([d.format,d.cards,d.commanders,A.missing.length]);
-  if (simCache.has(key)) return simCache.get(key);
   const lib=[]; for (const r of A.rows){ for(let i=0;i<r.q;i++) lib.push({land:!!(r.m&&r.m.t==="Land"), ramp:!!(r.m&&r.m.t!=="Land"&&(r.m.r||[]).includes("ramp")), win:!!(r.m&&(r.m.r||[]).includes("wincon")), cmc:r.m?r.m.cmc:3}); }
+  // la clave es lo que la simulación usa de cada carta: si cambian sus datos (no solo la lista), se recalcula
+  const key = d.format + "|" + (d.commanders||[]).join("/") + "|" + lib.map(c=>(c.land?"L":c.ramp?"R":c.win?"W":"s")+c.cmc).join(",") + "|" + (A.cmdMeta||[]).map(m=>m?m.cmc:"?").join("/");
+  if (simCache.has(key)) return simCache.get(key);
+  if (simCache.size > 300) simCache.clear();
   const N = lib.length; if (N<40) return null;
   const L = lib.filter(c=>c.land).length;
   const hyp=[]; for(let k=0;k<=7;k++) hyp.push(hyper(N,L,7,k));

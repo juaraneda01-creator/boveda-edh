@@ -87,7 +87,7 @@ export async function buildDataset(key, {days = DAYS, min = MIN_PLAYERS} = {}){
     tours.push({id:norm(t.TID || t.tid), n:norm(t.tournamentName || t.name), d:date, s:st.length, tc:topCut, city:norm(t.eventData && (t.eventData.city || "")), st:norm(t.eventData && (t.eventData.state || "")), e:entries, seat});
     details.push({id:norm(t.TID || t.tid), n:norm(t.tournamentName || t.name), d:date, s:st.length, tc:topCut, std});
   }
-  tours.sort((a, b) => b.d - a.d);
+  tours.sort((a, b) => b.d - a.d); details.sort((a, b) => b.d - a.d);   // se guardan los 120 más recientes
   const cmdCards = {};
   for (const [name, agg] of cardsBy){ if (agg.lists < 3) continue;
     cmdCards[slugName(name)] = {name, lists:agg.lists, top:agg.top, cards:[...agg.cards.entries()].map(([n, [a, b]]) => [n, Math.round(1000 * a / agg.lists) / 10, agg.top ? Math.round(1000 * b / agg.top) / 10 : null]).sort((x, y) => y[1] - x[1]).slice(0, 220)}; }

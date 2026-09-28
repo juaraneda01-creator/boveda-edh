@@ -206,13 +206,13 @@ document.addEventListener("click", async ev => {
   const d = S.data.decks.find(x=>x.id===S.sel[S.view]); if (!d) return;
   const opps = (S.simSel[d.id]||[]).map(id=>S.data.decks.find(x=>x.id===id)).filter(Boolean);
   if (!opps.length){ toast("Elige al menos un rival."); return; }
-  const need = [d, ...opps].flatMap(x=>allNames(x)).filter(n=>!cardOf(n));
-  if (need.length && !isWebView()) await fetchCards(need, {quiet:true});
-  const n = +b.dataset.simRun; S.simBusy = `0 de ${n}`; render();
+  const n = +b.dataset.simRun; S.simBusy = `0 de ${n}`; render();   // ocupado desde ya: un doble toque no lanza dos
   try {
+    const need = [d, ...opps].flatMap(x=>allNames(x)).filter(n=>!cardOf(n));
+    if (need.length && !isWebView()) await fetchCards(need, {quiet:true});
     const out = await simRun([d, ...opps], n, k=>{ S.simBusy = `${k} de ${n}`; const el = document.querySelector(".sim .muted"); if (el) el.textContent = `Simulando… ${S.simBusy}`; });
     const cur = S.data.decks.find(x=>x.id===d.id);
-    if (cur){ saveDeck({...cur, sim:out}, {silent:true, noLog:true}); const me = out.decks.find(x=>x.id===d.id); toast(`Listo: tu mazo ganó ${Math.round(me.pct*100)}% de ${n} partidas simuladas.`); }
+    if (cur){ cur.sim = out; saveData(); /* sin tocar "updated": simular no es editar el mazo */ const me = out.decks.find(x=>x.id===d.id); toast(`Listo: tu mazo ganó ${Math.round(me.pct*100)}% de ${n} partidas simuladas.`); }
   } catch(e){ toast(e && e.user ? e.message : "No se pudo simular: " + ((e && e.message) || "error")); }
   finally { S.simBusy = null; render(); }
 });

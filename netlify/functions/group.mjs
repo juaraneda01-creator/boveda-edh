@@ -13,12 +13,14 @@ const str = (v, n = 120) => String(v == null ? "" : v).slice(0, n);
 const idOk = v => /^[\w-]{4,40}$/.test(String(v || "")) && !RESERVED.has(String(v));
 const has = (o, k) => !!o && Object.hasOwn(o, k);
 const hash = t => createHash("sha256").update("boveda-member:" + t).digest("hex");
+// corta en el último salto de línea (nunca deja una carta a medias)
+const cutLines = (v, n) => { const s = String(v == null ? "" : v); if (s.length <= n) return s; const c = s.slice(0, n); const i = c.lastIndexOf("\n"); return i > 0 ? c.slice(0, i) : c; };
 const fail = (msg, status) => Object.assign(new Error(msg), {status});
 function cleanDeck(d, mid){
   return {mid, id: str(d.id, 40), name: str(d.name, 80), commanders: (Array.isArray(d.commanders) ? d.commanders : []).slice(0, 2).map(x => str(x, 80)),
     format: ["commander","pauper","pioneer"].includes(d.format) ? d.format : "commander", power: Math.max(0, Math.min(10, +d.power || 0)),
     br: (Array.isArray(d.br) ? d.br : []).slice(0, 2).map(x => Math.max(1, Math.min(5, parseInt(x, 10) || 1))), salt: Math.max(0, Math.min(100, +d.salt || 0)),
-    list: str(d.list, MAX_LIST), upd: Math.max(0, +d.upd || 0), at: Date.now()};
+    list: cutLines(d.list, MAX_LIST), upd: Math.max(0, +d.upd || 0), at: Date.now()};
 }
 function cleanGame(g, mid, doc){
   const players = (Array.isArray(g.players) ? g.players : []).slice(0, 6).map(p => ({mid: str(p && p.mid, 40), deck: str(p && p.deck, 90), seat: [1,2,3,4,5,6].includes(+(p && p.seat)) ? +p.seat : null, res: ["win","loss","draw"].includes(p && p.res) ? p.res : "loss"}));
@@ -47,9 +49,13 @@ function apply(doc, op, b){
     if (!isMember) throw fail("primero únete al grupo", 403);
     Object.assign(doc.members[mid], {at: Date.now(), th});
     if (op === "decks"){
-      for (const id of (Array.isArray(b.del) ? b.del : []).slice(0, 200)){ const k = mid + ":" + str(id, 40); if (has(doc.decks, k)) delete doc.decks[k]; }
+      // lo borrado queda anotado (con su hora): un dispositivo atrasado no lo puede revivir
+      doc.gone = doc.gone && typeof doc.gone === "object" ? doc.gone : {};
+      for (const id of (Array.isArray(b.del) ? b.del : []).slice(0, 200)){ if (!idOk(id)) continue; const k = mid + ":" + id; if (has(doc.decks, k)) delete doc.decks[k]; doc.gone[k] = Date.now(); }
+      const gk = Object.keys(doc.gone); if (gk.length > 500) for (const k of gk.sort((a, b) => doc.gone[a] - doc.gone[b]).slice(0, gk.length - 500)) delete doc.gone[k];
       for (const d of (Array.isArray(b.decks) ? b.decks : []).slice(0, MAX_DECKS)){
         if (!d || !idOk(d.id)) continue; const k = mid + ":" + d.id;
+        if (has(doc.gone, k) && doc.gone[k] >= (+d.upd || 0)) continue;   // se borró después de esta versión
         if (has(doc.decks, k) && (doc.decks[k].upd || 0) > (+d.upd || 0)) continue;   // otro dispositivo ya publicó una versión más nueva
         doc.decks[k] = cleanDeck(d, mid);
       }

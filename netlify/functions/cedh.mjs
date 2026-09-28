@@ -40,11 +40,12 @@ export default async (req) => {
       // cada lista se guarda; las de torneos que no están en los datos (enlaces pegados) tienen un tope más estricto
       const ck = "d-" + tid + "-" + pid;
       const hit = await store.get(ck, {type:"json"}).catch(() => null);
-      if (hit && hit.raw) return json(hit, 200, "public, max-age=86400");
+      if (hit && typeof hit.raw === "string") return hit.raw ? json(hit, 200, "public, max-age=86400") : json({error:"Ese jugador no subió su lista."}, 404);   // también se recuerdan las vacías
       const t = await store.get("t-" + tid, {type:"json"}).catch(() => null);
-      if (!(t && (t.std || []).some(p => p.pid === pid)) && deckLimited(req)) return json({error:"Demasiadas listas seguidas: espera un minuto."}, 429);
-      const dk = await deckFromTopdeck(key, tid, pid); await store.setJSON(ck, dk).catch(() => {});
-      return json(dk, 200, "public, max-age=86400");
+      const known = t && (t.std || []).find(p => p.pid === pid);
+      if (!(known && known.list) && deckLimited(req)) return json({error:"Demasiadas listas seguidas: espera un minuto."}, 429);
+      const dk = await deckFromTopdeck(key, tid, pid); await store.setJSON(ck, {...dk, raw: dk.raw || ""}).catch(() => {});
+      return dk.raw ? json(dk, 200, "public, max-age=86400") : json({error:"Ese jugador no subió su lista."}, 404);
     }
     return json({error:"consulta no válida"}, 400);
   } catch(e){

@@ -19,14 +19,20 @@ export async function buildSalt(fetchJSON, {budgetMs = 25000, from = null} = {})
   return {at: Date.now(), started: (from && from.started) || t0, done, err, pages: page, n: Object.keys(map).length, map};
 }
 // un tramo de trabajo: "map" es la última lista completa (o la mejor parcial), "work" la que se está armando
+// escrituras condicionales y un turno a la vez: dos visitas simultáneas no bajan las mismas páginas ni pisan una lista completa
+const cond = m => m && m.etag ? {onlyIfMatch: m.etag} : {onlyIfNew: true};
+const wrote = r => !r || r.modified !== false;
 export async function saltStep(store, fetchJSON, budgetMs){
-  let map = await store.get("map", {type:"json"}).catch(() => null);
+  const M = await store.getWithMetadata("map", {type:"json"}).catch(() => null); let map = M && M.data;
   if (map && map.done && Date.now() - map.at < SALT_TTL) return map;
-  let work = await store.get("work", {type:"json"}).catch(() => null);
+  // turno: se marca "work" como tomado; si otro ya lo tiene hace menos de un minuto, se sirve lo que haya
+  const W = await store.getWithMetadata("work", {type:"json"}).catch(() => null); let work = W && W.data;
+  if (work && work.busy && Date.now() - work.busy < 60000) return map;
+  if (!wrote(await store.setJSON("work", {...(work || {}), busy: Date.now()}, cond(W)))) return map;
   if (!work || work.done || Date.now() - (work.started || 0) > 2 * SALT_TTL) work = null;
   const b = await buildSalt(fetchJSON, {budgetMs, from: work});
-  if (b.done){ await store.setJSON("map", b); await store.delete("work").catch(() => {}); return b; }
-  await store.setJSON("work", b);
-  if (!map || (!map.done && b.n > map.n)){ await store.setJSON("map", b); map = b; }
+  if (b.done){ if (wrote(await store.setJSON("map", b, cond(M)))) map = b; await store.delete("work").catch(() => {}); return map; }
+  await store.setJSON("work", {...b, busy: 0});
+  if (!map || (!map.done && b.n > map.n)){ if (wrote(await store.setJSON("map", b, cond(M)))) map = b; }
   return map;
 }

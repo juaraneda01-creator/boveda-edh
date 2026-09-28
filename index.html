@@ -2365,9 +2365,11 @@ const simCache = new Map();
 function hyper(N,K,n,k){ const C=(a,b)=>{ if(b<0||b>a) return 0; let r=1; for(let i=1;i<=b;i++) r=r*(a-b+i)/i; return r; }; return C(K,k)*C(N-K,n-k)/C(N,n); }
 function atLeast(N,K,n,k){ let s=0; for (let i=k;i<=Math.min(n,K);i++) s+=hyper(N,K,n,i); return s; }
 function simulate(d, A){
-  const key = JSON.stringify([d.format,d.cards,d.commanders,A.missing.length]);
-  if (simCache.has(key)) return simCache.get(key);
   const lib=[]; for (const r of A.rows){ for(let i=0;i<r.q;i++) lib.push({land:!!(r.m&&r.m.t==="Land"), ramp:!!(r.m&&r.m.t!=="Land"&&(r.m.r||[]).includes("ramp")), win:!!(r.m&&(r.m.r||[]).includes("wincon")), cmc:r.m?r.m.cmc:3}); }
+  // la clave es lo que la simulación usa de cada carta: si cambian sus datos (no solo la lista), se recalcula
+  const key = d.format + "|" + (d.commanders||[]).join("/") + "|" + lib.map(c=>(c.land?"L":c.ramp?"R":c.win?"W":"s")+c.cmc).join(",") + "|" + (A.cmdMeta||[]).map(m=>m?m.cmc:"?").join("/");
+  if (simCache.has(key)) return simCache.get(key);
+  if (simCache.size > 300) simCache.clear();
   const N = lib.length; if (N<40) return null;
   const L = lib.filter(c=>c.land).length;
   const hyp=[]; for(let k=0;k<=7;k++) hyp.push(hyper(N,L,7,k));
@@ -3454,7 +3456,7 @@ function reportHTML(d, A){
   const base = S.rpBase || "casual"; const B = R.BASE[base];
   const hist = (d.pwHist||[]).slice(-2);
   const hp = x => x.p0!=null ? x.p0 : x.p;   // nivel sin calibrar (el antiguo guardaba el calibrado)
-  const prev = hist.length>=2 && Math.abs(hp(hist[1])-hp(hist[0]))>=0.05 ? hist[0] : null;
+  const prev = hist.length>=2 && (hist[0].p0==null)===(hist[1].p0==null) && Math.abs(hp(hist[1])-hp(hist[0]))>=0.05 ? hist[0] : null;
   const bTone = P.real>P.official.b ? "warn" : P.real<P.official.b ? "neutral" : "good";
   const lineLv = (es, n, lv) => `<div class="rp-line"><span>${es}</span>${lvBar(lv)}<span class="rp-lvt lv-${lv.k}">${lv.k==="none"?"—":`${lv.es}`}${n!=null?` <small class="num">${n}</small>`:""}</span></div>`;
   const compRows = [["Creature","Criaturas"],["Artifact","Artefactos"],["Enchantment","Encantamientos"],["Instant","Instantáneos"],["Sorcery","Conjuros"],["Planeswalker","Planeswalkers"],["Battle","Batallas"]].filter(([k])=>R.comp[k]);
@@ -3468,10 +3470,10 @@ function reportHTML(d, A){
       <div class="k sc">nivel práctico</div>
       ${repMeterHTML(P.power)}
       <div class="rp-abs"><span class="muted">Puntaje exacto</span> <b class="num">${R.abs.toFixed(2)}</b> <span class="muted">· cEDH = 10</span></div>
-      ${prev ? `<div class="rp-chg ${hp(hist[1])>hp(prev)?"up":"down"}">${hp(hist[1])>hp(prev)?"Subió":"Bajó"} de ${hp(prev).toFixed(1)} a ${hp(hist[1]).toFixed(1)}${S.data.settings.cedhCal && hp(hist[1])>8 ? " (sin calibrar)" : ""} desde el ${new Date(hist[1].at).toLocaleDateString("es-CL")}</div>` : ""}
+      ${prev ? `<div class="rp-chg ${hp(hist[1])>hp(prev)?"up":"down"}">${hp(hist[1])>hp(prev)?"Subió":"Bajó"} de ${hp(prev).toFixed(1)} a ${hp(hist[1]).toFixed(1)}${Math.abs(P.abs - P.abs0) > 0.001 ? " (sin calibrar)" : ""} desde el ${new Date(hist[1].at).toLocaleDateString("es-CL")}</div>` : ""}
       <div class="rp-cs">${d.csRef ? `<span>Commandersalt: <b class="num">${Number(d.csRef.p).toFixed(2)}</b> <span class="muted">(${(P.power - d.csRef.p >= 0 ? "+" : "") + (P.power - d.csRef.p).toFixed(1)} aquí)</span></span>` : `<span class="muted">¿Lo mediste en Commandersalt?</span>`}
         <input type="text" id="rp-cs" inputmode="decimal" placeholder="Ej: 6,6" value="${d.csRef?esc(String(d.csRef.p)):""}" aria-label="Nivel en Commandersalt"><button class="btn sm" data-rp="cs">Guardar</button></div>
-      <details class="rp-what"><summary>¿Qué significa?</summary>${S.data.settings.cedhCal && P.abs0>8 ? `<p class="muted">Tramo alto calibrado con listas de torneo (sin calibrar daría ${P.abs0.toFixed(1)}).</p>` : ""}<p>El nivel práctico mide qué tan fuerte juega el mazo en la mesa, de 1 a 10, donde 10 es cEDH. Sale de seis pilares (consistencia, eficiencia, velocidad, interacción, remates y resiliencia) más los Game Changers, el stax y los combos. Es una estimación para conversar antes de jugar, no un veredicto.</p></details>
+      <details class="rp-what"><summary>¿Qué significa?</summary>${Math.abs(P.abs - P.abs0) > 0.001 ? `<p class="muted">Tramo alto calibrado con listas de torneo (sin calibrar daría ${P.abs0.toFixed(1)}).</p>` : ""}<p>El nivel práctico mide qué tan fuerte juega el mazo en la mesa, de 1 a 10, donde 10 es cEDH. Sale de seis pilares (consistencia, eficiencia, velocidad, interacción, remates y resiliencia) más los Game Changers, el stax y los combos. Es una estimación para conversar antes de jugar, no un veredicto.</p></details>
     </div>
     <div class="rp-hero-r">
       <div class="rp-type"><div class="k sc">evaluación</div><b>${R.type.es}</b><span class="muted">${R.type.s}</span>
@@ -3663,7 +3665,8 @@ function recordPower(d, A){
   const last = h[h.length-1];
   // se guarda el nivel sin calibrar: si cambia la calibración, el historial no inventa un salto
   const p0 = Math.round(P.abs0*10)/10;
-  if (!last || Math.abs((last.p0!=null ? last.p0 : last.p) - p0) >= 0.05){ h.push({at:Date.now(), p:P.power, p0}); if (h.length>20) h.splice(0, h.length-20); return true; }
+  if (last && last.p0==null){ last.p0 = p0; return true; }   // historial antiguo (guardaba el calibrado): se completa sin inventar un cambio
+  if (!last || Math.abs(last.p0 - p0) >= 0.05){ h.push({at:Date.now(), p:P.power, p0}); if (h.length>20) h.splice(0, h.length-20); return true; }
   return false;
 }
 
@@ -3972,13 +3975,13 @@ document.addEventListener("click", async ev => {
   const d = S.data.decks.find(x=>x.id===S.sel[S.view]); if (!d) return;
   const opps = (S.simSel[d.id]||[]).map(id=>S.data.decks.find(x=>x.id===id)).filter(Boolean);
   if (!opps.length){ toast("Elige al menos un rival."); return; }
-  const need = [d, ...opps].flatMap(x=>allNames(x)).filter(n=>!cardOf(n));
-  if (need.length && !isWebView()) await fetchCards(need, {quiet:true});
-  const n = +b.dataset.simRun; S.simBusy = `0 de ${n}`; render();
+  const n = +b.dataset.simRun; S.simBusy = `0 de ${n}`; render();   // ocupado desde ya: un doble toque no lanza dos
   try {
+    const need = [d, ...opps].flatMap(x=>allNames(x)).filter(n=>!cardOf(n));
+    if (need.length && !isWebView()) await fetchCards(need, {quiet:true});
     const out = await simRun([d, ...opps], n, k=>{ S.simBusy = `${k} de ${n}`; const el = document.querySelector(".sim .muted"); if (el) el.textContent = `Simulando… ${S.simBusy}`; });
     const cur = S.data.decks.find(x=>x.id===d.id);
-    if (cur){ saveDeck({...cur, sim:out}, {silent:true, noLog:true}); const me = out.decks.find(x=>x.id===d.id); toast(`Listo: tu mazo ganó ${Math.round(me.pct*100)}% de ${n} partidas simuladas.`); }
+    if (cur){ cur.sim = out; saveData(); /* sin tocar "updated": simular no es editar el mazo */ const me = out.decks.find(x=>x.id===d.id); toast(`Listo: tu mazo ganó ${Math.round(me.pct*100)}% de ${n} partidas simuladas.`); }
   } catch(e){ toast(e && e.user ? e.message : "No se pudo simular: " + ((e && e.message) || "error")); }
   finally { S.simBusy = null; render(); }
 });
@@ -7124,34 +7127,41 @@ if (LIVE){
 const grpForm = turn => ({players:{}, seats:{}, winner:null, turn:turn||7, how:null, gid:null});
 S.grp = S.grp || {doc:null, err:"", busy:false, saving:false, show:false, f:grpForm(), pubHash:"", in:{me:"", name:"", code:""}};
 
-// identidad del miembro: fija para esta persona (viaja con sus ajustes a sus otros dispositivos)
+// identidad del miembro: vive dentro de S.data.group (viaja entera a tus otros dispositivos al sincronizar)
+const grpNewTok = () => [...crypto.getRandomValues(new Uint8Array(24))].map(x=>x.toString(16).padStart(2,"0")).join("");
 function grpIdent(){
-  const st = S.data.settings;
-  if (!st.grpMid) st.grpMid = (S.data.group && S.data.group.mid) || uid();
-  if (!st.grpTok){ const r = crypto.getRandomValues(new Uint8Array(24)); st.grpTok = [...r].map(x=>x.toString(16).padStart(2,"0")).join(""); }
-  return {mid: st.grpMid, tok: st.grpTok};
+  const G = S.data.group; if (!G) return null;
+  if (!G.mid) G.mid = uid();
+  if (!G.tok){ G.tok = grpNewTok(); saveData(); }   // grupos de antes de las claves: se crea una sola vez y se sincroniza con el grupo
+  return {mid: G.mid, tok: G.tok};
 }
+// solo se acepta un documento igual o más nuevo que el que ya se ve (una respuesta lenta no borra lo recién anotado)
+function grpSetDoc(doc){ if (doc && (!S.grp.doc || (doc.at||0) >= (S.grp.doc.at||0))) S.grp.doc = doc; return S.grp.doc; }
 
 function grpState(){ return S.data.group || null; }
 async function grpId(code){ const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("boveda-group:" + syNorm(code))); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join(""); }
 async function grpCall(method, body){
   const G = grpState(); if (!G) throw new Error("sin grupo");
-  const I = grpIdent(); if (G.mid !== I.mid){ G.mid = I.mid; saveData(); }
+  const I = grpIdent();
   const r = await fetch("/api/group?id=" + await grpId(G.code), method==="GET" ? {cache:"no-store"} : {method:"POST", headers:{"content-type":"application/json"}, body: JSON.stringify({...body, mid:I.mid, tok:I.tok})});
   const j = await r.json().catch(()=>({}));
   if (!r.ok) throw Object.assign(new Error(j.error || ("HTTP " + r.status)), {status:r.status});
   return j;
 }
+const GRP_MAX_DECKS = 25, GRP_MAX_LIST = 9000;
 function grpMyDecks(){
-  return S.data.decks.filter(d=>d.format==="commander" && !d.rival).map(d=>{ const A = analyze(d); const P = powerOf(d, A);
-    return {id:d.id, name:d.name, commanders:d.commanders||[], format:"commander", power:P.power, br:[P.official.b, P.real], salt:P.salt, list:deckText(d), upd:d.updated||d.created||0}; });
+  // los 25 más recientes (el grupo no guarda más por persona)
+  return S.data.decks.filter(d=>d.format==="commander" && !d.rival).sort((a,b)=>(b.updated||0)-(a.updated||0)).slice(0, GRP_MAX_DECKS).map(d=>{ const A = analyze(d); const P = powerOf(d, A);
+    return {id:d.id, name:d.name, commanders:d.commanders||[], format:"commander", power:P.power, br:[P.official.b, P.real], salt:P.salt, list:(t=>{ if (t.length<=GRP_MAX_LIST) return t; const c=t.slice(0,GRP_MAX_LIST); return c.slice(0, c.lastIndexOf("\n")); })(deckText(d)), upd:d.updated||d.created||0}; });
 }
 async function grpPublish(force){
   // solo se publican los cambios; lo borrado se avisa con su id (así un dispositivo atrasado no borra lo de otro)
-  const decks = grpMyDecks(), del = (S.data.grpDel||[]).filter(id=>!decks.some(d=>d.id===id));
+  // también se retiran los mazos que dejaron de ser de Commander o que quedaron fuera de los 25
+  const decks = grpMyDecks(), mine = new Set(decks.map(d=>d.id));
+  const del = [...new Set([...(S.data.grpDel||[]), ...S.data.decks.filter(d=>!d.rival && !mine.has(d.id) && S.grp.doc && Object.hasOwn(S.grp.doc.decks||{}, grpState().mid+":"+d.id)).map(d=>d.id)])].filter(id=>!mine.has(id));
   const h = JSON.stringify([decks.map(d=>[d.id, d.name, d.list, d.power, d.upd]), del]);
   if (!force && h === S.grp.pubHash) return;
-  S.grp.doc = await grpCall("POST", {op:"decks", decks, del}); S.grp.pubHash = h;
+  grpSetDoc(await grpCall("POST", {op:"decks", decks, del})); S.grp.pubHash = h;
   if (del.length){ S.data.grpDel = (S.data.grpDel||[]).filter(id=>!del.includes(id)); saveData(); }
   grpImport();
 }
@@ -7175,7 +7185,7 @@ function grpImport(){
 }
 async function grpRefresh(){
   if (!grpState() || S.grp.busy) return; S.grp.busy = true; S.grp.err = "";
-  try { S.grp.doc = await grpCall("GET"); grpImport(); await grpPublish(false); }
+  try { grpSetDoc(await grpCall("GET")); grpImport(); await grpPublish(false); }
   catch(e){ S.grp.err = e.status===404 ? "Ese grupo ya no existe." : e.status===403 ? "El grupo no reconoce este dispositivo: sal y vuelve a unirte con el código." : "No se pudo conectar con el grupo. " + e.message; }
   finally { S.grp.busy = false; render(); }
 }
@@ -7224,7 +7234,7 @@ function grpHTML(){
     <div class="gm-form">
       ${members.map(([mid,m])=>{ const ds = decksBy(mid); const sel = F.players[mid];
         return `<div class="gm-row"><span class="gm-l">${esc(m.name)}</span><div class="chips">${chip("pl", mid+"|", "No juega", !sel)}${ds.map(([k,d])=>chip("pl", mid+"|"+k, esc(d.name), sel===k)).join("")}</div></div>`; }).join("")}
-      ${playing.length>=2?`<div class="gm-row"><span class="gm-l">Asientos</span><div class="grp-seats">${playing.map(([mid,m])=>`<span>${esc(m.name)}</span><div class="chips">${[1,2,3,4].slice(0, Math.max(2, playing.length)).map(s=>chip("seat", mid+"|"+s, String(s), F.seats[mid]===s)).join("")}</div>`).join("")}</div></div>
+      ${playing.length>=2?`<div class="gm-row"><span class="gm-l">Asientos</span><div class="grp-seats">${playing.map(([mid,m])=>`<span>${esc(m.name)}</span><div class="chips">${[1,2,3,4,5,6].slice(0, Math.max(2, playing.length)).map(s=>chip("seat", mid+"|"+s, String(s), F.seats[mid]===s)).join("")}</div>`).join("")}</div></div>
       <div class="gm-row"><span class="gm-l">Ganó</span><div class="chips">${playing.map(([mid,m])=>chip("win", mid, esc(m.name), F.winner===mid)).join("")}${chip("win", "draw", "Empate", F.winner==="draw")}</div></div>
       <div class="gm-row"><span class="gm-l">Turno</span><div class="gm-step"><button class="btn sm" data-grp-turn="-1">−</button><b class="num">${F.turn}</b><button class="btn sm" data-grp-turn="1">+</button></div></div>
       <div class="gm-row"><span class="gm-l">Cómo terminó</span><div class="chips">${GAME_HOW.map(([k,es])=>chip("how", k, es, F.how===k)).join("")}</div></div>
@@ -7254,7 +7264,7 @@ document.addEventListener("click", async ev => {
     const code = act==="create" ? syNewCode() : syNorm(($("#grp-code")||{}).value);
     if (code.replace(/-/g,"").length < 12){ toast("Revisa el código: son 16 letras y números."); return; }
     const gname = String(($("#grp-name")||{}).value||"").trim().slice(0, 60) || "Mi grupo";
-    const prev = S.data.group; S.data.settings.nick = me; S.data.group = {code, mid: grpIdent().mid, name: me}; S.grp.busy = true; S.grp.err = ""; render();
+    const prev = S.data.group; S.data.settings.nick = me; S.data.group = {code, mid: uid(), tok: grpNewTok(), name: me}; S.grp.busy = true; S.grp.err = ""; render();
     try { S.grp.doc = await grpCall("POST", {op:act, name:me, group: act==="create" ? gname : ""});
       S.grp.f = grpForm(); S.grp.in = {me:"", name:"", code:""}; S.grpInvite = ""; S.grp.pubHash = ""; saveData();
       S.grp.busy = false; await grpPublish(true).catch(()=>{}); S.grp.show = act==="create"; toast(act==="create" ? "Grupo creado. Copia la invitación y mándala a tu grupo." : "Te uniste al grupo."); }
@@ -7269,13 +7279,15 @@ document.addEventListener("click", async ev => {
     if (S.grp.busy || !confirm("¿Salir del grupo? Tus mazos dejan de verse allá.")) return;
     S.grp.busy = true; render();
     try { await grpCall("POST", {op:"leave"}); }
-    catch(e){ if (e.status!==404 && e.status!==403){ S.grp.busy = false; render(); toast("No se pudo salir ahora (sin conexión). Intenta de nuevo."); return; } }
+    catch(e){
+      if (e.status===403 && !confirm("El grupo no reconoce la clave de este dispositivo, así que no se pudo avisar. ¿Salir solo aquí? (Tus mazos seguirán visibles en el grupo.)")){ S.grp.busy = false; render(); return; }
+      if (e.status!==404 && e.status!==403){ S.grp.busy = false; render(); toast("No se pudo salir ahora (sin conexión). Intenta de nuevo."); return; } }
     S.data.decks = S.data.decks.filter(d=>!(d.rival && d.rival.group)); S.data.group = null; S.data.grpDel = []; S.grp.doc = null; S.grp.f = grpForm(); S.grp.pubHash = ""; S.grp.busy = false;
     saveData(); render(); toast("Saliste del grupo."); return; }
   if (act==="save"){
     const mids = Object.keys(F.players); if (mids.length < 2 || !F.winner || S.grp.saving) return;
     F.gid = F.gid || uid();   // el mismo id si se toca dos veces o se reintenta: no se duplica
-    const game = {id:F.gid, at:Date.now(), turn:F.turn, how:F.how, players: mids.map(mid=>({mid, deck:F.players[mid], seat:F.seats[mid]||null, res: F.winner==="draw" ? "draw" : F.winner===mid ? "win" : "loss"}))};
+    const game = {id:F.gid, at:Date.now(), turn:F.turn, how:F.how, players: mids.map(mid=>({mid, deck:F.players[mid], seat:F.seats[mid] && F.seats[mid] <= Math.max(2, mids.length) ? F.seats[mid] : null, res: F.winner==="draw" ? "draw" : F.winner===mid ? "win" : "loss"}))};
     S.grp.saving = true; render();
     try { S.grp.doc = await grpCall("POST", {op:"game", game}); S.grp.f = {...grpForm(F.turn), players:F.players}; toast("Partida guardada para todo el grupo."); }
     catch(e){ toast("No se pudo guardar: " + e.message); }
