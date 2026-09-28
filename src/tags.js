@@ -14,7 +14,7 @@ const TAG_DEFS = [
   // sacrificio
   {k:"sacOutlet", es:"sacrifica a voluntad", re:/sacrifice (a|another|an?(?: \w+)?) (creature|artifact|permanent|token)[^.]*?:|, sacrifice (a|another) creature:/},
   {k:"dies", es:"aprovecha muertes", re:/whenever (this or )?(a|another|one or more)( other)?( nontoken)? creatures?( you control| an opponent controls)? (dies|die|is put into a graveyard)|whenever you sacrifice|whenever (a|another) (creature|permanent) you control is put into|a creature dying causes/},
-  {k:"sacFodder", es:"deja cuerpos para sacrificar", re:/when this dies,? (create|return)|dies, create|persist|undying/},
+  {k:"sacFodder", es:"deja cuerpos para sacrificar", re:/when (this|this creature) dies,? (create|return|you create)|\bpersist\b|\bundying\b/},
   // contadores
   {k:"counters", es:"pone contadores +1/+1", re:/put (a|one|two|three|x|that many|\d+) \+1\/\+1 counters?|enters with (a|one|two|three|x|\d+) \+1\/\+1 counters?|\bmodular\b|\boutlast\b|\badapt\b|\bbolster\b|\bevolve\b/},
   {k:"countersPay", es:"aprovecha contadores", re:/with (a|one or more) \+1\/\+1 counters? on (it|them)|for each \+1\/\+1 counter|double the number of|twice that many (of those )?counters|(one|two|that many) (additional|more) \+1\/\+1 counters?|if one or more \+1\/\+1 counters would/},
@@ -92,11 +92,12 @@ function detectTags(o, t, tl){
     if (d.re && d.ty ? (byRe && byTy) : d.re ? byRe : byTy) out.add(d.k);
   }
   // tribal: "otros Elfos que controlas", "Elfos que controlas obtienen", "elige un tipo de criatura"
-  const tr = o.match(/(?:other |each )?([a-z]+?)s? (?:you control|creatures you control) (?:get|have|gain)|whenever (?:a|another) ([a-z]+) (?:you control )?(?:enters|attacks|dies)|choose a creature type/g);
-  if (tr) for (const m of tr){
-    if (/choose a creature type/.test(m)){ out.add("tribe:*"); continue; }
-    const w = (m.match(/(?:other |each |a |another )?([a-z]+)/)||[])[1];
-    if (w && !/^(creature|creatures|permanent|land|artifact|enchantment|token|nontoken|player|opponent|other|each|another|it|this|that)$/.test(w)) out.add("tribe:" + w.replace(/(ves)$/,"f").replace(/s$/,""));
+  const STOP = /^(creature|creatures|permanent|permanents|land|lands|artifact|artifacts|enchantment|enchantments|token|tokens|nontoken|player|opponent|other|each|another|it|this|that|and|or|attacking|blocking|tapped|untapped|legendary|nonlegendary|all|the|your|you|of|with|white|blue|black|red|green|colorless|multicolored|card|cards|spell|spells|counter|counters|planeswalker|planeswalkers|basic|forest|forests|island|islands|swamp|swamps|mountain|mountains|plains|treasure|treasures|food|clue|clues|equipment|aura|auras)$/;
+  const norm = w => w.replace(/(ves)$/,"f").replace(/s$/,"");
+  for (const x of o.matchAll(/(?:other |each )?([a-z]+) (?:creatures )?you control (?:get|have|gain)|whenever (?:a|another) ([a-z]+) (?:you control )?(?:enters|attacks|dies)|(choose a creature type)|(?:number of|for each) ([a-z]+) you control/g)){
+    if (x[3]){ out.add("tribe:*"); continue; }
+    const w = x[1] || x[2] || x[4];
+    if (w && !STOP.test(w)) out.add("tribe:" + norm(w));
   }
   return [...out];
 }

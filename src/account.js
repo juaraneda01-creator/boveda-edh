@@ -43,11 +43,21 @@ function accParts(d){
 }
 
 /* ---------- subir ---------- */
-async function accPush(){
+async function accPush(force){
   if (!ACC.uid || ACC.busy) { if (ACC.uid) ACC.dirty = true; return; }
   ACC.busy = true; ACC.dirty = false; ACC.err = ""; accRender();
   try {
-    const root = accRoot(), parts = accParts(S.data);
+    const root = accRoot();
+    // otro dispositivo guardó después de nuestra última sincronización: se combinan antes de subir
+    if (!force){
+      const snap = await root.get();
+      const cloudAt = snap.exists ? (snap.data().savedAt||0) : 0;
+      if (cloudAt > (ACC.syncAt||0)){
+        const c = await accPull(snap);
+        if (c){ accMerge(c); ACC.cloudAt = cloudAt; S.data._mod = Date.now(); lsSet(LS_DATA, S.data); if (typeof saveDataIdb==="function") saveDataIdb(); if (typeof bumpAnalysis==="function") bumpAnalysis(); render(); toast("Había cambios de otro dispositivo: se combinaron con los tuyos."); }
+      }
+    }
+    const parts = accParts(S.data);
     for (const [col, map] of Object.entries(parts)){
       const c = ACC.cache[col] || (ACC.cache[col] = {});
       for (const [id, body] of Object.entries(map)){ const js = JSON.stringify(body); if (c[id] === js) continue; await root.collection(col).doc(id).set(body); c[id] = js; }
@@ -55,7 +65,7 @@ async function accPush(){
     }
     const at = Date.now();
     await root.set({v:1, savedAt:at, meta:accMeta(S.data), decks:Object.keys(parts.decks), coll:Object.keys(parts.coll), binders:Object.keys(parts.binders), cards:ACC.cardDocs||0, cardsAt:ACC.cardsAt||0});
-    ACC.cloudAt = ACC.syncAt = at; S.data._acc = ACC.uid; S.data._syncAt = at; lsSet(LS_DATA, S.data);
+    ACC.cloudAt = ACC.syncAt = at; S.data._acc = ACC.uid; S.data._syncAt = at; lsSet(LS_DATA, S.data); if (typeof saveDataIdb==="function") saveDataIdb();
   } catch(e){
     ACC.err = e && e.code==="quota_exceeded" ? "Tu cuenta llegó al máximo de documentos guardados." : e && e.code==="invalid_argument" ? "Esta cuenta no tiene permiso para guardar aquí (pide acceso de Colaborador)." : "No se pudo guardar en tu cuenta. Se reintentará con el próximo cambio.";
     ACC.dirty = true;
@@ -107,7 +117,7 @@ function accApply(cloud){
   S.data = loadData(JSON.parse(JSON.stringify(cloud.d)));
   if (key) S.data.settings.aiKey = key;
   S.data._acc = ACC.uid; S.data._syncAt = S.data._mod = cloud.at; ACC.syncAt = ACC.cloudAt = cloud.at;
-  lsSet(LS_DATA, S.data);
+  lsSet(LS_DATA, S.data); if (typeof saveDataIdb==="function") saveDataIdb(); if (typeof bumpAnalysis==="function") bumpAnalysis();
   for (const f of Object.keys(S.sel)) if (!S.data.decks.some(x=>x.id===S.sel[f])) S.sel[f] = null;
   S.editing = null; render();
 }
@@ -222,8 +232,8 @@ document.addEventListener("click", async ev=>{
     case "push": ACC.err=""; await accPush(); toast(ACC.err||"Guardado en tu cuenta."); break;
     case "pull": { const c = await accPull(); if (c){ accApply(c); toast("Datos cargados desde tu cuenta."); } break; }
     case "use-cloud": { ACC.state="on"; const c = await accPull(ACC.conflict.snap); ACC.conflict=null; ACC.open=false; accApply(c); toast("Usando los datos de tu cuenta."); break; }
-    case "use-local": { ACC.state="on"; await accPull(ACC.conflict.snap); ACC.conflict=null; ACC.open=false; await accPush(); render(); toast("Tus datos de este navegador quedaron en tu cuenta."); break; }
-    case "merge": { ACC.state="on"; const c = await accPull(ACC.conflict.snap); ACC.conflict=null; ACC.open=false; accMerge(c); saveData(); render(); await accPush(); toast("Datos combinados y guardados en tu cuenta."); break; }
+    case "use-local": { ACC.state="on"; await accPull(ACC.conflict.snap); ACC.conflict=null; ACC.open=false; await accPush(true); render(); toast("Tus datos de este navegador quedaron en tu cuenta."); break; }
+    case "merge": { ACC.state="on"; const c = await accPull(ACC.conflict.snap); ACC.conflict=null; ACC.open=false; accMerge(c); saveData(); render(); await accPush(true); toast("Datos combinados y guardados en tu cuenta."); break; }
     case "retry": accInit(); break;
   }
   accRender();

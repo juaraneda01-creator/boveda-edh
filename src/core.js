@@ -58,7 +58,8 @@ const S = {
 function loadData(raw){
   const d = raw || lsGet(LS_DATA, null) || {};
   d.decks = Array.isArray(d.decks)?d.decks:[];
-  for (const k of d.decks){ k.format = k.format||"commander"; k.cards=k.cards||[]; k.side=k.side||[]; k.maybe=k.maybe||[]; k.commanders=k.commanders||[]; k.log=k.log||[]; }
+  const cleanL = a => (Array.isArray(a)?a:[]).filter(c=>c && c.n!=null).map(c=>({...c, n:String(c.n), q:Math.max(1, parseInt(c.q,10)||1)}));
+  for (const k of d.decks){ k.format = FORMATS[k.format] ? k.format : "commander"; k.cards=cleanL(k.cards); k.side=cleanL(k.side); k.maybe=cleanL(k.maybe); k.commanders=(Array.isArray(k.commanders)?k.commanders:[]).map(String); k.log=Array.isArray(k.log)?k.log:[]; k.name=String(k.name||"Mazo"); }
   d.collection = d.collection && Array.isArray(d.collection.items) ? d.collection : {items:[]};
   d.wishlist = Array.isArray(d.wishlist)?d.wishlist:[];
   d.settings = Object.assign({}, DEFAULT_SETTINGS, d.settings||{});
@@ -92,7 +93,7 @@ function parseCSV(text){
   const lines = text.split(/\r?\n/).filter(l=>l.trim()); if (!lines.length) return null;
   const head = splitCSVLine(lines[0]).map(h=>h.toLowerCase().replace(/^﻿/,""));
   const col = re => head.findIndex(h=>re.test(h));
-  const iN=col(/^(name|card name|nombre|card)$/), iQ=col(/^(count|quantity|qty|cantidad|amount)$/), iS=col(/^(set code|edition code|set|edition|expansion)$/),
+  const iN=col(/^(name|card name|nombre|card)$/), iQ=col(/^(count|quantity|qty|cantidad|amount)$/), iS=(()=>{ const a=col(/^(set code|edition code)$/); return a>=0?a:col(/^(set|edition|expansion)$/); })(),
         iNum=col(/^(collector number|card number|number|collector #|cn)$/), iF=col(/^(foil|finish|printing)$/), iSid=col(/^scryfall id$/), iL=col(/^(language|lang|idioma)$/),
         iC=col(/^(condition|condición)$/), iBd=col(/^(board|section|zone|zona|category|categories|categoría|tablero)$/), iP=col(/^(purchase price|price bought|precio compra)$/), iPC=col(/^(purchase price currency|purchase currency)$/), iSN=col(/^set name$/), iB=col(/^(binder name|binder|list)$/);
   if (iN<0) return null;
@@ -115,7 +116,7 @@ function parseList(text, {keepSide=false}={}){
   if (looksCSV(text)){ const csv=parseCSV(text); if (csv) return mergeParsed(csv, true); }
   const out=[]; let section="main";
   for (let raw of text.split(/\r?\n/)){
-    let l = raw.trim(); if(!l){ if (keepSide && section==="main" && out.length>=40) section="side-blank"; continue; }
+    let l = raw.trim(); if(!l){ if (keepSide && section==="main" && out.reduce((a,c)=>a+(c.q||0),0)>=40) section="side-blank"; continue; }
     l = l.replace(/^\/\/\s*/,"");
     const h = l.toLowerCase().replace(/\s*\(\d+\)\s*$/,"").replace(/[:\s]+$/,"");
     if (/^(commanders?|comandantes?)$/.test(h)){section="cmdr";continue;}
@@ -321,7 +322,7 @@ async function fetchCards(names, {force=false, label="Buscando cartas en Scryfal
     saveCaches();
     const still = notFound.filter(n=>!S.cards[slug(n)]);
     if (still.length && !quiet) toast(`Scryfall no reconoció: ${still.slice(0,5).join(", ")}${still.length>5?"…":""}. Revisa el nombre en inglés.`);
-  } catch(e){ saveCaches(); if(!quiet) toast(offlineMsg("Scryfall")); }
+  } catch(e){ S.netErr=(S.netErr||0)+1; saveCaches(); if(!quiet) toast(offlineMsg("Scryfall")); }
   finally { if (own){ S.busy=null; render(); } }
   return found;
 }
@@ -344,7 +345,7 @@ async function fetchItems(items, {label="Actualizando versiones de tu colección
       if (own) stepBusy(i+chunk.length);
     }
     saveCaches();
-  } catch(e){ toast("No se pudieron actualizar las versiones desde Scryfall."); }
+  } catch(e){ S.netErr=(S.netErr||0)+1; if (!S.refreshing) toast("No se pudieron actualizar las versiones desde Scryfall."); }
   finally { if (own){ S.busy=null; render(); } }
 }
 async function fetchVersions(name){
@@ -384,7 +385,7 @@ async function fetchCheapest(names, {force=false, label="Buscando la versión m�
       if (own) stepBusy(++i);
     }
     saveCaches();
-  } catch(e){ saveCaches(); toast("Se cortó la búsqueda de versiones baratas. Puedes retomarla más tarde."); }
+  } catch(e){ S.netErr=(S.netErr||0)+1; saveCaches(); if (!S.refreshing) toast("Se cortó la búsqueda de versiones baratas. Puedes retomarla más tarde."); }
   finally { if (own){ S.busy=null; render(); } }
   return i;
 }
@@ -433,17 +434,21 @@ async function refreshPrices(force=false){
   const names = [...new Set([...S.data.decks.flatMap(allNames), ...S.data.wishlist.map(w=>w.n), ...(S.data.collection.items||[]).filter(i=>!pkOf(i)).map(i=>i.n), ...binderItems().filter(i=>!pkOf(i)).map(i=>i.n)])];
   const items = [...(S.data.collection.items||[]).filter(i=>pkOf(i)), ...binderItems().filter(i=>pkOf(i)), ...S.data.wishlist.filter(w=>w.pk).map(w=>({n:w.n, sid:w.pk}))];
   const total = names.length + items.length; if (!total) return;
+  if (S.refreshing) return; S.refreshing = true; S.netErr = 0;
   setBusy("Actualizando precios del día", total);
+  const bz = S.busy;   // otras tareas pueden limpiar S.busy mientras esto corre
+  const step = (label, tot, done) => { if (label!=null) bz.label=label; if (tot!=null) bz.total=tot; if (done!=null) bz.done=done; if (S.busy===bz) renderBusy(); };
   try{
     await fetchCards(names, {force:true, quiet:true});
-    stepBusy(names.length);
+    if (S.netErr){ toast(offlineMsg("Scryfall")); return; }   // sin conexión: no se marca el día como actualizado
+    step(null, null, names.length);
     await fetchItems(items);
     const cheapNames = [...new Set([...S.data.wishlist.map(w=>w.n), ...S.data.decks.flatMap(allNames)])];
-    S.busy.label="Buscando la versión más barata"; S.busy.total=cheapNames.length; S.busy.done=0; renderBusy();
-    let ci=0; for (const n of cheapNames){ await fetchCheapest([n],{force:true}); S.busy.done=++ci; if (ci%10===0) renderBusy(); }
+    step("Buscando la versión más barata", cheapNames.length, 0);
+    let ci=0; for (const n of cheapNames){ await fetchCheapest([n],{force:true}); if (S.netErr) break; ci++; if (ci%10===0) step(null, null, ci); }
     snapshotPrices();
-    st.lastRefresh=Date.now(); saveData();
-  } finally { S.busy=null; render(); }
+    if (!S.netErr){ st.lastRefresh=Date.now(); saveData(); } else toast("La actualización de precios quedó incompleta por la conexión. Se reintentará.");
+  } finally { S.refreshing=false; if (S.busy===bz) S.busy=null; render(); }
 }
 
 /* ---------- EDHREC ---------- */
@@ -487,8 +492,9 @@ async function loadCombos(d){
     const j = await r.json(); const res = j.results || j;
     const norm = v => ({id:v.id, cards:(v.uses||[]).map(u=>(u.card&&u.card.name)||u.card||"").filter(x=>typeof x==="string"&&x),
       prod:(v.produces||[]).map(p=>(p.feature&&p.feature.name)||p.name||"").filter(Boolean), desc:String(v.description||"").slice(0,900), bt:v.bracketTag||null});
-    d.combos = {at:Date.now(), inc:(res.included||[]).map(norm).slice(0,60), almost:(res.almostIncluded||[]).map(norm).slice(0,60)};
-    saveDeck(d, {silent:true, noLog:true});
+    const combos = {at:Date.now(), inc:(res.included||[]).map(norm).slice(0,60), almost:(res.almostIncluded||[]).map(norm).slice(0,60)};
+    const cur = S.data.decks.find(x=>x.id===d.id) || d;   // el mazo pudo cambiar mientras se esperaba la respuesta
+    saveDeck({...cur, combos}, {silent:true, noLog:true});
   } catch(e){ toast("Commander Spellbook no respondió. Prueba de nuevo o revisa en commanderspellbook.com."); }
   finally { S.busy=null; render(); }
 }
@@ -593,7 +599,7 @@ function analyzeRaw(d){
     if (r.m && r.m.lg && r.m.lg[fmt] && r.m.lg[fmt]!=="legal" && r.m.lg[fmt]!=="restricted" && !illegal.includes(r.n)) illegal.push(r.n);
     const p = refPrice(r.m); if (p!=null) price += p*r.q;
   }
-  for (const [k,q] of copies){ if (q>lim && !BASICS.has(k) && !ANY_NUMBER.test(k.replace(/-/g," "))) { const r=[...rows,...counted].find(x=>slug(x.n)===k); dupes.push(r?r.n:k); } }
+  for (const [k,q] of copies){ if (q>lim && !BASICS.has(k) && !(()=>{ const r0=[...rows,...counted].find(x=>slug(x.n)===k); return ANY_NUMBER.test((r0?r0.n:k.replace(/-/g," ")).toLowerCase()); })()) { const r=[...rows,...counted].find(x=>slug(x.n)===k); dupes.push(r?r.n:k); } }
   for (const m of cmdMeta) if (m){ if (m.gc) gc.push(m.n); const p=refPrice(m); if(p!=null) price+=p; if (m.lg && m.lg.commander && m.lg.commander!=="legal") illegal.push(m.n); }
   const all = [...rows, ...counted, ...(d.commanders||[]).map(n=>({n,q:1,m:cardOf(n)}))];
   const needRows = all.filter(r=>!(r.m&&r.m.basic) && !BASICS.has(slug(r.n)));
@@ -880,7 +886,7 @@ async function loadCedhStaples(d){
     }
     const list=[...new Set(names)].filter(n=>!(d.commanders||[]).some(c=>slug(c)===slug(n)));
     if (!list.length) throw new Error("sin datos");
-    d.cedhStaples={at:Date.now(), list:list.slice(0,60)}; saveDeck(d,{silent:true,noLog:true});
+    const cur = S.data.decks.find(x=>x.id===d.id) || d; saveDeck({...cur, cedhStaples:{at:Date.now(), list:list.slice(0,60)}},{silent:true,noLog:true});
     S.busy=null; await fetchCards(list,{quiet:true, label:"Trayendo cartas de EDHTop16"});
   } catch(e){ toast("EDHTop16 no entregó las cartas de este comandante desde el navegador. Revísalas en su página."); }
   finally { S.busy=null; render(); }

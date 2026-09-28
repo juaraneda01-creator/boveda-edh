@@ -25,17 +25,22 @@ export default async (req) => {
     return new Response(r.data, { headers: { "content-type": "application/octet-stream", "x-at": String((r.metadata && r.metadata.at) || 0), "cache-control": "no-store" } });
   }
   if (req.method === "PUT"){
-    const at = Number(req.headers.get("x-at")) || Date.now();
+    // la versión la asigna el servidor: no depende del reloj de cada teléfono
     const base = Number(req.headers.get("x-base-at")) || 0;
     const force = req.headers.get("x-force") === "1";
     const buf = await req.arrayBuffer();
     if (buf.byteLength > MAX) return json({ error: "demasiado grande" }, 413);
-    if (!force){
-      const m = await store.getMetadata(id);
-      const prev = m && m.metadata ? Number(m.metadata.at) || 0 : 0;
-      if (prev > base) return json({ conflict: true, at: prev }, 409);
+    const cur = await store.getMetadata(id);
+    const prev = cur && cur.metadata ? Number(cur.metadata.at) || 0 : 0;
+    if (!force && prev !== base) return json({ conflict: true, at: prev }, 409);
+    const at = Math.max(Date.now(), prev + 1);
+    // escritura condicional: si otro dispositivo guardó entre la lectura y ahora, se avisa el conflicto
+    const cond = cur && cur.etag ? { onlyIfMatch: cur.etag } : (cur ? {} : { onlyIfNew: true });
+    const res = await store.set(id, buf, { metadata: { at }, ...(force ? {} : cond) });
+    if (res && res.modified === false){
+      const now = await store.getMetadata(id);
+      return json({ conflict: true, at: now && now.metadata ? Number(now.metadata.at) || 0 : 0 }, 409);
     }
-    await store.set(id, buf, { metadata: { at } });
     return json({ ok: true, at });
   }
   if (req.method === "DELETE"){ await store.delete(id); return json({ ok: true }); }

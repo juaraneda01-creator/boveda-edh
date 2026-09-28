@@ -17,8 +17,15 @@ const cases = [
   ["Faithless Looting", "Sorcery", "Sorcery", "Draw two cards, then discard two cards.\nFlashback {2}{R}", ["graveyardPay"]],
   ["Smothering Tithe", "Enchantment", "Enchantment", "Whenever an opponent draws a card, that player may pay {2}. If the player doesn't, you create a Treasure token.", ["artifactMake", "token"]],
   ["Sword of Fire and Ice", "Artifact", "Artifact — Equipment", "Equipped creature gets +2/+2 and has protection from red and from blue.", ["equipment", "voltronPay"]],
+  ["Goblin Bombardment", "Enchantment", "Enchantment", "Sacrifice a creature: Goblin Bombardment deals 1 damage to any target.", ["sacOutlet"]],
+  ["Pitiless Plunderer", "Creature", "Creature — Human Pirate", "Whenever another creature you control dies, create a Treasure token.", ["dies", "artifactMake"]],
+  ["Kokusho, the Evening Star", "Creature", "Legendary Creature — Dragon Spirit", "Flying\nWhen Kokusho, the Evening Star dies, each opponent loses 5 life. You gain life equal to the life lost this way.", ["lifegain"]],
 ];
+// palabras que no son tribus: "whenever" y "attacking" no deben crear una tribu
+const noTribe = [["Hellrider", "Creature", "Creature — Devil", "Haste\nWhenever a creature you control attacks, Hellrider deals 1 damage to the player or planeswalker it's attacking."], ["Krenko, Mob Boss", "Creature", "Legendary Creature — Goblin Warrior", "{T}: Create X 1/1 red Goblin creature tokens, where X is the number of Goblins you control."]];
 let fail = 0;
+for (const [n, t, tl, text] of noTribe){ const got = card(n, t, tl, text).filter(x => /^tribe:(whenever|attacking|creature|another|each|the)$/.test(x)); if (got.length){ fail++; console.error(`FALLA ${n}: tribu falsa ${got.join(", ")}`); } }
+if (!card("Krenko, Mob Boss", "Creature", "Legendary Creature — Goblin Warrior", "{T}: Create X 1/1 red Goblin creature tokens, where X is the number of Goblins you control.").includes("tribe:goblin")){ fail++; console.error("FALLA Krenko: falta tribe:goblin"); }
 for (const [n, t, tl, text, want] of cases){ const got = card(n, t, tl, text); const miss = want.filter(w => !got.includes(w)); if (miss.length){ fail++; console.error(`FALLA ${n}: faltan ${miss.join(", ")} (detectó ${got.join(", ")})`); } }
 if (fail) process.exit(1);
 console.log(`Etiquetas OK: ${cases.length} cartas de prueba.`);

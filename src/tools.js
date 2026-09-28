@@ -140,7 +140,7 @@ function iaHTML(d,A){
   const inDeck = new Set([...A.rows,...A.side].map(x=>slug(x.n)));
   return form + `<div class="sec"><div class="foot">Resultado del ${new Date(r.at).toLocaleString("es-CL",{dateStyle:"medium",timeStyle:"short"})} · ${esc(r.model||"")}</div>
     <p style="font-size:1.05rem;max-width:72ch">${esc(r.resumen||"")}</p>
-    ${r.bracket?`<div class="bracket"><span class="b">${r.bracket}</span><div><div class="sc">bracket estimado por Claude</div><div class="bt">${esc(r.bracket_razon||"")}</div></div></div>`:""}
+    ${r.bracket?`<div class="bracket"><span class="b">${esc(String(r.bracket).slice(0,3))}</span><div><div class="sc">bracket estimado por Claude</div><div class="bt">${esc(r.bracket_razon||"")}</div></div></div>`:""}
     <h3 style="margin-top:16px">Cambios sugeridos</h3>
     <div class="swaps">${(r.cambios||[]).map(c=>{ const done=!inDeck.has(slug(c.sale)) && inDeck.has(slug(c.entra)); const m=cardOf(c.entra);
       return `<div class="swap ${done?"applied":""}"><div><div class="mv"><span class="out">${esc(c.sale)}</span><span aria-hidden="true">→</span><span class="in">${cardName(c.entra,m)}</span>${ownedOf(c.entra)>0?`<span class="pill good">en tu colección</span>`:m?`<span class="pill neutral">${money(refPrice(m))}</span>`:""}${c.seccion==="sideboard"?`<span class="tag">sideboard</span>`:""}</div><div class="why">${esc(c.motivo||"")}</div></div>
@@ -318,14 +318,14 @@ function manoHTML(d,A){
 function gfAct(a){
   const g=S.gf; const d=curDeck(); if (!g || !d) return;
   if (a==="new"){ gfNew(d); }
-  else if (a==="mull"){ g.mull++; gfShuffleBack(); g.pick=new Set(); }
+  else if (a==="mull"){ g.mull++; g.scry=null; gfShuffleBack(); g.pick=new Set(); }
   else if (a==="keep"){ const n = g.isC ? Math.max(0,g.mull-1) : g.mull; g.phase = n>0 ? "bottom" : "play"; g.pick=new Set(); }
   else if (a==="bottom"){ const idx=[...g.pick].sort((x,y)=>y-x); const moved=idx.map(i=>g.hand.splice(i,1)[0]); g.lib.push(...moved); g.pick=new Set(); g.phase="play"; }
-  else if (a==="draw"){ if (g.lib.length) g.hand.push(g.lib.shift()); }
+  else if (a==="draw"){ g.scry=null; if (g.lib.length) g.hand.push(g.lib.shift()); }
   else if (a==="scry"){ if (g.lib.length) g.scry=g.lib[0]; }
   else if (a==="scry-top"){ g.scry=null; }
-  else if (a==="scry-bottom"){ if (g.lib.length){ g.lib.push(g.lib.shift()); } g.scry=null; }
-  else if (a==="next"){ g.turn++; for (const c of g.bf) c.t=false; g.land=false; if (g.lib.length) g.hand.push(g.lib.shift()); }
+  else if (a==="scry-bottom"){ if (g.lib.length && g.lib[0]===g.scry){ g.lib.push(g.lib.shift()); } g.scry=null; }
+  else if (a==="next"){ g.scry=null; g.turn++; for (const c of g.bf) c.t=false; g.land=false; if (g.lib.length) g.hand.push(g.lib.shift()); }
   render();
 }
 
@@ -411,7 +411,7 @@ function versionesHTML(d,A){
   const pick = i => i===-1 ? {cards:d.cards, side:d.side, maybe:d.maybe, commanders:d.commanders} : vs[i];
   const VA=pick(a), VB=pick(b); if (!VA||!VB){ S.vA=0; S.vB=-1; return versionesHTML(d,A); }
   const SA=versionStats(d,VA), SB=versionStats(d,VB);
-  const row = (label, x, y, fmt=(v=>v), better="up") => { const dv = (typeof x==="number" && typeof y==="number") ? y-x : null; const cls = dv==null||Math.abs(dv)<1e-9 ? "" : ((dv>0)===(better==="up") ? "up" : "down");
+  const row = (label, x, y, fmt=(v=>v), better="up") => { const dv = (typeof x==="number" && typeof y==="number") ? y-x : null; const cls = better==="none"||dv==null||Math.abs(dv)<1e-9 ? "" : ((dv>0)===(better==="up") ? "up" : "down");
     return `<tr><td>${label}</td><td class="n">${fmt(x)}</td><td class="n">${fmt(y)}</td><td class="n ${cls}">${dv==null||Math.abs(dv)<1e-9?"=":(dv>0?"+":"")+(Math.abs(dv)<1?dv.toFixed(2):Math.round(dv*100)/100)}</td></tr>`; };
   const bd = boardDiff({main:VA.cards, side:VA.side||[], maybe:VA.maybe||[]}, {main:VB.cards, side:VB.side||[], maybe:VB.maybe||[]});
   const lines = x => `${x.add.map(c=>`<span class="a">+ ${c.q} ${esc(c.n)}</span>`).join("")}${x.rem.map(c=>`<span class="r">− ${c.q} ${esc(c.n)}</span>`).join("")}`;
@@ -443,7 +443,10 @@ const unb64u = s => decodeURIComponent(escape(atob(s.replace(/-/g,"+").replace(/
 function shareCode(d){ return b64u(JSON.stringify({v:1, n:d.name, f:d.format, c:d.commanders||[], m:(d.cards||[]).map(c=>[c.q,c.n]), s:(d.side||[]).map(c=>[c.q,c.n]), y:(d.maybe||[]).map(c=>[c.q,c.n])})); }
 function readShare(text){
   const t=String(text||"").trim(); const m=t.match(/#mazo=([A-Za-z0-9_-]+)/); const code = m ? m[1] : t;
-  try{ const o=JSON.parse(unb64u(code)); if (!o || !Array.isArray(o.m)) return null; return o; }catch{ return null; }
+  try{ const o=JSON.parse(unb64u(code)); if (!o || typeof o!=="object" || !Array.isArray(o.m)) return null;
+    // se limpia todo lo que viene de afuera: cantidades numéricas y nombres como texto
+    const L = a => Array.isArray(a) ? a.filter(c=>Array.isArray(c) && typeof c[1]==="string" && c[1].trim()).map(c=>[Math.min(99, Math.max(1, parseInt(c[0],10)||1)), c[1].slice(0,150)]) : [];
+    return {n:String(o.n||"Mazo compartido").slice(0,120), f:Object.prototype.hasOwnProperty.call(FORMATS,o.f)?o.f:"commander", c:Array.isArray(o.c)?o.c.filter(x=>typeof x==="string").map(x=>x.slice(0,150)).slice(0,2):[], m:L(o.m), s:L(o.s), y:L(o.y)}; }catch{ return null; }
 }
 function sharedImportHTML(o){
   const q=a=>a.reduce((x,c)=>x+c[0],0);

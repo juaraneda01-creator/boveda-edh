@@ -18,7 +18,7 @@ if (LIVE){
       const u = new URL(url, location.href);
       if (PROXY_HOSTS.has(u.hostname)) return nativeFetch("/api/proxy?url=" + encodeURIComponent(u.href), init);
       // los puentes públicos ya no hacen falta: se reemplazan por el propio
-      if (/^(corsproxy\.io|api\.allorigins\.win)$/.test(u.hostname)){ const inner = u.searchParams.get("url"); if (inner) return nativeFetch("/api/proxy?url=" + encodeURIComponent(inner), init); }
+      if (/^(corsproxy\.io|api\.allorigins\.win)$/.test(u.hostname)){ const inner = u.searchParams.get("url"); let ih=""; try { ih = new URL(inner).hostname; } catch {} if (inner && PROXY_HOSTS.has(ih)) return nativeFetch("/api/proxy?url=" + encodeURIComponent(inner), init); }
     } catch {}
     return nativeFetch(input, init);
   };
@@ -33,14 +33,16 @@ const SY_ABC = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 function syNewCode(){ const r = crypto.getRandomValues(new Uint8Array(16)); let s=""; for (let i=0;i<16;i++){ s += SY_ABC[r[i] % SY_ABC.length]; if (i%4===3 && i<15) s += "-"; } return s; }
 function syNorm(c){ return String(c||"").toUpperCase().replace(/[^A-Z0-9]/g,"").replace(/(.{4})(?=.)/g,"$1-"); }
 async function syId(code){ const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("boveda-sync:" + syNorm(code))); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join(""); }
-function syPayload(){ const {_mod, _acc, _syncAt, ...d} = S.data; const settings = {...d.settings}; delete settings.aiKey; return {...d, settings}; }
+function syPayload(){ const {_mod, _acc, _syncAt, _syMod, ...d} = S.data; const settings = {...d.settings}; delete settings.aiKey; return {...d, settings}; }
 async function gz(text){
   if (typeof CompressionStream === "undefined") return new TextEncoder().encode(text);
   const s = new Blob([text]).stream().pipeThrough(new CompressionStream("gzip")); return new Uint8Array(await new Response(s).arrayBuffer());
 }
 async function ungz(buf){
   const u = new Uint8Array(buf);
-  if (u[0]===0x1f && u[1]===0x8b && typeof DecompressionStream !== "undefined"){ const s = new Blob([u]).stream().pipeThrough(new DecompressionStream("gzip")); return await new Response(s).text(); }
+  if (u[0]===0x1f && u[1]===0x8b){
+    if (typeof DecompressionStream === "undefined") throw new Error("Este navegador no puede leer los datos sincronizados. Actualízalo.");
+    const s = new Blob([u]).stream().pipeThrough(new DecompressionStream("gzip")); return await new Response(s).text(); }
   return new TextDecoder().decode(u);
 }
 async function syPull(){
@@ -50,18 +52,32 @@ async function syPull(){
   const at = +r.headers.get("x-at") || 0;
   return {d: JSON.parse(await ungz(await r.arrayBuffer())), at};
 }
+// versión = la asigna el servidor; "sucio" = cambios locales hechos después del último envío o carga (_mod > _syMod, ambos con el reloj de este dispositivo)
+const syDirtyLocal = () => (S.data._mod||0) > (S.data._syMod||0);
 async function syPush(force=false){
   if (SY.state!=="on" || !SY.code) return;
   if (SY.busy){ SY.dirty = true; return; }
   SY.busy = true; SY.dirty = false; SY.err = ""; accRender();
+  let merged = false;
   try {
-    const at = Date.now();
-    const r = await fetch("/api/sync?id=" + await syId(SY.code), {method:"PUT", headers:{"content-type":"application/octet-stream", "x-at":String(at), "x-base-at":String(SY.at), ...(force?{"x-force":"1"}:{})}, body: await gz(JSON.stringify(syPayload()))});
-    if (r.status === 409){ const rem = await syPull(); SY.busy = false; if (!(rem && await syAutoMerge(rem))){ SY.remote = rem; SY.state = "conflict"; ACC.open = true; } return; }
+    const payload = syPayload(); const modSent = S.data._mod || Date.now();
+    const r = await fetch("/api/sync?id=" + await syId(SY.code), {method:"PUT", headers:{"content-type":"application/octet-stream", "x-base-at":String(SY.at), ...(force?{"x-force":"1"}:{})}, body: await gz(JSON.stringify(payload))});
+    if (r.status === 409){
+      const rem = await syPull(); SY.busy = false;
+      if ((SY.mergeDepth||0) < 3 && rem){ SY.mergeDepth = (SY.mergeDepth||0) + 1; merged = await syAutoMerge(rem); SY.mergeDepth = 0; }
+      if (!merged){ SY.remote = rem; SY.state = "conflict"; ACC.open = true; }
+      return;
+    }
+    else if (r.status === 429){ SY.err = "Muchas sincronizaciones seguidas. Se reintentará en un minuto."; SY.dirty = true; setTimeout(()=>{ SY.err=""; syPush(); }, 60000); }
     else if (!r.ok){ SY.err = r.status===413 ? "Tus datos pasan el máximo de 5 MB para sincronizar." : "No se pudo sincronizar. Se reintentará con el próximo cambio."; SY.dirty = true; }
-    else { SY.at = at; S.data._syncAt = at; lsSet(LS_DATA, S.data, true); sySave(); syBaseSave(syPayload()); }
+    else {
+      const j = await r.json().catch(()=>({}));
+      SY.at = +j.at || SY.at; S.data._syMod = modSent;          // lo cambiado durante el envío sigue pendiente
+      lsSet(LS_DATA, S.data, true); if (typeof saveDataIdb==="function") saveDataIdb(); sySave(); syBaseSave(payload);
+      if (syDirtyLocal()) SY.dirty = true;
+    }
   } catch(e){ SY.err = "Sin conexión: se sincroniza cuando vuelva la señal."; SY.dirty = true; }
-  finally { SY.busy = false; accRender(); if (SY.dirty && !SY.err) sySchedule(1500); }
+  finally { if (!merged) SY.busy = false; accRender(); if (SY.dirty && !SY.err) sySchedule(1500); }
 }
 function sySchedule(ms=3000){ clearTimeout(SY.timer); SY.timer = setTimeout(()=>syPush(), ms); }
 function syncOnSave(){ if (LIVE && SY.state==="on"){ SY.dirty = true; sySchedule(); } }
@@ -70,8 +86,8 @@ function syApply(remote){
   lsSet("boveda-edh:antes-de-sincronizar", S.data);
   S.data = loadData(JSON.parse(JSON.stringify(remote.d)));
   if (key) S.data.settings.aiKey = key;
-  S.data._syncAt = S.data._mod = remote.at; SY.at = remote.at; sySave(); syBaseSave(remote.d);
-  lsSet(LS_DATA, S.data);
+  S.data._mod = S.data._syMod = Date.now(); SY.at = remote.at; sySave(); syBaseSave(remote.d);
+  lsSet(LS_DATA, S.data, true); if (typeof saveDataIdb==="function") saveDataIdb();
   for (const f of Object.keys(S.sel)) if (!S.data.decks.some(x=>x.id===S.sel[f])) S.sel[f] = null;
   S.editing = null; render();
 }
@@ -82,8 +98,8 @@ async function syCheck(){
   try {
     const remote = await syPull();
     if (!remote){ await syPush(true); return; }
-    if (remote.at <= SY.at){ if ((S.data._mod||0) > SY.at) syPush(); return; }
-    const localChanged = (S.data._mod||0) > (S.data._syncAt||0);
+    if (remote.at === SY.at){ if (syDirtyLocal()) syPush(); return; }
+    const localChanged = syDirtyLocal();
     if (!localChanged || syEmpty(S.data)){ syApply(remote); toast("Se cargaron los cambios de tu otro dispositivo."); }
     else if (!(await syAutoMerge(remote))){ SY.remote = remote; SY.state = "conflict"; ACC.open = true; accRender(); }
   } catch { SY.err = "Sin conexión: se sincroniza cuando vuelva la señal."; accRender(); }
@@ -91,7 +107,9 @@ async function syCheck(){
 async function syConnect(code, isNew){
   SY.code = syNorm(code); SY.at = 0; SY.state = "on"; SY.err = ""; sySave();
   if (isNew){ await syPush(true); toast("Listo: este dispositivo queda sincronizado con tu código."); return; }
-  const remote = await syPull().catch(()=>null);
+  let remote;
+  try { remote = await syPull(); }
+  catch(e){ SY.err = (e && e.message && /navegador/.test(e.message)) ? e.message : "No se pudo leer tu código ahora. Reintenta con “Sincronizar ahora”."; SY.at = -1; accRender(); return; }   // nunca se sube nada si no se pudo leer
   if (!remote){ await syPush(true); toast("Ese código no tenía datos: se guardaron los de este dispositivo."); return; }
   if (syEmpty(S.data)){ syApply(remote); toast("Tus datos llegaron a este dispositivo."); }
   else { SY.remote = remote; SY.state = "conflict"; ACC.open = true; }
@@ -139,12 +157,12 @@ async function syAutoMerge(remote){
   if (!base) return false;
   const loc = JSON.parse(JSON.stringify(S.data));
   const m = syMerge(base, loc, JSON.parse(JSON.stringify(remote.d)));
-  S.data = loadData(m.d); S.data._syncAt = remote.at; SY.at = remote.at; sySave();
+  S.data = loadData(m.d); S.data._mod = Date.now(); S.data._syMod = 0; SY.at = remote.at; sySave();
   lsSet(LS_DATA, S.data, true); if (typeof saveDataIdb==="function") saveDataIdb();
   for (const f of Object.keys(S.sel)) if (!S.data.decks.some(x=>x.id===S.sel[f])) S.sel[f] = null;
   S.editing = null; render();
   toast(m.clash ? `Se unieron los cambios de tus dispositivos. En ${m.clash} registro${m.clash>1?"s":""} cambiado${m.clash>1?"s":""} en ambos se quedó la versión más reciente.` : "Se unieron los cambios de tus dispositivos.");
-  await syPush(true);
+  SY.busy = false; await syPush();   // sin forzar: si otro dispositivo guardó entremedio, se vuelve a unir
   return true;
 }
 

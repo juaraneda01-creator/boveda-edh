@@ -185,8 +185,11 @@ function textToDeck(t, fmt){
   let text = String(t).replace(/\r/g,"").replace(/^\s*(deck|main ?deck|mainboard)\s*$/gim,"").trim();
   if (!/^(sideboard|banquillo|maybeboard|commander|companion)\b/im.test(text)){
     const blocks = text.split(/\n\s*\n/).filter(b=>b.trim());
-    if (blocks.length===2 && fmt!=="commander") text = blocks[0]+"\nSideboard\n"+blocks[1];
-    else if (blocks.length===2 && fmt==="commander" && blocks[1].trim().split("\n").length<=2) text = "Commander\n"+blocks[1]+"\nDeck\n"+blocks[0];
+    const cardsIn = b => b.split("\n").reduce((a,l)=>a+(parseInt(l,10)||0),0);
+    // formato sin indicar: 90+ cartas y un bloque final de 1 o 2 líneas es un mazo de Commander (el bloque es el comandante)
+    const looksEDH = blocks.length===2 && blocks[1].trim().split("\n").length<=2 && cardsIn(blocks[0])>=90;
+    if (blocks.length===2 && (fmt==="commander" || (!fmt && looksEDH)) && blocks[1].trim().split("\n").length<=2) text = "Commander\n"+blocks[1]+"\nDeck\n"+blocks[0];
+    else if (blocks.length===2 && fmt!=="commander") text = blocks[0]+"\nSideboard\n"+blocks[1];
   }
   return text;
 }
@@ -314,8 +317,10 @@ async function importFromLink(url, fmtHint){
   else if (src && src.k==="mtgdecks"){ try { r = {raw: await getVia(url.replace(/\/$/,"")+"/txt"), name:""}; if (!/^\s*\d+\s+\S/m.test(r.raw)) throw 0; } catch(e){ r = listFromHTML(await getVia(url)); } }
   else r = listFromHTML(await getVia(url));
   if (r.raw!=null){
-    const fmt = fmtHint || (/^commander\b/im.test(r.raw)?"commander":null);
-    const p = splitDeck(parseList(textToDeck(r.raw, fmt), {keepSide:fmt!=="commander"}), fmt||"pauper", []);
+    let fmt = fmtHint || (/^commander\b/im.test(r.raw)?"commander":null);
+    const txt = textToDeck(r.raw, fmt);
+    if (!fmt && /^commander\b/im.test(txt)) fmt = "commander";
+    const p = splitDeck(parseList(txt, {keepSide:fmt!=="commander"}), fmt||"pauper", []);
     const L = a => a.map(c=>`${c.q} ${c.n}`).join("\n");
     r = {name:r.name, fmt, commanders:p.commanders, text:L(p.cards), side:L(p.side), maybe:L(p.maybe)};
   }

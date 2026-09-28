@@ -16,13 +16,24 @@ export default async (req) => {
   const target = new URL(req.url).searchParams.get("url");
   let t;
   try { t = new URL(target); } catch { return new Response("Falta una dirección válida.", { status: 400 }); }
-  if (t.protocol !== "https:" || !ALLOW.has(t.hostname)) return new Response("Sitio no permitido.", { status: 403 });
+  const ok = u => u.protocol === "https:" && u.port === "" && !u.username && !u.password && ALLOW.has(u.hostname);
+  if (!ok(t)) return new Response("Sitio no permitido.", { status: 403 });
   if (req.method !== "GET" && req.method !== "POST") return new Response("Método no permitido.", { status: 405 });
   const headers = { "user-agent": "BovedaEDH/1.0 (+https://boveda-edh.netlify.app)", accept: req.headers.get("accept") || "*/*" };
-  const init = { method: req.method, headers, redirect: "follow" };
+  const init = { method: req.method, headers, redirect: "manual" };
   if (req.method === "POST"){ init.body = await req.text(); headers["content-type"] = req.headers.get("content-type") || "application/json"; }
   let r;
-  try { r = await fetch(t, init); } catch { return new Response("No se pudo contactar el sitio.", { status: 502 }); }
+  // las redirecciones se siguen a mano (máx. 3) y cada destino vuelve a pasar la lista permitida
+  try {
+    for (let hop = 0; ; hop++){
+      r = await fetch(t, init);
+      if (r.status < 300 || r.status >= 400 || !r.headers.get("location")) break;
+      if (hop >= 3) return new Response("Demasiadas redirecciones.", { status: 508 });
+      t = new URL(r.headers.get("location"), t);
+      if (!ok(t)) return new Response("Sitio no permitido.", { status: 403 });
+      if (r.status === 303 || ((r.status === 301 || r.status === 302) && init.method === "POST")){ init.method = "GET"; delete init.body; delete headers["content-type"]; }
+    }
+  } catch { return new Response("No se pudo contactar el sitio.", { status: 502 }); }
   const len = Number(r.headers.get("content-length") || 0);
   if (len > MAX_BYTES) return new Response("La respuesta es demasiado grande.", { status: 413 });
   const buf = await r.arrayBuffer();

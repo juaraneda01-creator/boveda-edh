@@ -172,7 +172,9 @@ document.addEventListener("click", async ev=>{
     case "mb-sync": { const t=$("#coll-text").value; const p=parseList(t); if(!p.length){ toast("Pega o abre primero el CSV exportado de ManaBox."); break; }
       S.mbPreview={items:p.map(cleanItem), diff:diffCollection(S.data.collection.items, p.map(cleanItem))}; render(); break; }
     case "mb-sync-no": S.mbPreview=null; render(); break;
-    case "mb-sync-ok": { const mp=S.mbPreview; if(!mp) break; S.data.collection={items:mp.items, v:(S.data.collection.v||0)+1};
+    case "mb-sync-ok": { const mp=S.mbPreview; if(!mp) break;
+      const sell = new Set((S.data.collection.items||[]).filter(i=>i.sell).map(collKey)); for (const it of mp.items) if (sell.has(collKey(it))) it.sell = true;
+      S.data.collection={items:mp.items, v:(S.data.collection.v||0)+1}; bumpAnalysis();
       S.data.mbLog.unshift({at:Date.now(), a:mp.diff.added.reduce((a,x)=>a+x.q,0), r:mp.diff.removed.reduce((a,x)=>a+x.q,0), c:mp.diff.changed.length}); S.data.mbLog=S.data.mbLog.slice(0,50);
       S.mbPreview=null; saveData(); toast("Colección sincronizada con ManaBox."); render();
       if (S.data.settings.autoFetch){ await fetchItems(mp.items.filter(i=>pkOf(i))); await fetchCards(mp.items.map(i=>i.n),{label:"Trayendo datos de tu colección"}); snapshotPrices(); render(); } break; }
@@ -268,9 +270,10 @@ document.addEventListener("change", async e=>{
       const decks = Array.isArray(j.decks)?j.decks:[]; const items = (j.collection&&Array.isArray(j.collection.items))?j.collection.items:[];
       const ids = new Set(S.data.decks.map(x=>x.id)); let added=0;
       for (const dk of decks){ if (!dk || !Array.isArray(dk.cards)) continue; if (ids.has(dk.id)) continue;
-        S.data.decks.push({id:dk.id||uid(), format:dk.format||"commander", name:String(dk.name||"Mazo importado"), commanders:(dk.commanders||[]).map(String), cards:dk.cards.map(c=>({n:String(c.n),q:+c.q||1})), side:(dk.side||[]).map(c=>({n:String(c.n),q:+c.q||1})), maybe:(dk.maybe||[]).map(c=>({n:String(c.n),q:+c.q||1})), log:dk.log||[], mb:dk.mb||null, combos:dk.combos, created:dk.created||Date.now(), updated:Date.now()}); added++; }
+        S.data.decks.push({...dk, id:dk.id||uid(), format:dk.format||"commander", name:String(dk.name||"Mazo importado"), commanders:(dk.commanders||[]).map(String), cards:dk.cards.map(c=>({n:String(c.n),q:+c.q||1})), side:(dk.side||[]).map(c=>({n:String(c.n),q:+c.q||1})), maybe:(dk.maybe||[]).map(c=>({n:String(c.n),q:+c.q||1})), log:dk.log||[], mb:dk.mb||null, combos:dk.combos, created:dk.created||Date.now(), updated:Date.now()}); added++; }
       if (items.length){ if (!S.data.collection.items.length) S.data.collection={items:items.map(cleanItem)}; else for (const it of items){ const k=S.data.collection.items.findIndex(x=>collKey(x)===collKey(it)); if(k>=0) S.data.collection.items[k].q=Math.max(S.data.collection.items[k].q, it.q); else S.data.collection.items.push(cleanItem(it)); } touchColl(); }
-      for (const w of j.wishlist||[]) if (!S.data.wishlist.some(x=>slug(x.n)===slug(w.n))) S.data.wishlist.push(w);
+      const wk = w => slug(w.n)+"|"+(w.pk||"")+"|"+(w.finish||"");
+      for (const w of j.wishlist||[]) if (w && w.n && !S.data.wishlist.some(x=>wk(x)===wk(w))) S.data.wishlist.push(w);
       for (const bn of j.binders||[]) if (bn && Array.isArray(bn.items) && !S.data.binders.some(x=>x.id===bn.id)) S.data.binders.push({...newBinder(bn.name, bn.items), ...bn, sales:bn.sales||[]});
       if (j.settings) S.data.settings=Object.assign(S.data.settings, j.settings);
       const nCards = mergeCardData(j.cardData);
@@ -292,7 +295,7 @@ document.addEventListener("submit", async ev=>{
   if (!next.cards.length){ toast("No encontré cartas en el Deck."); return; }
   const prev = e.id ? S.data.decks.find(x=>x.id===e.id) : null;
   const d = {...(prev||{log:[]}), id: prev?prev.id:uid(), format, name, commanders:next.commanders, cards:next.cards, side:next.side, maybe:next.maybe, created: prev&&prev.created||Date.now()};
-  if (prev && JSON.stringify(prev.cards)!==JSON.stringify(d.cards)) delete d.combos;
+  if (prev && (JSON.stringify(prev.cards)!==JSON.stringify(d.cards) || JSON.stringify(prev.commanders||[])!==JSON.stringify(d.commanders||[]))){ delete d.combos; delete d.cedhStaples; }
   if (!prev && $("#f-mb") && $("#f-mb").checked) d.mb = {at:Date.now(), sync:Date.now(), base:boardsOf(d)};
   if (!prev) d.log=[{at:Date.now(), src:"manual", add:[...d.cards, ...d.side.map(c=>({...c,side:true})), ...d.maybe.map(c=>({...c,maybe:true}))], rem:[]}];
   S.editing=null; S.sel[format]=d.id; S.showMeta[format]=false; S.deckTab="analisis";
@@ -329,7 +332,8 @@ function distributeEditor(){
   const add = (id, arr) => { if (!arr.length) return; const el=$(id); const cur0=el.value.trim(); el.value = (cur0?cur0+"\n":"") + listText(arr); };
   ta.value = listText(main);
   add("#f-side", side); add("#f-maybe", maybe);
-  if (format==="commander" && cmds.length && $("#f-cmd") && !$("#f-cmd").value.trim()) $("#f-cmd").value = cmds.map(c=>c.n).join(" + ");
+  // la sección Commander pegada manda: reemplaza lo que había en el campo
+  if (format==="commander" && cmds.length && $("#f-cmd")) $("#f-cmd").value = cmds.map(c=>c.n).join(" + ");
   const q = arr => arr.reduce((a,c)=>a+c.q,0);
   toast(`Separé la lista: ${q(main)} en Deck${cmds.length&&format==="commander"?`, ${cmds.length} comandante${cmds.length>1?"s":""}`:""}, ${q(side)} en Sideboard y ${q(maybe)} en Maybeboard.`);
   return true;
