@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="description" content="Bóveda EDH: tus mazos de Commander, Pauper y Pioneer, tu colección de ManaBox y alertas de precios.">
 <title>Bóveda EDH</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#1F5C4A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Bóveda">
+<link rel="apple-touch-icon" href="/icons/icon-180.png">
+<link rel="icon" href="/icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;700&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&family=Alegreya+Sans+SC:wght@500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -452,6 +460,46 @@ tr.pm-sel td{background:var(--accent-soft)}
 /* versión web: sin botones que dependen de internet */
 body.web [data-act="fetch-meta"],body.web [data-act="fetch-meta-all"],body.web [data-act="fetch-staples"],body.web [data-act="refresh-all"],body.web [data-act="refresh-deck"],body.web [data-act="cedh-live"],body.web [data-t="news-run"],body.web [data-pm="fetch"],body.web [data-act="clear-cache"]{display:none!important}
 .web-links{display:flex;gap:6px;flex-wrap:wrap}
+
+/* ---------- sincronización e instalación ---------- */
+.sy-code{display:flex;gap:8px;align-items:center;background:var(--bg);border:1px dashed var(--line);border-radius:10px;padding:8px 12px;font-size:1.05rem;letter-spacing:.06em}
+.sy-code .num{flex:1;min-width:0;overflow-wrap:anywhere}
+.sy-install{display:grid;gap:6px;border-top:1px solid var(--line);padding-top:10px;font-size:.92rem}
+.sy-install .btn{justify-self:start}
+.install-box{margin-bottom:18px}
+.tab .ts{display:none}
+
+/* ---------- teléfono ---------- */
+@media (max-width:640px){
+  body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}
+  .top-in{padding-block:8px}
+  .tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;width:auto;margin:0;order:0;background:var(--surface);border-top:1px solid var(--line);
+    padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));gap:2px;justify-content:space-between;overflow:hidden;box-shadow:0 -6px 18px rgba(0,0,0,.08)}
+  .tab{flex:1 1 0;min-width:0;min-height:46px;padding:6px 2px;border-radius:12px;font-size:.8rem;letter-spacing:0;text-align:center;white-space:nowrap}
+  .tab .tl{display:none}.tab .ts{display:inline}
+  .tab .badge{margin-left:2px}
+  .toast{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+  .top-right{gap:6px}
+  #btn-settings{padding:6px 10px}
+  .btn{min-height:40px}
+  .btn.sm{min-height:36px}
+  .subtab{padding:10px 0 12px;font-size:1.05rem}
+  .fmt-rail{flex-direction:row;flex-wrap:nowrap;align-items:stretch;overflow-x:auto;gap:8px;padding-bottom:6px;scrollbar-width:none;margin-inline:-16px;padding-inline:16px;scroll-snap-type:x proximity}
+  .fmt-rail::-webkit-scrollbar{display:none}
+  .fmt-rail>.btn{flex:none;white-space:nowrap;align-self:center}
+  .fmt-rail .deck-list{order:-1}
+  .fmt-rail .deck-list{flex-direction:row;gap:8px;flex:none}
+  .fmt-rail .deck-list li{flex:none}
+  .fmt-rail .deck-item{width:auto;min-width:150px;max-width:220px;background:var(--surface);border:1px solid var(--line);scroll-snap-align:start}
+  .fmt-rail .deck-item[aria-current="true"]{border-color:var(--accent);box-shadow:inset 0 -3px 0 var(--accent)}
+  .pane-head{padding:14px 14px 0}.pane-body{padding:14px}.subtabs{padding:10px 14px 0}.form{padding:14px}
+  .modal-bg{padding:0;align-items:end}
+  .modal{border-radius:18px 18px 0 0;max-height:92dvh;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px))}
+  .acc-panel{position:fixed;left:12px;right:12px;top:auto;bottom:calc(72px + env(safe-area-inset-bottom,0px));width:auto;max-height:70dvh;overflow:auto}
+  .settings{position:fixed;left:12px;right:12px;width:auto;top:auto;bottom:calc(72px + env(safe-area-inset-bottom,0px));max-height:70dvh}
+  input[type=text],input[type=search],input[type=number],input[type=url],select,textarea{font-size:16px}
+}
+@media (display-mode: standalone){ .top{padding-top:env(safe-area-inset-top,0px)} }
 </style>
 </head>
 <body>
@@ -2447,8 +2495,8 @@ function render(){
   // conserva lo escrito en el editor si la pantalla se vuelve a dibujar
   if (S.editing && $("#f-list")){ S.editing.text=$("#f-list").value; S.editing.side=($("#f-side")||{}).value||""; S.editing.maybe=($("#f-maybe")||{}).value||""; S.editing.name=($("#f-name")||{}).value||""; if ($("#f-cmd")) S.editing.commanders=$("#f-cmd").value.split("+").map(x=>x.trim()).filter(Boolean); }
   const alertsN = alerts().length;
-  const nav = [["tools","Herramientas"],["commander","Commander"],["pauper","Pauper"],["pioneer","Pioneer"],["coll","Colección"],["venta","Venta"],["market","Mercado"]];
-  $("#tabs").innerHTML = nav.map(([k,l])=>`<button class="tab" role="tab" data-view="${k}" aria-selected="${S.view===k}">${l}${k==="market"&&alertsN?`<span class="badge" aria-label="${alertsN} alertas">${alertsN}</span>`:""}</button>`).join("");
+  const nav = [["tools","Herramientas","Inicio"],["commander","Commander","EDH"],["pauper","Pauper","Pauper"],["pioneer","Pioneer","Pioneer"],["coll","Colección","Colec."],["venta","Venta","Venta"],["market","Mercado","Mercado"]];
+  $("#tabs").innerHTML = nav.map(([k,l,sh])=>`<button class="tab" role="tab" data-view="${k}" aria-selected="${S.view===k}"><span class="tl">${l}</span><span class="ts" aria-hidden="true">${sh}</span>${k==="market"&&alertsN?`<span class="badge" aria-label="${alertsN} alertas">${alertsN}</span>`:""}</button>`).join("");
   renderBusy();
   renderSettings();
   const main=$("#main");
@@ -2498,7 +2546,7 @@ function renderSettings(){
 function formatViewHTML(fmt){
   const decks = S.data.decks.filter(d=>(d.format||"commander")===fmt && !d.rival).sort((a,b)=>(b.updated||0)-(a.updated||0));
   if (!S.sel[fmt] && decks[0] && !S.editing && !S.showMeta[fmt]) S.sel[fmt]=decks[0].id;
-  const rail = `<aside class="rail">
+  const rail = `<aside class="rail fmt-rail">
     <button class="btn primary" data-act="new">+ Nuevo mazo de ${FORMATS[fmt].name}</button>
     <button class="btn meta-btn" data-act="show-meta" aria-pressed="${S.showMeta[fmt]===true}">${fmt==="commander"?"Meta cEDH y brackets":"Meta de "+FORMATS[fmt].name}</button>
     ${fmt==="commander"?`<button class="btn meta-btn" data-act="show-local" aria-pressed="${S.showMeta[fmt]==="local"}">Mesa local: tus amigos</button>`:""}
@@ -3974,6 +4022,7 @@ function toolsHubHTML(){
   const nDecks = S.data.decks.filter(d=>!d.rival).length, nAl = alerts().length;
   const shared = S.sharedPreview;
   return `${shared?sharedImportHTML(shared):""}
+  ${typeof installCardHTML==="function"?installCardHTML(false):""}
   <div class="fmt-head"><h2>Herramientas</h2><span class="muted">${nDecks} mazo${nDecks===1?"":"s"} · ${(S.data.collection.items||[]).length} registros en tu colección${nAl?` · ${nAl} alerta${nAl>1?"s":""} de precio`:""}</span></div>
   <div class="tool-grid">${TOOLS.map(t=>`<button class="tool-card" data-tool="${t.k}">${icon(t.i)}<span><b>${t.t}</b><span>${t.d}</span></span></button>`).join("")}</div>
   <div style="margin-top:22px">${linkBoxHTML("hub")}</div>
@@ -4636,7 +4685,7 @@ async function accPushCards(){
   await accPush();
 }
 function accSchedule(ms=2500){ clearTimeout(ACC.timer); ACC.timer = setTimeout(accPush, ms); }
-function accOnSave(){ if (ACC && ACC.uid && ACC.state==="on"){ ACC.dirty = true; accSchedule(); accRender(); } }
+function accOnSave(){ if (typeof syncOnSave==="function") syncOnSave(); if (ACC && ACC.uid && ACC.state==="on"){ ACC.dirty = true; accSchedule(); accRender(); } }
 
 /* ---------- bajar ---------- */
 async function accPull(rootSnap){
@@ -4720,6 +4769,7 @@ function accDownload(filename, text, type){
 /* ---------- interfaz ---------- */
 const ago = t => { const s = Math.round((Date.now()-t)/1000); return s<45?"recién":s<3600?`hace ${Math.round(s/60)} min`:s<86400?`hace ${Math.round(s/3600)} h`:new Date(t).toLocaleDateString("es-CL"); };
 function accChipHTML(){
+  if (ACC.state==="file" && isLive() && typeof syncChipHTML==="function") return syncChipHTML();
   const st = ACC.state;
   const av = ACC.avatar ? `<img class="acc-av" src="${esc(ACC.avatar)}" alt="">` : `<span class="acc-av acc-av0" aria-hidden="true">${ACC.name?esc(ACC.name.slice(0,1).toUpperCase()):`<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>`}</span>`;
   const label = st==="on" ? (ACC.busy?"Guardando…":ACC.dirty?"Cambios sin subir":ACC.err?"Sin sincronizar":"Sincronizado")
@@ -4728,6 +4778,7 @@ function accChipHTML(){
   return `<button class="acc-chip ${st==="on"&&!ACC.err&&!ACC.dirty?"ok":st==="conflict"||ACC.err?"warn":""}" id="acc-chip" aria-expanded="${ACC.open}">${av}<span><b>${esc(who)}</b><small>${esc(label)}</small></span></button>`;
 }
 function accPanelHTML(){
+  if (ACC.state==="file" && isLive() && typeof syncPanelHTML==="function") return syncPanelHTML();
   const st = ACC.state;
   let body = "";
   if (st==="on") body = `<p><b>${esc(ACC.name||"Sesión iniciada")}</b><br><span class="muted">Tus mazos, colección, carpetas de venta y lista de búsqueda se guardan en tu cuenta y aparecen en cualquier dispositivo donde abras esta página con la misma cuenta. Solo tú los ves.</span></p>
@@ -4771,7 +4822,7 @@ document.addEventListener("click", async ev=>{
   const chip = ev.target.closest("#acc-chip");
   if (chip){ ACC.open = !ACC.open; accRender(); return; }
   const b = ev.target.closest("[data-acc]");
-  if (!b){ if (ACC.open && !ev.target.closest("#acc") && ACC.state!=="conflict"){ ACC.open=false; accRender(); } return; }
+  if (!b){ if (ACC.open && !ev.target.closest("#acc") && ACC.state!=="conflict" && !(typeof SY!=="undefined" && SY.state==="conflict")){ ACC.open=false; accRender(); } return; }
   switch(b.dataset.acc){
     case "push": ACC.err=""; await accPush(); toast(ACC.err||"Guardado en tu cuenta."); break;
     case "pull": { const c = await accPull(); if (c){ accApply(c); toast("Datos cargados desde tu cuenta."); } break; }
@@ -4883,6 +4934,176 @@ if (isWebView()){
   const relabel = () => { for (const b of document.querySelectorAll("#main button, #modal button")) if (/^Traer datos de Scryfall$/.test(b.textContent.trim())) b.textContent = "Completar datos con Claude"; };
   new MutationObserver(relabel).observe(document.getElementById("main"), {childList:true, subtree:true});
   new MutationObserver(relabel).observe(document.getElementById("modal"), {childList:true, subtree:true});
+}
+
+/* =========================================================
+   Bóveda EDH — versión en vivo (Netlify)
+   - Puente propio (/api/proxy) para sitios que no dejan
+     consultarse desde otra página (EDHREC, Spellbook…).
+   - Sincronización entre dispositivos con un código personal
+     (/api/sync). Cada persona tiene su propio código.
+   - Instalación como app en el teléfono.
+   ========================================================= */
+var LIVE = (() => { try { return isLive(); } catch { return false; } })();
+
+/* ---------- puente propio ---------- */
+const PROXY_HOSTS = new Set(["json.edhrec.com","edhrec.com","backend.commanderspellbook.com","edhtop16.com","api2.moxfield.com","archidekt.com","manabox.app","www.mtggoldfish.com","mtggoldfish.com","mtgtop8.com","tappedout.net","deckstats.net","mtgdecks.net","melee.gg"]);
+if (LIVE){
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = (input, init) => {
+    try {
+      const url = typeof input === "string" ? input : input.url;
+      const u = new URL(url, location.href);
+      if (PROXY_HOSTS.has(u.hostname)) return nativeFetch("/api/proxy?url=" + encodeURIComponent(u.href), init);
+      // los puentes públicos ya no hacen falta: se reemplazan por el propio
+      if (/^(corsproxy\.io|api\.allorigins\.win)$/.test(u.hostname)){ const inner = u.searchParams.get("url"); if (inner) return nativeFetch("/api/proxy?url=" + encodeURIComponent(inner), init); }
+    } catch {}
+    return nativeFetch(input, init);
+  };
+}
+
+/* ---------- sincronización con código ---------- */
+const SY_KEY = "boveda-edh:sync";
+var SY = {state:"off", code:"", at:0, busy:false, dirty:false, err:"", timer:null, remote:null, show:false};
+function syLoad(){ const s = lsGet(SY_KEY, null); if (s && s.code){ SY.code = s.code; SY.at = s.at||0; SY.state = "on"; } }
+function sySave(){ lsSet(SY_KEY, {code:SY.code, at:SY.at}); }
+const SY_ABC = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+function syNewCode(){ const r = crypto.getRandomValues(new Uint8Array(16)); let s=""; for (let i=0;i<16;i++){ s += SY_ABC[r[i] % SY_ABC.length]; if (i%4===3 && i<15) s += "-"; } return s; }
+function syNorm(c){ return String(c||"").toUpperCase().replace(/[^A-Z0-9]/g,"").replace(/(.{4})(?=.)/g,"$1-"); }
+async function syId(code){ const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("boveda-sync:" + syNorm(code))); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join(""); }
+function syPayload(){ const {_mod, _acc, _syncAt, ...d} = S.data; const settings = {...d.settings}; delete settings.aiKey; return {...d, settings}; }
+async function gz(text){
+  if (typeof CompressionStream === "undefined") return new TextEncoder().encode(text);
+  const s = new Blob([text]).stream().pipeThrough(new CompressionStream("gzip")); return new Uint8Array(await new Response(s).arrayBuffer());
+}
+async function ungz(buf){
+  const u = new Uint8Array(buf);
+  if (u[0]===0x1f && u[1]===0x8b && typeof DecompressionStream !== "undefined"){ const s = new Blob([u]).stream().pipeThrough(new DecompressionStream("gzip")); return await new Response(s).text(); }
+  return new TextDecoder().decode(u);
+}
+async function syPull(){
+  const r = await fetch("/api/sync?id=" + await syId(SY.code), {cache:"no-store"});
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const at = +r.headers.get("x-at") || 0;
+  return {d: JSON.parse(await ungz(await r.arrayBuffer())), at};
+}
+async function syPush(force=false){
+  if (SY.state!=="on" || !SY.code) return;
+  if (SY.busy){ SY.dirty = true; return; }
+  SY.busy = true; SY.dirty = false; SY.err = ""; accRender();
+  try {
+    const at = Date.now();
+    const r = await fetch("/api/sync?id=" + await syId(SY.code), {method:"PUT", headers:{"content-type":"application/octet-stream", "x-at":String(at), "x-base-at":String(SY.at), ...(force?{"x-force":"1"}:{})}, body: await gz(JSON.stringify(syPayload()))});
+    if (r.status === 409){ SY.remote = await syPull(); SY.state = "conflict"; ACC.open = true; }
+    else if (!r.ok){ SY.err = r.status===413 ? "Tus datos pasan el máximo de 5 MB para sincronizar." : "No se pudo sincronizar. Se reintentará con el próximo cambio."; SY.dirty = true; }
+    else { SY.at = at; S.data._syncAt = at; lsSet(LS_DATA, S.data); sySave(); }
+  } catch(e){ SY.err = "Sin conexión: se sincroniza cuando vuelva la señal."; SY.dirty = true; }
+  finally { SY.busy = false; accRender(); if (SY.dirty && !SY.err) sySchedule(1500); }
+}
+function sySchedule(ms=3000){ clearTimeout(SY.timer); SY.timer = setTimeout(()=>syPush(), ms); }
+function syncOnSave(){ if (LIVE && SY.state==="on"){ SY.dirty = true; sySchedule(); } }
+function syApply(remote){
+  const key = S.data.settings && S.data.settings.aiKey;
+  lsSet("boveda-edh:antes-de-sincronizar", S.data);
+  S.data = loadData(JSON.parse(JSON.stringify(remote.d)));
+  if (key) S.data.settings.aiKey = key;
+  S.data._syncAt = S.data._mod = remote.at; SY.at = remote.at; sySave();
+  lsSet(LS_DATA, S.data);
+  for (const f of Object.keys(S.sel)) if (!S.data.decks.some(x=>x.id===S.sel[f])) S.sel[f] = null;
+  S.editing = null; render();
+}
+function syEmpty(d){ return !d.decks.length && !(d.collection.items||[]).length && !(d.binders||[]).length && !(d.wishlist||[]).length; }
+// al abrir o volver a la app: si otro dispositivo guardó algo nuevo, se carga
+async function syCheck(){
+  if (!LIVE || SY.state!=="on" || SY.busy) return;
+  try {
+    const remote = await syPull();
+    if (!remote){ await syPush(true); return; }
+    if (remote.at <= SY.at){ if ((S.data._mod||0) > SY.at) syPush(); return; }
+    const localChanged = (S.data._mod||0) > (S.data._syncAt||0);
+    if (!localChanged || syEmpty(S.data)){ syApply(remote); toast("Se cargaron los cambios de tu otro dispositivo."); }
+    else { SY.remote = remote; SY.state = "conflict"; ACC.open = true; accRender(); }
+  } catch { SY.err = "Sin conexión: se sincroniza cuando vuelva la señal."; accRender(); }
+}
+async function syConnect(code, isNew){
+  SY.code = syNorm(code); SY.at = 0; SY.state = "on"; SY.err = ""; sySave();
+  if (isNew){ await syPush(true); toast("Listo: este dispositivo queda sincronizado con tu código."); return; }
+  const remote = await syPull().catch(()=>null);
+  if (!remote){ await syPush(true); toast("Ese código no tenía datos: se guardaron los de este dispositivo."); return; }
+  if (syEmpty(S.data)){ syApply(remote); toast("Tus datos llegaron a este dispositivo."); }
+  else { SY.remote = remote; SY.state = "conflict"; ACC.open = true; }
+  accRender();
+}
+
+/* ---------- interfaz del botón de cuenta en la versión en vivo ---------- */
+function syncChipHTML(){
+  const st = SY.state;
+  const label = st==="on" ? (SY.busy ? "Sincronizando…" : SY.err ? "Sin sincronizar" : SY.dirty ? "Cambios por subir" : "Sincronizado") : st==="conflict" ? "Elige qué datos usar" : "Solo este dispositivo";
+  const cls = st==="on" && !SY.err && !SY.dirty ? "ok" : st==="conflict" || SY.err ? "warn" : "";
+  return `<button class="acc-chip ${cls}" id="acc-chip" aria-expanded="${ACC.open}"><span class="acc-av acc-av0" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3"/><path d="M18 3v4h-4M6 21v-4h4"/></svg></span><span><b>Mis datos</b><small>${esc(label)}</small></span></button>`;
+}
+function syncPanelHTML(){
+  const st = SY.state;
+  let body;
+  if (st==="off") body = `<p><b>Tus datos están solo en este dispositivo.</b></p>
+    <p class="muted" style="font-size:.9rem">Con un código personal tus mazos, colección, carpetas de venta y lista de búsqueda quedan iguales en tu teléfono y tu computador. Cada persona usa su propio código.</p>
+    <button class="btn primary" data-sy="new">Crear mi código</button>
+    <div class="field"><label for="sy-code">¿Ya tienes un código de otro dispositivo?</label><div class="row"><input type="text" id="sy-code" autocomplete="off" autocapitalize="characters" placeholder="XXXX-XXXX-XXXX-XXXX" style="flex:1;min-width:0"><button class="btn" data-sy="join">Conectar</button></div></div>`;
+  else if (st==="conflict") body = `<p><b>Este dispositivo y tu código tienen datos distintos</b> (el código se guardó ${SY.remote?ago(SY.remote.at):"antes"}).</p>
+    <div class="acc-choice"><button class="btn primary" data-sy="use-remote">Usar los datos del código</button><span class="muted">Reemplaza lo de este dispositivo (queda una copia local por si acaso).</span></div>
+    <div class="acc-choice"><button class="btn" data-sy="use-local">Subir los de este dispositivo</button><span class="muted">Reemplaza lo guardado con el código.</span></div>
+    <div class="acc-choice"><button class="btn" data-sy="merge">Juntar ambos</button><span class="muted">Suma los mazos y registros que falten en cada lado.</span></div>`;
+  else body = `<p><b>Sincronizado con tu código.</b> <span class="muted">Último guardado: ${SY.at?ago(SY.at):"—"}.</span></p>
+    ${SY.err?`<p class="down" style="font-size:.9rem">${esc(SY.err)}</p>`:""}
+    <div class="sy-code"><span class="num">${SY.show?esc(SY.code):SY.code.replace(/[A-Z0-9]/g,"•")}</span><button class="btn sm ghost" data-sy="show">${SY.show?"Ocultar":"Ver"}</button></div>
+    <p class="muted" style="font-size:.88rem">Para tu otro dispositivo, copia el enlace y ábrelo allá (por ejemplo, envíatelo a ti mismo por WhatsApp o correo). Quien tenga el código ve y cambia tus datos: no lo compartas con otras personas; ellas crean el suyo.</p>
+    <div class="row"><button class="btn sm primary" data-sy="link">Copiar enlace para otro dispositivo</button><button class="btn sm" data-sy="copy">Copiar código</button></div>
+    <div class="row"><button class="btn sm" data-sy="now">Sincronizar ahora</button><button class="btn sm ghost" data-sy="off">Desconectar este dispositivo</button></div>`;
+  return `<div class="acc-panel" role="dialog" aria-label="Mis datos">${body}${installCardHTML(true)}</div>`;
+}
+
+/* ---------- instalar como app ---------- */
+var installEvt = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; if (typeof render==="function" && S.view==="tools") render(); });
+function isStandalone(){ return !!(window.matchMedia && (matchMedia("(display-mode: standalone)").matches || navigator.standalone===true)); }
+function isIOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1); }
+function installCardHTML(compact){
+  if (!LIVE || isStandalone()) return "";
+  const how = installEvt ? `<button class="btn ${compact?"sm":""} primary" data-sy="install">Instalar la app</button>`
+    : isIOS() ? `<span class="muted" style="font-size:.9rem">En Safari toca <b>Compartir</b> y luego <b>Agregar a inicio</b>.</span>`
+    : `<span class="muted" style="font-size:.9rem">En el menú del navegador (⋮) elige <b>Instalar app</b> o <b>Agregar a la pantalla de inicio</b>.</span>`;
+  return compact ? `<div class="sy-install"><b>Instálala en tu teléfono</b>${how}</div>`
+    : `<div class="card-box install-box"><h3>Instala la Bóveda en tu teléfono</h3><p class="muted" style="margin:0">Queda con su ícono en la pantalla de inicio, abre a pantalla completa y funciona sin señal con tus últimos datos y precios.</p><div class="row">${how}</div></div>`;
+}
+
+document.addEventListener("click", async ev => {
+  const b = ev.target.closest("[data-sy]"); if (!b) return;
+  switch (b.dataset.sy){
+    case "new": await syConnect(syNewCode(), true); SY.show = true; break;
+    case "join": { const c = syNorm(($("#sy-code")||{}).value); if (c.replace(/-/g,"").length < 12){ toast("Revisa el código: son 16 letras y números."); return; } await syConnect(c, false); break; }
+    case "show": SY.show = !SY.show; break;
+    case "copy": copyText(SY.code); break;
+    case "link": copyText(location.origin + "/#sync=" + SY.code.replace(/-/g,"")); break;
+    case "now": SY.err = ""; await syCheck(); if (SY.state==="on") await syPush(); toast(SY.err || "Sincronizado."); break;
+    case "off": SY = Object.assign(SY, {state:"off", code:"", at:0, err:"", show:false}); lsSet(SY_KEY, null); toast("Este dispositivo ya no se sincroniza. Tus datos siguen aquí."); break;
+    case "use-remote": { const r = SY.remote; SY.state = "on"; SY.remote = null; ACC.open = false; if (r) syApply(r); toast("Usando los datos de tu código."); break; }
+    case "use-local": SY.state = "on"; SY.remote = null; ACC.open = false; await syPush(true); toast("Tus datos de este dispositivo quedaron en el código."); break;
+    case "merge": { const r = SY.remote; SY.state = "on"; SY.remote = null; ACC.open = false; if (r) accMerge({d:loadData(JSON.parse(JSON.stringify(r.d)))}); saveData(); render(); await syPush(true); toast("Datos combinados y sincronizados."); break; }
+    case "install": if (installEvt){ installEvt.prompt(); const c = await installEvt.userChoice.catch(()=>null); installEvt = null; if (c && c.outcome==="accepted") toast("Bóveda instalada."); render(); } return;
+  }
+  accRender();
+});
+
+if (LIVE){
+  syLoad();
+  // enlace para otro dispositivo: #sync=CODIGO
+  const m = location.hash.match(/^#sync=([A-Za-z0-9-]{12,})/);
+  if (m){ history.replaceState(null, "", location.pathname); setTimeout(()=>syConnect(m[1], false), 0); }
+  else if (SY.state==="on") setTimeout(syCheck, 0);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState==="visible") syCheck(); else if (SY.dirty) syPush(); });
+  window.addEventListener("online", () => { SY.err = ""; syCheck(); });
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
 }
 
 </script>
