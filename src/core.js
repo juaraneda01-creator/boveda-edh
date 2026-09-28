@@ -298,33 +298,54 @@ async function sf(url, body){
 }
 function setBusy(label,total){ S.busy={label,done:0,total}; render(); }
 function stepBusy(n){ if(S.busy){ S.busy.done=Math.min(S.busy.total,n); renderBusy(); } }
+// nombre limpio para Scryfall: sin código de edición, número, marcas de foil ni espacios dobles
+function cleanCardName(n){ return String(n||"").replace(/[\u2018\u2019]/g,"'").replace(/\s*\*[A-Z]+\*\s*$/i,"").replace(/\s*\([A-Za-z0-9]{2,6}\)\s*[\w-]*\s*$/,"").replace(/\s+/g," ").trim(); }
 async function fetchCards(names, {force=false, label="Buscando cartas en Scryfall", quiet=false}={}){
   if (isWebView()) return webFetchCards(names, {force, quiet});
   const maxAge = 7*864e5;
   const todo = [...new Map(names.filter(Boolean).map(n=>[slug(n), String(n).trim()])).values()]
-    .filter(n=>!BASICS.has(slug(n)) && (force || !S.cards[slug(n)] || Date.now()-(S.cards[slug(n)].at||0) > maxAge));
+    .filter(n=>n && !BASICS.has(slug(n)) && (force || !S.cards[slug(n)] || Date.now()-(S.cards[slug(n)].at||0) > maxAge));
   if (!todo.length) return 0;
   const own = !S.busy; if (own) setBusy(label, todo.length);
-  let found=0; const notFound=[];
+  let found=0, done=0, offline=false; const notFound=[];
+  const keep = (c, asked) => { const prev=S.cards[slug(c.name)]; const v=fromScry(c); if (prev&&prev.minAt){ v.min=prev.min; v.minE=prev.minE; v.minAt=prev.minAt; v.minP=prev.minP; }
+    S.cards[slug(c.name)] = v; const front = c.name.split(" // ")[0]; if (front!==c.name && !S.cards[slug(front)]) S.cards[slug(front)] = v; if (asked && slug(asked)!==slug(c.name)) S.cards[slug(asked)] = v; found++; };
+  // un lote rechazado se divide: una carta con nombre raro ya no deja sin datos a las otras 74
+  const batch = async (chunk) => {
+    let r;
+    try { r = await sf("https://api.scryfall.com/cards/collection", {identifiers: chunk.map(n=>({name:cleanCardName(n).split(" // ")[0]}))}); }
+    catch(e){ offline = true; S.lastFetchErr = "No se pudo conectar con Scryfall: revisa tu conexión. Si abriste el archivo descargado en el teléfono, usa boveda-edh.netlify.app."; return; }
+    if (!r.ok){
+      S.lastFetchErr = `Scryfall respondió ${r.status}.`;
+      if (chunk.length > 1){ const h = Math.ceil(chunk.length/2); await batch(chunk.slice(0,h)); if (!offline) await batch(chunk.slice(h)); }
+      else notFound.push(chunk[0]);
+      return;
+    }
+    const j = await r.json();
+    const byClean = new Map(chunk.map(n=>[slug(cleanCardName(n).split(" // ")[0]), n]));
+    for (const c of j.data||[]) keep(c, byClean.get(slug(c.name.split(" // ")[0])));
+    for (const nf of j.not_found||[]) if (nf.name) notFound.push(byClean.get(slug(nf.name)) || nf.name);
+  };
   try{
-    for (let i=0;i<todo.length;i+=75){
+    for (let i=0;i<todo.length && !offline;i+=75){
       const chunk = todo.slice(i,i+75);
-      const r = await sf("https://api.scryfall.com/cards/collection", {identifiers: chunk.map(n=>({name:n.split(" // ")[0]}))});
-      if (!r.ok) throw new Error("Scryfall "+r.status);
-      const j = await r.json();
-      for (const c of j.data||[]){ const prev=S.cards[slug(c.name)]; const v=fromScry(c); if (prev&&prev.minAt){ v.min=prev.min; v.minE=prev.minE; v.minAt=prev.minAt; v.minP=prev.minP; } S.cards[slug(c.name)] = v; found++; }
-      for (const nf of j.not_found||[]) if (nf.name) notFound.push(nf.name);
-      if (own) stepBusy(i+chunk.length);
+      await batch(chunk); done += chunk.length;
+      if (own) stepBusy(done);
     }
     for (const n of notFound.slice(0,40)){
-      const r = await sf("https://api.scryfall.com/cards/named?fuzzy="+encodeURIComponent(n));
-      if (r.ok){ const c=await r.json(); const v=fromScry(c); S.cards[slug(c.name)]=v; S.cards[slug(n)]=v; found++; }
+      if (offline) break;
+      try { const r = await sf("https://api.scryfall.com/cards/named?fuzzy="+encodeURIComponent(cleanCardName(n).split(" // ")[0])); if (r.ok) keep(await r.json(), n); } catch { offline = true; }
     }
     saveCaches();
     const still = notFound.filter(n=>!S.cards[slug(n)]);
-    if (still.length && !quiet) toast(`Scryfall no reconoció: ${still.slice(0,5).join(", ")}${still.length>5?"…":""}. Revisa el nombre en inglés.`);
-  } catch(e){ S.netErr=(S.netErr||0)+1; saveCaches(); if(!quiet) toast(offlineMsg("Scryfall")); }
-  finally { if (own){ S.busy=null; render(); } }
+    if (offline){ S.netErr=(S.netErr||0)+1; if (!quiet) toast(offlineMsg("Scryfall")); }
+    else {
+      if (!still.length) S.lastFetchErr = "";
+      else S.lastFetchErr = `Scryfall no reconoció ${still.length} carta${still.length>1?"s":""}: ${still.slice(0,6).join(", ")}${still.length>6?"…":""}. Revisa que el nombre esté en inglés.`;
+      if (!quiet) toast(still.length ? S.lastFetchErr : `Datos de ${found} cartas actualizados.`);
+    }
+  } catch(e){ S.netErr=(S.netErr||0)+1; S.lastFetchErr = "Error al leer la respuesta de Scryfall."; saveCaches(); if(!quiet) toast(offlineMsg("Scryfall")); }
+  finally { if (own) S.busy=null; render(); }   // se redibuja siempre, aunque otra tarea siga en curso
   return found;
 }
 async function fetchItems(items, {label="Actualizando versiones de tu colección"}={}){
@@ -620,8 +641,10 @@ function combos2(d){ return (d.combos && d.combos.inc || []).filter(c=>c.cards.l
 function bracketOf(d,A){
   const c2 = combos2(d).length, gcN = A.gc.length; let b, why=[];
   if (gcN>=4 || A.mld.length || c2){ b=4; if(gcN>=4) why.push(`${gcN} Game Changers (más de 3)`); if(A.mld.length) why.push("destrucción masiva de tierras"); if(c2) why.push(`${c2} combo${c2>1?"s":""} de 2 cartas`); }
-  else if (gcN>=1 || A.xt.length>2 || A.tutors.length>3){ b=3; if(gcN) why.push(`${gcN} Game Changer${gcN>1?"s":""}`); if(A.xt.length>2) why.push("varios turnos extra"); if(A.tutors.length>3) why.push(`${A.tutors.length} tutores`); }
+  else if (gcN>=1 || A.xt.length>2){ b=3; if(gcN) why.push(`${gcN} Game Changer${gcN>1?"s":""}`); if(A.xt.length>2) why.push("varios turnos extra"); }
   else { b=2; why.push("sin Game Changers"+(d.combos?", sin combos de 2 cartas":"")); if (!A.tutors.length && !A.xt.length) why.push("sin tutores ni turnos extra (podría ser 1 si es temático)"); }
+  // los tutores no cambian el bracket oficial (son una recomendación): se reflejan en el realista
+  if (b<=3 && A.tutors.length>3) why.push(`${A.tutors.length} tutores: juega más fuerte de lo que dice su bracket`);
   return {b, why:why.join(" · "), exact:!!d.combos};
 }
 function health(d,A,sim){

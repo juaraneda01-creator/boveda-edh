@@ -14,6 +14,8 @@ const TAG_DEFS = [
   // sacrificio
   {k:"sacOutlet", es:"sacrifica a voluntad", re:/sacrifice (a|another|an?(?: \w+)?) (creature|artifact|permanent|token)[^.]*?:|, sacrifice (a|another) creature:/},
   {k:"dies", es:"aprovecha muertes", re:/whenever (this or )?(a|another|one or more)( other)?( nontoken)? creatures?( you control| an opponent controls)? (dies|die|is put into a graveyard)|whenever you sacrifice|whenever (a|another) (creature|permanent) you control is put into|a creature dying causes/},
+  {k:"minusCounters", es:"pone contadores -1/-1", re:/put (a|one|two|three|x|that many|\d+) -1\/-1 counters?|-1\/-1 counters? on (each|target|up to|that)|\bwither\b|\binfect\b|\bpersist\b/},
+  {k:"minusPay", es:"aprovecha contadores -1/-1", re:/whenever (you put )?one or more -1\/-1 counters|whenever a -1\/-1 counter is put|with a -1\/-1 counter on it dies|toughness (was )?less than 1|base toughness 1/},
   {k:"sacFodder", es:"deja cuerpos para sacrificar", re:/when (this|this creature) dies,? (create|return|you create)|\bpersist\b|\bundying\b/},
   // contadores
   {k:"counters", es:"pone contadores +1/+1", re:/put (a|one|two|three|x|that many|\d+) \+1\/\+1 counters?|enters with (a|one|two|three|x|\d+) \+1\/\+1 counters?|\bmodular\b|\boutlast\b|\badapt\b|\bbolster\b|\bevolve\b|\bexplores?\b/},
@@ -67,6 +69,7 @@ const TAG_ES = Object.fromEntries(TAG_DEFS.map(d=>[d.k, d.es]));
 // temas: qué etiquetas dan y cuáles aprovechan; min = mínimo razonable de cada lado en 100 cartas
 const THEMES = [
   {k:"tokens", es:"Fichas", en:["token","artifactMake","copyPerm"], pay:["tokenPay","sacOutlet","dies"], min:[8,4]},
+  {k:"minus", es:"Contadores -1/-1", en:["minusCounters"], pay:["minusPay"], min:[6,3]},
   {k:"aristocrats", es:"Sacrificio (aristócratas)", en:["sacOutlet","token","sacFodder"], pay:["dies"], min:[4,3]},
   {k:"counters", es:"Contadores +1/+1", en:["counters"], pay:["countersPay","proliferate"], min:[8,3]},
   {k:"landfall", es:"Tierras (landfall)", en:["landDrop"], pay:["landfall"], min:[8,4]},

@@ -691,3 +691,11 @@ body.web [data-act="fetch-meta"],body.web [data-act="fetch-meta-all"],body.web [
   .td table{font-size:.88rem}.td .td-rank{display:none}
   .td-staples{columns:1}
 }
+
+/* cartas por pilar */
+.pc .subtabs{margin:0;flex-wrap:wrap;overflow:visible}
+.pc-list{display:grid}
+.pc-row{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
+.pc-row b{color:var(--accent)}
+.pc-combos{display:grid;gap:8px}
+.pc-combo{display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--bg)}

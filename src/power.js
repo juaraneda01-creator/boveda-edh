@@ -22,9 +22,13 @@ function saltOf(n, m){
   if (m.mld) s += 1.4;
   if (m.xt) s += 1;
   if (tg.includes("theft")) s += 0.6;
-  if ((m.r||[]).includes("tutor")) s += 0.35;
+  if ((m.r||[]).includes("tutor")) s += 0.5;
   if ((m.sb||[]).includes("counter")) s += 0.3;
-  if ((m.r||[]).includes("wipe")) s += 0.3;
+  if ((m.r||[]).includes("wipe")) s += 0.45;
+  const rf = m.rf || [];
+  if (rf.includes("edict")) s += 0.7;
+  if (rf.includes("hoser")) s += 1.0;
+  if (rf.includes("deathDrain") || rf.includes("wcDrain")) s += 0.2;
   if (FAST_MANA.has(String(n).toLowerCase())) s += 0.4;
   if (m.gc) s += 0.4;
   return Math.min(1.6, s);
@@ -39,6 +43,18 @@ async function loadSaltLive(){
   } catch { toast(typeof offlineMsg==="function" ? offlineMsg("EDHREC") : "EDHREC no respondió."); }
 }
 idb.get("salt").then(v=>{ if (v && v.map) S.salt = v; });
+
+/* ---------- motor de sacrificio que cierra partidas (sin depender de Commander Spellbook) ---------- */
+// salida de sacrificio + cartas que drenan por cada muerte + cuerpos que vuelven o se multiplican = bucle que gana
+function comboEngine(rows){
+  const has = (m,k) => (m.tg||[]).includes(k) || (m.rf||[]).includes(k);
+  const q = f => rows.filter(r=>r.m && f(r.m)).reduce((a,r)=>a+r.q,0);
+  const outlets = q(m=>has(m,"sacOutlet") && m.t!=="Land");
+  const drains = q(m=>has(m,"deathDrain"));
+  const fodder = q(m=>has(m,"sacFodder") || (has(m,"minusPay") && has(m,"token")) || (has(m,"token") && has(m,"dies")));
+  const loops = outlets>=2 && drains>=2 && fodder>=3 ? Math.min(4, Math.floor(Math.min(outlets, drains, fodder/2))) : 0;
+  return {outlets, drains, fodder, loops};
+}
 
 /* ---------- evaluación ---------- */
 const clamp10 = x => Math.max(0, Math.min(10, x));
@@ -56,13 +72,15 @@ function powerOf(d, A){
   const c3 = d.combos ? (d.combos.inc||[]).filter(c=>c.cards.length===3).length : null;
   const Y = typeof synergyOf==="function" ? synergyOf(d, A) : null;
   const scale = A.isC ? 1 : 0.6;
+  const E = comboEngine(rows);
+  const tutorQ = rows.filter(r=>(r.m.r||[]).includes("tutor")).reduce((a,r)=>a + r.q*((r.m.tq!=null ? r.m.tq : 60)/100), 0);
   const comp = [
-    {k:"accel", es:"Aceleración", v:clamp10(fast*1.4 + cheapRamp*0.45/scale), why:`${fast} de maná rápido, ${cheapRamp} ramp de 2 o menos`, w:0.17},
-    {k:"tutors", es:"Tutores", v:clamp10(A.tutors.length*1.3/scale), why:`${A.tutors.length} tutores`, w:0.13},
+    {k:"accel", es:"Aceleración", v:clamp10(fast*1.2 + cheapRamp*0.3/scale), why:`${fast} de maná rápido, ${cheapRamp} ramp de 2 o menos`, w:0.17},
+    {k:"tutors", es:"Tutores", v:clamp10(tutorQ*1.4/scale), why:`${A.tutors.length} tutores (calidad ${A.tutors.length?Math.round(100*tutorQ/A.tutors.length):0}/100)`, w:0.13},
     {k:"interaction", es:"Interacción", v:clamp10((A.roles.removal + A.roles.wipe*1.3 + free*1.5)/1.6/scale), why:`${A.roles.removal} removal, ${A.roles.wipe} barridos, ${free} gratis`, w:0.13},
     {k:"cards", es:"Ventaja de cartas", v:clamp10(A.roles.draw*0.8/scale), why:`${A.roles.draw} fuentes de robo`, w:0.11},
     {k:"efficiency", es:"Eficiencia", v:!A.spells ? null : clamp10(10 - (A.avg-1.9)*3.2 - (sim && sim.pScrew ? sim.pScrew*8 : 0)), why:`CMC promedio ${A.avg.toFixed(2)}${sim?`, ${Math.round((sim.pScrew||0)*100)}% manos atascadas`:""}`, w:0.13},
-    {k:"combo", es:"Combos", v:c2==null ? null : clamp10(c2*3.5 + c3*1.2), why:c2==null ? "sin revisar (usa Buscar combos)" : `${c2} de 2 cartas, ${c3} de 3`, w:0.2},
+    {k:"combo", es:"Combos", v:c2==null ? (E.loops ? clamp10(E.loops*1.6) : null) : clamp10(c2*3.5 + c3*1.2 + E.loops*0.8), why:c2==null ? (E.loops ? `motor de sacrificio (${E.outlets} salidas, ${E.drains} drenajes); busca combos para confirmar` : "sin revisar (usa Buscar combos)") : `${c2} de 2 cartas, ${c3} de 3${E.loops?", motor de sacrificio":""}`, w:0.2},
     {k:"synergy", es:"Sinergia", v:Y ? clamp10(Y.cohesion/10) : null, why:Y ? `cohesión ${Y.cohesion}%` : "", w:0.08},
   ];
   const have = comp.filter(c=>c.v!=null);
@@ -82,7 +100,7 @@ function powerOf(d, A){
   const saltLabel = salt>=70 ? "Muy salado" : salt>=45 ? "Salado" : salt>=25 ? "Picante" : "Suave";
   const threatCards = rows.filter(r=>(r.m.tg||[]).some(k=>["stax","drawPay","theft","extraCombat"].includes(k)) || ((r.m.r||[]).includes("draw") && r.m.t!=="Instant" && r.m.t!=="Sorcery") || (r.m.sb||[]).includes("counter"));
   const threat = Math.round(clamp10((threatCards.length*0.3 + stax*0.8 + A.gc.length*0.4) / (A.isC?1:0.6)) * 10) / 10;
-  return {power, abs, comp, real, official, cedh, salt, saltLabel, saltTop:salty.slice(0,10), threat, threatCards, sim, c2};
+  return {power, abs, comp, E, real, official, cedh, salt, saltLabel, saltTop:salty.slice(0,10), threat, threatCards, sim, c2};
 }
 
 /* ---------- vista del mazo ---------- */

@@ -119,7 +119,7 @@ function deckHTML(d){
 }
 function missingBanner(A){
   if (S.busy || !A.missing.length) return "";
-  return `<div class="banner"><span><b class="num">${A.missing.length}</b> carta${A.missing.length>1?"s":""} sin datos todavía. El análisis las cuenta como desconocidas.</span><button class="btn sm primary" data-act="fetch">Actualizar cartas</button></div>`;
+  return `<div class="banner"><span><b class="num">${A.missing.length}</b> carta${A.missing.length>1?"s":""} sin datos todavía. El análisis las cuenta como desconocidas.${S.lastFetchErr?`<br><small class="down">${esc(S.lastFetchErr)}</small>`:""}${S.busy?`<br><small class="muted">Hay una actualización en curso (${esc(S.busy.label||"")}); al terminar se completan.</small>`:""}</span><button class="btn sm primary" data-act="fetch">Actualizar cartas</button></div>`;
 }
 function ringSVG(score){
   const r=40, c=2*Math.PI*r, col = score>=80?"var(--good)":score>=60?"var(--warn)":"var(--bad)";

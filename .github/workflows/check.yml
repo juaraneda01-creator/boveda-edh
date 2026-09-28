@@ -23,4 +23,4 @@ jobs:
       - name: Instalar navegador de prueba
         run: pip install playwright && python -m playwright install --with-deps chromium
       - name: Recorrer la página
-        run: python3 tests/smoke.py && python3 tests/report_test.py
+        run: python3 tests/smoke.py && python3 tests/report_test.py && python3 tests/fetch_test.py

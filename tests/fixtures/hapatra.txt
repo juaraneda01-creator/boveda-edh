@@ -1,0 +1,83 @@
+Commander
+1 Hapatra, Vizier of Poisons
+
+Deck
+1 Vraska, Betrayal's Sting
+1 Birds of Paradise
+1 Blood Artist
+1 Braids, Arisen Nightmare
+1 Bristlebane Battler
+1 Delighted Halfling
+1 Elves of Deep Shadow
+1 Fauna Shaman
+1 Freestrider Lookout
+1 Fynn, the Fangbearer
+1 Generous Patron
+1 Grave Researcher // Reanimate
+1 Maha, Its Feathers Night
+1 Massacre Girl, Known Killer
+1 Necroskitter
+1 Obelisk Spider
+1 Ohran Frostfang
+1 Saryth, the Viper's Fang
+1 Savra, Queen of the Golgari
+1 Sightless Ghoul
+1 Sinister Gnarlbark
+1 The Serpent Society
+1 Toski, Bearer of Secrets
+1 Ulvenwald Tracker
+1 Umbral Collar Zealot
+1 Viscera Seer
+1 Vraska, the Silencer
+1 Warren Soultrader
+1 Yawgmoth, Thran Physician
+1 Young Wolf
+1 Zulaport Cutthroat
+1 Arcane Signet
+1 Cauldron of Essence
+1 Skullclamp
+1 Sol Ring
+1 Springleaf Drum
+1 Talisman of Resilience
+1 Abrupt Decay
+1 Assassin's Trophy
+1 Beast Within
+1 Blossoming Defense
+1 Chord of Calling
+1 Dark Ritual
+1 Deadly Rollick
+1 Defend the Rider
+1 Dina's Guidance
+1 Fell the Profane // Fell Mire
+1 Go for the Throat
+1 Heroic Intervention
+1 Nature's Claim
+1 Revitalizing Repast // Old-Growth Grove
+1 Black Sun's Zenith
+1 Blasphemous Edict
+1 Buried Alive
+1 Cultivate
+1 Diabolic Intent
+1 Insatiable Avarice
+1 Lively Dirge
+1 Nature's Rhythm
+1 Persist
+1 Victimize
+1 Cryptolith Rite
+1 Flourishing Defenses
+1 Insidious Roots
+1 Nest of Scarabs
+1 Sothera, the Supervoid
+1 Vraska Joins Up
+1 Command Tower
+1 Darkbore Pathway // Slitherbore Pathway
+1 Evolving Wilds
+1 Fabled Passage
+11 Forest
+1 Llanowar Wastes
+1 Necroblossom Snarl
+11 Swamp
+1 Tainted Wood
+1 Twilight Mire
+1 Undergrowth Stadium
+1 Woodland Cemetery

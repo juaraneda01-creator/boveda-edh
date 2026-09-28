@@ -4,7 +4,7 @@
    base casual o cEDH, tabla nutricional, radiografía por áreas
    y tarjeta de regla 0 para conversar el nivel antes de jugar.
    ========================================================= */
-const RF_V = 1;   // versión de las marcas de cada carta; si sube, se vuelven a calcular
+const RF_V = 2;   // versión de las marcas de cada carta; si sube, se vuelven a calcular
 
 // marcas extra por carta, calculadas con el texto de Oracle (se guardan en m.rf y m.tq)
 function cardFlags(o, t, tl){
@@ -24,12 +24,15 @@ function cardFlags(o, t, tl){
   if (/creatures you control get \+|other (\w+ ){1,2}(creatures )?(you control )?get \+|\w+s you control get \+\d|creatures you control (gain|have) (trample|double strike|flying)|can't be blocked|additional combat|double strike|\w+walk\b/.test(o)) f.add("wcCombat");
   if (/spells? you cast (of the chosen type |that share a creature type )?costs? \{\d\} less|(\w+ )?(creature )?spells (and \w+ spells )?you cast (of the chosen type )?cost \{\d\} less/.test(o)) f.add("reducer");
   if (/(^|\n)infect|toxic \d|poison counter/.test(o)) f.add("wcPoison");
+  if (/(each|target) (opponent|other player|player)s? sacrifices?|each player sacrifices/.test(o)) f.add("edict");
+  if (/base toughness 1|creatures your opponents control (get|have) -|(opponents|players) can't (cast|untap|search|draw more)/.test(o)) f.add("hoser");
+  if (/whenever [^.]*(creature|another creature)[^.]*dies[^.]*(loses|deals? \d+ damage to each opponent)|whenever you sacrifice [^.]*(loses|damage)/.test(o)) f.add("deathDrain");
   if (perm && !land && /whenever|at the beginning of/.test(o)) f.add("repeat");
   if (!perm && /draw|create|search your library|return|put [^.]*counter|onto the battlefield/.test(o)) f.add("oneShot");
   if (/when(ever)? [^.]*(enters|enter the battlefield)/.test(o)) f.add("etb");
   if (/when(ever)? [^.]*dies|when(ever)? [^.]*is put into a graveyard from the battlefield/.test(o)) f.add("dies");
   if (/(search your library for|put) [^.]*\bland (card|cards)?[^.]*onto the battlefield|put (a|up to (one|two)) land cards? from your hand onto the battlefield|play (an|two) additional lands?|search your library for (a|up to (one|two|three)) basic land/.test(o) && !land) f.add("landRamp");
-  if (/(return|put) [^.]*from (your|a) graveyard (to|onto|into)|return target [^.]*card from your graveyard/.test(o)) f.add("recursion");
+  if (/(return|put) [^.]*from (your|a) graveyard (to|onto|into)|return target [^.]*card from your graveyard|return the chosen cards to the battlefield|return (that card|it) to the battlefield under your control|(^|\n)(undying|persist)\b/.test(o)) f.add("recursion");
   if (land){
     if (/search your library for/.test(o)) f.add("fetch");
     const lines = o.replace(/\([^)]*\)/g,"").split("\n").map(x=>x.trim()).filter(Boolean);
@@ -122,8 +125,9 @@ function reportOf(d, A){
   const paths = [];
   const combatN = sum(rows.filter(r=>has(r,"wcCombat") || (r.m.tg||[]).includes("extraCombat")));
   if (combatN>=3 || sum(nonland.filter(r=>r.m.t==="Creature"))>=25) paths.push({k:"combat", es:"Combate", n:combatN});
-  const drainN = cnt("wcDrain"); if (drainN>=2) paths.push({k:"drain", es:"Drenar vidas", n:drainN});
+  const drainN = cnt("wcDrain") + cnt("deathDrain"); if (drainN>=2) paths.push({k:"drain", es:"Drenar vidas", n:drainN});
   if (c2>0 || (d.combos && (d.combos.inc||[]).length)) paths.push({k:"combo", es:"Combo", n:(d.combos&&(d.combos.inc||[]).length)||c2});
+  else if (P.E && P.E.loops) paths.push({k:"combo", es:"Bucle de sacrificio", n:P.E.loops});
   const altN = cnt("wcAlt"); if (altN) paths.push({k:"alt", es:"Victoria alternativa", n:altN});
   const millN = cnt("wcMill"); if (millN>=2) paths.push({k:"mill", es:"Moler", n:millN});
   const poisonN = cnt("wcPoison"); if (poisonN>=3) paths.push({k:"poison", es:"Veneno", n:poisonN});
@@ -159,7 +163,7 @@ function reportOf(d, A){
     {es:"Control", v: (counters*1.2 + inter.wipes*1.4 + removal*0.6 + (timing.pct||0)/20) * (creatures>=22 ? 0.3 : creatures>=15 ? 0.6 : 1)},
     {es:"Aggro", v: (creatures>=28?4:creatures/8) + (A.avg<=2.6?3:0) + combatN*0.3 - counters*0.5},
     {es:"Midrange", v: 4 + (creatures>=15 && creatures<=34 ? 2 : 0) + Math.min(3, interTotal/8) - Math.abs(A.avg-3)},
-    {es:"Combo", v: c2*3 + tutors.n*0.7 + (altN?2:0)},
+    {es:"Combo", v: c2*3 + (P.E ? P.E.loops*2.5 : 0) + tutors.n*0.7 + (altN?2:0)},
     {es:"Stax", v: deny.stax*1.5 + deny.tax*0.6},
     {es:"Ramp", v: ramp.n*0.35 + ramp.land*0.3 + curve.fin*0.5 - 1},
   ].sort((a,b)=>b.v-a.v);
@@ -184,7 +188,7 @@ function reportOf(d, A){
     {k:"eff", es:"Eficiencia", v:clamp10(10 - (A.avg-1.9)*2.6 + ramp.n*0.12 + curve.cheap*0.06 - 1.2), why:`CMC ${A.avg.toFixed(2)}, ${curve.cheap} baratas, ${ramp.n} ramp`},
     {k:"speed", es:"Velocidad", v:clamp10(fast*1.3 + sum(rampR.filter(r=>(r.m.cmc||0)<=2))*0.45 + (A.avg<=2.6?1.5:A.avg<=3.2?0.7:0)), why:`${fast} maná rápido, ${sum(rampR.filter(r=>(r.m.cmc||0)<=2))} ramp de 2 o menos`},
     {k:"inter", es:"Interacción", v:clamp10(inter10 + inter.free*0.5 + ((timing.pct||0)>=80?0.5:0)), why:`${interTotal} piezas, ${inter.free} gratis`},
-    {k:"wins", es:"Remates", v:clamp10(paths.length*1.5 + c2*2.2 + Math.min(2, curve.fin*0.4) + Math.min(5, combatN*0.4) + (altN?1:0)), why: paths.length ? paths.map(p=>p.es.toLowerCase()).join(", ") : "sin remate claro"},
+    {k:"wins", es:"Remates", v:clamp10(paths.length*1.5 + c2*2.2 + (P.E ? Math.min(4, P.E.loops*2) : 0) + Math.min(2, drainN*0.35) + Math.min(2, curve.fin*0.4) + Math.min(5, combatN*0.4) + (altN?1:0)), why: paths.length ? paths.map(p=>p.es.toLowerCase()).join(", ") : "sin remate claro"},
     {k:"res", es:"Resiliencia", v:clamp10(cards.rec*0.8 + inter.protect*0.7 + engine.rep*0.08 + (cards.draw>=10?1:0)), why:`${cards.rec} reciclaje, ${inter.protect} protección`},
   ];
   const BASE = {casual:{cons:4.5, eff:5, speed:3, inter:4.5, wins:4.5, res:4}, cedh:{cons:9, eff:9, speed:9, inter:8.5, wins:8.5, res:7}};
@@ -193,9 +197,9 @@ function reportOf(d, A){
   const nutri = DV.map(([es, n, ref])=>({es, n, pct: Math.round(100*n/ref)}));
   const report = {grades:[
       {es:"Sal", v:P.salt, g:GRADE(P.salt/10), s:P.saltLabel},
-      {es:"Interacción", v:interTotal, g:GRADE(pill[3].v), s:`${interTotal} piezas`},
+      {es:"Interacción", v:interTotal, g:GRADE(pill[3].v*0.855), s:`${interTotal} piezas`},
       {es:"Remates", v:paths.length, g:GRADE(pill[4].v), s:wins.lv.es.toLowerCase()},
-      {es:"Sinergia", v:syn?syn.score:null, g:syn?GRADE(syn.score/10):"—", s:syn?`${syn.score}% conectado`:"sin datos"},
+      {es:"Sinergia", v:syn?syn.score:null, g:syn?GRADE(Math.min(10, syn.score/10*1.24)):"—", s:syn?`${syn.score}% conectado`:"sin datos"},
     ]};
   const R = {P, Y, abs: P.abs, type: DECK_TYPE(P.power), tier: cmdTier(d), plan, strat, chips, mana, comp, nonlandN, compN, permN, curve, ramp, tutors, cards, inter, deny, timing, wins, engine, tribe, syn, pill, BASE, nutri, report, creatures, stale};
   _repMemo.set(d, {ep:_anaEpoch, A, R});
@@ -250,6 +254,8 @@ function reportHTML(d, A){
     <div class="rp-pills">${R.pill.map(p=>{ const b = B[p.k]; const diff = Math.round(100*(p.v-b)/b); return `<div class="rp-pill"><span class="rp-pn">${p.es}</span><span class="rp-track"><i style="width:${p.v*10}%"></i><em style="left:${b*10}%" title="base ${base==="casual"?"casual":"cEDH"}: ${b}"></em></span><span class="num rp-pv">${p.v.toFixed(1)}</span><span class="rp-diff ${diff>=0?"up":"down"} num">${diff>=0?"▲":"▼"} ${Math.abs(diff)}%</span><span class="muted rp-why">${esc(p.why)}</span></div>`; }).join("")}</div>
     <p class="foot">La marca vertical es un mazo ${base==="casual"?"casual típico (bracket 2–3)":"de cEDH típico"}; el porcentaje dice cuánto te alejas de esa base.</p></section>
 
+  ${pillarCardsHTML(d, A)}
+
   <div class="rp-grid">
     ${repBoxHTML("Base de maná", lvPill(R.mana.lv.k==="dense"?{k:"dense",es:"Densa"}:R.mana.lv.k==="mod"?{k:"mod",es:"Justa"}:{k:"light",es:"Corta"}), `<p class="muted rp-sub">${R.mana.colors} color${R.mana.colors===1?"":"es"}</p><div class="rp-big"><b class="num">${R.mana.lands}</b> tierras</div>
       <div class="rp-split"><i style="flex:${R.mana.basics||0.01}">${R.mana.basics} básicas</i><i style="flex:${R.mana.nonbasic||0.01}">${R.mana.nonbasic} no básicas</i></div>
@@ -283,6 +289,65 @@ function reportHTML(d, A){
   <section class="rp-card rp-r0"><div><h4>Tarjeta de regla 0</h4><p class="muted" style="margin:0">Una imagen con el nivel, el bracket, el plan y las cartas que conviene avisar. Mándala al grupo antes de jugar.</p></div>
     <div class="row"><button class="btn primary" data-rp="r0">Crear tarjeta</button><button class="btn" data-rp="r0-text">Copiar como texto</button></div></section>
   </div>`;
+}
+
+/* ---------- cartas por pilar (qué aporta cada carta) ---------- */
+const PILLAR_GROUPS = [
+  {k:"cons", es:"Consistencia", subs:[["draw","Robo"],["rec","Reciclaje"],["sel","Selección"],["tutor","Tutores"]]},
+  {k:"eff", es:"Eficiencia", subs:[["fast","Maná rápido"],["ramp","Ramp"],["red","Reductores"]]},
+  {k:"inter", es:"Interacción", subs:[["removal","Removal"],["counter","Contrahechizos"],["wipe","Barridos"],["protect","Protección"],["evasion","Evasión"],["control","Otro control"],["stax","Stax"]]},
+  {k:"wins", es:"Remates", subs:[["combo","Combos"],["drain","Drenaje"],["tokens","Fichas"],["stompy","Criaturas grandes"],["combat","Combate"],["poison","Veneno"]]},
+];
+function pillarCards(d, A){
+  const cmdTags = new Set(A.cmdMeta.filter(Boolean).flatMap(m=>[...(m.tg||[]), ...(m.rf||[])]));
+  const rows = [...A.cmdMeta.filter(Boolean).map(m=>({n:m.n, q:1, m, cmd:true})), ...A.rows.filter(r=>r.m && r.m.t!=="Land")];
+  const has = (m,k) => (m.tg||[]).includes(k) || (m.rf||[]).includes(k) || (m.r||[]).includes(k);
+  const isInst = m => m.t==="Instant" || has(m,"flash");
+  const cheap = m => Math.max(0, 6 - (m.cmc||0));
+  const out = {};
+  const add = (sub, r, score) => { (out[sub] = out[sub] || []).push({n:r.n, m:r.m, cmd:!!r.cmd, s:Math.round(score*10)/10, syn: !r.cmd && ((r.m.tg||[]).some(k=>cmdTags.has(k)) || (r.m.rf||[]).some(k=>["minusCounters","minusPay","deathDrain"].includes(k) && cmdTags.has(k)))}); };
+  for (const r of rows){ const m = r.m;
+    if (has(m,"draw")) add("draw", r, 8 + (has(m,"repeat")?6:0) + cheap(m)*0.6);
+    if (has(m,"recursion") || has(m,"reanimate")) add("rec", r, 8 + cheap(m)*0.8 + (m.t==="Instant"?1:0));
+    if (has(m,"select")) add("sel", r, 5 + cheap(m)*0.5);
+    if (has(m,"tutor")) add("tutor", r, (m.tq!=null?m.tq:60)/5 + cheap(m)*0.4);
+    if (FAST_MANA.has(r.n.toLowerCase())) add("fast", r, 14 + cheap(m)*0.3);
+    else if (has(m,"ramp") || has(m,"landRamp")) add("ramp", r, 6 + cheap(m)*1.1 + ((m.pm||[]).length>2?0.6:0));
+    if (has(m,"reducer")) add("red", r, 6 + cheap(m)*0.6);
+    const counter = has(m,"counter") || (m.sb||[]).includes("counter");
+    if (counter) add("counter", r, 9 + cheap(m)*1.2 + (FREE_INTERACTION.has(r.n.toLowerCase())?4:0));
+    else if (has(m,"removal")) add("removal", r, 8 + cheap(m)*1.4 + (isInst(m)?1.5:0) + (FREE_INTERACTION.has(r.n.toLowerCase())?4:0));
+    if (has(m,"wipe")) add("wipe", r, 10 + cheap(m)*0.8);
+    if (has(m,"protect") || has(m,"protection")) add("protect", r, 6 + cheap(m)*1 + (isInst(m)?1:0));
+    if (has(m,"evasion")) add("evasion", r, 5 + cheap(m)*0.5);
+    if (has(m,"tax") || has(m,"hoser") || has(m,"edict")) add("control", r, 7 + cheap(m)*0.6);
+    if ((m.tg||[]).includes("stax")) add("stax", r, 10 + cheap(m)*0.6);
+    if (has(m,"deathDrain") || has(m,"wcDrain")) add("drain", r, 9 + cheap(m)*0.8);
+    if (has(m,"token") && m.t!=="Instant" && m.t!=="Sorcery") add("tokens", r, 6 + (has(m,"repeat")?3:0) + cheap(m)*0.4);
+    if (m.t==="Creature" && (m.cmc||0)>=6) add("stompy", r, 6 + (m.cmc||0)*0.8);
+    if (has(m,"wcCombat") || (m.tg||[]).includes("extraCombat")) add("combat", r, 6 + (has(m,"repeat")?2:0) + cheap(m)*0.4);
+    if (has(m,"wcPoison") || has(m,"poison")) add("poison", r, 8);
+  }
+  for (const k of Object.keys(out)) out[k].sort((a,b)=>b.s-a.s);
+  return out;
+}
+function pillarCardsHTML(d, A){
+  const P = pillarCards(d, A);
+  const g = PILLAR_GROUPS.find(x=>x.k===(S.rpPil||"cons")) || PILLAR_GROUPS[0];
+  const sub = g.subs.some(([k])=>k===S.rpSub) ? S.rpSub : null;
+  const seen = new Set(); const list = (sub ? (P[sub]||[]) : g.subs.flatMap(([k])=>P[k]||[])).filter(x=>{ if (seen.has(x.n)) return false; seen.add(x.n); return true; }).sort((a,b)=>b.s-a.s);
+  const combosHTML = () => {
+    const inc = (d.combos && d.combos.inc) || [];
+    if (inc.length) return `<div class="pc-combos">${inc.slice(0,12).map(c=>`<div class="pc-combo">${c.cards.map(n=>`<span class="pill neutral">${cardName(n)}</span>`).join("")}${c.prod&&c.prod.length?`<small class="muted">${esc(c.prod.slice(0,2).join(" · "))}</small>`:""}</div>`).join("")}</div>`;
+    const E = powerOf(d, A).E;
+    return `<p class="muted" style="margin:0">${E && E.loops ? `Motor de sacrificio detectado: ${E.outlets} salidas, ${E.drains} cartas que drenan y ${E.fodder} cuerpos que vuelven. ` : ""}Para ver los combos exactos, búscalos en Commander Spellbook.</p><button class="btn sm" data-act="combos">Buscar combos</button>`;
+  };
+  return `<section class="rp-card pc"><h4 class="sc">cartas por pilar</h4>
+    <div class="subtabs" role="tablist">${PILLAR_GROUPS.map(x=>`<button class="subtab" role="tab" data-rp-pil="${x.k}" aria-selected="${x.k===g.k}">${x.es}</button>`).join("")}</div>
+    <div class="chips">${g.subs.filter(([k])=>(P[k]||[]).length || k==="combo").map(([k,es])=>`<button class="chip" data-rp-sub="${k}" aria-pressed="${sub===k}">${es} <b class="num">${k==="combo" ? ((d.combos&&d.combos.inc||[]).length || "?") : (P[k]||[]).length}</b></button>`).join("")}</div>
+    ${sub==="combo" ? combosHTML() : list.length ? `<div class="pc-list">${list.slice(0, 40).map(x=>`<div class="pc-row"><span>${cardName(x.n, x.m)}${x.cmd?` <span class="pill good">comandante</span>`:x.syn?` <span class="pill neutral" title="Comparte mecánica con tu comandante">★ comandante</span>`:""}</span><b class="num">${x.s.toFixed(1)}</b></div>`).join("")}</div>
+      <p class="foot">El número es el impacto estimado de la carta en ese pilar (costo, velocidad y si se repite). ★ = trabaja con tu comandante.</p>` : `<p class="muted">Ninguna carta del mazo aporta aquí.</p>`}
+  </section>`;
 }
 
 /* ---------- tarjeta de regla 0 ---------- */
@@ -342,6 +407,8 @@ function recordPower(d, A){
 
 document.addEventListener("click", async ev => {
   const bb = ev.target.closest("[data-rp-base]"); if (bb){ S.rpBase = bb.dataset.rpBase; render(); return; }
+  const pl = ev.target.closest("[data-rp-pil]"); if (pl){ S.rpPil = pl.dataset.rpPil; S.rpSub = null; render(); return; }
+  const ps = ev.target.closest("[data-rp-sub]"); if (ps){ S.rpSub = S.rpSub===ps.dataset.rpSub ? null : ps.dataset.rpSub; render(); return; }
   const b = ev.target.closest("[data-rp]"); if (!b) return;
   const d = S.data.decks.find(x=>x.id===S.sel[S.view]); if (!d) return;
   const A = analyze(d);

@@ -709,6 +709,14 @@ body.web [data-act="fetch-meta"],body.web [data-act="fetch-meta-all"],body.web [
   .td table{font-size:.88rem}.td .td-rank{display:none}
   .td-staples{columns:1}
 }
+
+/* cartas por pilar */
+.pc .subtabs{margin:0;flex-wrap:wrap;overflow:visible}
+.pc-list{display:grid}
+.pc-row{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
+.pc-row b{color:var(--accent)}
+.pc-combos{display:grid;gap:8px}
+.pc-combo{display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--bg)}
 </style>
 </head>
 <body>
@@ -1932,33 +1940,54 @@ async function sf(url, body){
 }
 function setBusy(label,total){ S.busy={label,done:0,total}; render(); }
 function stepBusy(n){ if(S.busy){ S.busy.done=Math.min(S.busy.total,n); renderBusy(); } }
+// nombre limpio para Scryfall: sin código de edición, número, marcas de foil ni espacios dobles
+function cleanCardName(n){ return String(n||"").replace(/[\u2018\u2019]/g,"'").replace(/\s*\*[A-Z]+\*\s*$/i,"").replace(/\s*\([A-Za-z0-9]{2,6}\)\s*[\w-]*\s*$/,"").replace(/\s+/g," ").trim(); }
 async function fetchCards(names, {force=false, label="Buscando cartas en Scryfall", quiet=false}={}){
   if (isWebView()) return webFetchCards(names, {force, quiet});
   const maxAge = 7*864e5;
   const todo = [...new Map(names.filter(Boolean).map(n=>[slug(n), String(n).trim()])).values()]
-    .filter(n=>!BASICS.has(slug(n)) && (force || !S.cards[slug(n)] || Date.now()-(S.cards[slug(n)].at||0) > maxAge));
+    .filter(n=>n && !BASICS.has(slug(n)) && (force || !S.cards[slug(n)] || Date.now()-(S.cards[slug(n)].at||0) > maxAge));
   if (!todo.length) return 0;
   const own = !S.busy; if (own) setBusy(label, todo.length);
-  let found=0; const notFound=[];
+  let found=0, done=0, offline=false; const notFound=[];
+  const keep = (c, asked) => { const prev=S.cards[slug(c.name)]; const v=fromScry(c); if (prev&&prev.minAt){ v.min=prev.min; v.minE=prev.minE; v.minAt=prev.minAt; v.minP=prev.minP; }
+    S.cards[slug(c.name)] = v; const front = c.name.split(" // ")[0]; if (front!==c.name && !S.cards[slug(front)]) S.cards[slug(front)] = v; if (asked && slug(asked)!==slug(c.name)) S.cards[slug(asked)] = v; found++; };
+  // un lote rechazado se divide: una carta con nombre raro ya no deja sin datos a las otras 74
+  const batch = async (chunk) => {
+    let r;
+    try { r = await sf("https://api.scryfall.com/cards/collection", {identifiers: chunk.map(n=>({name:cleanCardName(n).split(" // ")[0]}))}); }
+    catch(e){ offline = true; S.lastFetchErr = "No se pudo conectar con Scryfall: revisa tu conexión. Si abriste el archivo descargado en el teléfono, usa boveda-edh.netlify.app."; return; }
+    if (!r.ok){
+      S.lastFetchErr = `Scryfall respondió ${r.status}.`;
+      if (chunk.length > 1){ const h = Math.ceil(chunk.length/2); await batch(chunk.slice(0,h)); if (!offline) await batch(chunk.slice(h)); }
+      else notFound.push(chunk[0]);
+      return;
+    }
+    const j = await r.json();
+    const byClean = new Map(chunk.map(n=>[slug(cleanCardName(n).split(" // ")[0]), n]));
+    for (const c of j.data||[]) keep(c, byClean.get(slug(c.name.split(" // ")[0])));
+    for (const nf of j.not_found||[]) if (nf.name) notFound.push(byClean.get(slug(nf.name)) || nf.name);
+  };
   try{
-    for (let i=0;i<todo.length;i+=75){
+    for (let i=0;i<todo.length && !offline;i+=75){
       const chunk = todo.slice(i,i+75);
-      const r = await sf("https://api.scryfall.com/cards/collection", {identifiers: chunk.map(n=>({name:n.split(" // ")[0]}))});
-      if (!r.ok) throw new Error("Scryfall "+r.status);
-      const j = await r.json();
-      for (const c of j.data||[]){ const prev=S.cards[slug(c.name)]; const v=fromScry(c); if (prev&&prev.minAt){ v.min=prev.min; v.minE=prev.minE; v.minAt=prev.minAt; v.minP=prev.minP; } S.cards[slug(c.name)] = v; found++; }
-      for (const nf of j.not_found||[]) if (nf.name) notFound.push(nf.name);
-      if (own) stepBusy(i+chunk.length);
+      await batch(chunk); done += chunk.length;
+      if (own) stepBusy(done);
     }
     for (const n of notFound.slice(0,40)){
-      const r = await sf("https://api.scryfall.com/cards/named?fuzzy="+encodeURIComponent(n));
-      if (r.ok){ const c=await r.json(); const v=fromScry(c); S.cards[slug(c.name)]=v; S.cards[slug(n)]=v; found++; }
+      if (offline) break;
+      try { const r = await sf("https://api.scryfall.com/cards/named?fuzzy="+encodeURIComponent(cleanCardName(n).split(" // ")[0])); if (r.ok) keep(await r.json(), n); } catch { offline = true; }
     }
     saveCaches();
     const still = notFound.filter(n=>!S.cards[slug(n)]);
-    if (still.length && !quiet) toast(`Scryfall no reconoció: ${still.slice(0,5).join(", ")}${still.length>5?"…":""}. Revisa el nombre en inglés.`);
-  } catch(e){ S.netErr=(S.netErr||0)+1; saveCaches(); if(!quiet) toast(offlineMsg("Scryfall")); }
-  finally { if (own){ S.busy=null; render(); } }
+    if (offline){ S.netErr=(S.netErr||0)+1; if (!quiet) toast(offlineMsg("Scryfall")); }
+    else {
+      if (!still.length) S.lastFetchErr = "";
+      else S.lastFetchErr = `Scryfall no reconoció ${still.length} carta${still.length>1?"s":""}: ${still.slice(0,6).join(", ")}${still.length>6?"…":""}. Revisa que el nombre esté en inglés.`;
+      if (!quiet) toast(still.length ? S.lastFetchErr : `Datos de ${found} cartas actualizados.`);
+    }
+  } catch(e){ S.netErr=(S.netErr||0)+1; S.lastFetchErr = "Error al leer la respuesta de Scryfall."; saveCaches(); if(!quiet) toast(offlineMsg("Scryfall")); }
+  finally { if (own) S.busy=null; render(); }   // se redibuja siempre, aunque otra tarea siga en curso
   return found;
 }
 async function fetchItems(items, {label="Actualizando versiones de tu colección"}={}){
@@ -2254,8 +2283,10 @@ function combos2(d){ return (d.combos && d.combos.inc || []).filter(c=>c.cards.l
 function bracketOf(d,A){
   const c2 = combos2(d).length, gcN = A.gc.length; let b, why=[];
   if (gcN>=4 || A.mld.length || c2){ b=4; if(gcN>=4) why.push(`${gcN} Game Changers (más de 3)`); if(A.mld.length) why.push("destrucción masiva de tierras"); if(c2) why.push(`${c2} combo${c2>1?"s":""} de 2 cartas`); }
-  else if (gcN>=1 || A.xt.length>2 || A.tutors.length>3){ b=3; if(gcN) why.push(`${gcN} Game Changer${gcN>1?"s":""}`); if(A.xt.length>2) why.push("varios turnos extra"); if(A.tutors.length>3) why.push(`${A.tutors.length} tutores`); }
+  else if (gcN>=1 || A.xt.length>2){ b=3; if(gcN) why.push(`${gcN} Game Changer${gcN>1?"s":""}`); if(A.xt.length>2) why.push("varios turnos extra"); }
   else { b=2; why.push("sin Game Changers"+(d.combos?", sin combos de 2 cartas":"")); if (!A.tutors.length && !A.xt.length) why.push("sin tutores ni turnos extra (podría ser 1 si es temático)"); }
+  // los tutores no cambian el bracket oficial (son una recomendación): se reflejan en el realista
+  if (b<=3 && A.tutors.length>3) why.push(`${A.tutors.length} tutores: juega más fuerte de lo que dice su bracket`);
   return {b, why:why.join(" · "), exact:!!d.combos};
 }
 function health(d,A,sim){
@@ -2735,6 +2766,8 @@ const TAG_DEFS = [
   // sacrificio
   {k:"sacOutlet", es:"sacrifica a voluntad", re:/sacrifice (a|another|an?(?: \w+)?) (creature|artifact|permanent|token)[^.]*?:|, sacrifice (a|another) creature:/},
   {k:"dies", es:"aprovecha muertes", re:/whenever (this or )?(a|another|one or more)( other)?( nontoken)? creatures?( you control| an opponent controls)? (dies|die|is put into a graveyard)|whenever you sacrifice|whenever (a|another) (creature|permanent) you control is put into|a creature dying causes/},
+  {k:"minusCounters", es:"pone contadores -1/-1", re:/put (a|one|two|three|x|that many|\d+) -1\/-1 counters?|-1\/-1 counters? on (each|target|up to|that)|\bwither\b|\binfect\b|\bpersist\b/},
+  {k:"minusPay", es:"aprovecha contadores -1/-1", re:/whenever (you put )?one or more -1\/-1 counters|whenever a -1\/-1 counter is put|with a -1\/-1 counter on it dies|toughness (was )?less than 1|base toughness 1/},
   {k:"sacFodder", es:"deja cuerpos para sacrificar", re:/when (this|this creature) dies,? (create|return|you create)|\bpersist\b|\bundying\b/},
   // contadores
   {k:"counters", es:"pone contadores +1/+1", re:/put (a|one|two|three|x|that many|\d+) \+1\/\+1 counters?|enters with (a|one|two|three|x|\d+) \+1\/\+1 counters?|\bmodular\b|\boutlast\b|\badapt\b|\bbolster\b|\bevolve\b|\bexplores?\b/},
@@ -2788,6 +2821,7 @@ const TAG_ES = Object.fromEntries(TAG_DEFS.map(d=>[d.k, d.es]));
 // temas: qué etiquetas dan y cuáles aprovechan; min = mínimo razonable de cada lado en 100 cartas
 const THEMES = [
   {k:"tokens", es:"Fichas", en:["token","artifactMake","copyPerm"], pay:["tokenPay","sacOutlet","dies"], min:[8,4]},
+  {k:"minus", es:"Contadores -1/-1", en:["minusCounters"], pay:["minusPay"], min:[6,3]},
   {k:"aristocrats", es:"Sacrificio (aristócratas)", en:["sacOutlet","token","sacFodder"], pay:["dies"], min:[4,3]},
   {k:"counters", es:"Contadores +1/+1", en:["counters"], pay:["countersPay","proliferate"], min:[8,3]},
   {k:"landfall", es:"Tierras (landfall)", en:["landDrop"], pay:["landfall"], min:[8,4]},
@@ -2951,9 +2985,13 @@ function saltOf(n, m){
   if (m.mld) s += 1.4;
   if (m.xt) s += 1;
   if (tg.includes("theft")) s += 0.6;
-  if ((m.r||[]).includes("tutor")) s += 0.35;
+  if ((m.r||[]).includes("tutor")) s += 0.5;
   if ((m.sb||[]).includes("counter")) s += 0.3;
-  if ((m.r||[]).includes("wipe")) s += 0.3;
+  if ((m.r||[]).includes("wipe")) s += 0.45;
+  const rf = m.rf || [];
+  if (rf.includes("edict")) s += 0.7;
+  if (rf.includes("hoser")) s += 1.0;
+  if (rf.includes("deathDrain") || rf.includes("wcDrain")) s += 0.2;
   if (FAST_MANA.has(String(n).toLowerCase())) s += 0.4;
   if (m.gc) s += 0.4;
   return Math.min(1.6, s);
@@ -2968,6 +3006,18 @@ async function loadSaltLive(){
   } catch { toast(typeof offlineMsg==="function" ? offlineMsg("EDHREC") : "EDHREC no respondió."); }
 }
 idb.get("salt").then(v=>{ if (v && v.map) S.salt = v; });
+
+/* ---------- motor de sacrificio que cierra partidas (sin depender de Commander Spellbook) ---------- */
+// salida de sacrificio + cartas que drenan por cada muerte + cuerpos que vuelven o se multiplican = bucle que gana
+function comboEngine(rows){
+  const has = (m,k) => (m.tg||[]).includes(k) || (m.rf||[]).includes(k);
+  const q = f => rows.filter(r=>r.m && f(r.m)).reduce((a,r)=>a+r.q,0);
+  const outlets = q(m=>has(m,"sacOutlet") && m.t!=="Land");
+  const drains = q(m=>has(m,"deathDrain"));
+  const fodder = q(m=>has(m,"sacFodder") || (has(m,"minusPay") && has(m,"token")) || (has(m,"token") && has(m,"dies")));
+  const loops = outlets>=2 && drains>=2 && fodder>=3 ? Math.min(4, Math.floor(Math.min(outlets, drains, fodder/2))) : 0;
+  return {outlets, drains, fodder, loops};
+}
 
 /* ---------- evaluación ---------- */
 const clamp10 = x => Math.max(0, Math.min(10, x));
@@ -2985,13 +3035,15 @@ function powerOf(d, A){
   const c3 = d.combos ? (d.combos.inc||[]).filter(c=>c.cards.length===3).length : null;
   const Y = typeof synergyOf==="function" ? synergyOf(d, A) : null;
   const scale = A.isC ? 1 : 0.6;
+  const E = comboEngine(rows);
+  const tutorQ = rows.filter(r=>(r.m.r||[]).includes("tutor")).reduce((a,r)=>a + r.q*((r.m.tq!=null ? r.m.tq : 60)/100), 0);
   const comp = [
-    {k:"accel", es:"Aceleración", v:clamp10(fast*1.4 + cheapRamp*0.45/scale), why:`${fast} de maná rápido, ${cheapRamp} ramp de 2 o menos`, w:0.17},
-    {k:"tutors", es:"Tutores", v:clamp10(A.tutors.length*1.3/scale), why:`${A.tutors.length} tutores`, w:0.13},
+    {k:"accel", es:"Aceleración", v:clamp10(fast*1.2 + cheapRamp*0.3/scale), why:`${fast} de maná rápido, ${cheapRamp} ramp de 2 o menos`, w:0.17},
+    {k:"tutors", es:"Tutores", v:clamp10(tutorQ*1.4/scale), why:`${A.tutors.length} tutores (calidad ${A.tutors.length?Math.round(100*tutorQ/A.tutors.length):0}/100)`, w:0.13},
     {k:"interaction", es:"Interacción", v:clamp10((A.roles.removal + A.roles.wipe*1.3 + free*1.5)/1.6/scale), why:`${A.roles.removal} removal, ${A.roles.wipe} barridos, ${free} gratis`, w:0.13},
     {k:"cards", es:"Ventaja de cartas", v:clamp10(A.roles.draw*0.8/scale), why:`${A.roles.draw} fuentes de robo`, w:0.11},
     {k:"efficiency", es:"Eficiencia", v:!A.spells ? null : clamp10(10 - (A.avg-1.9)*3.2 - (sim && sim.pScrew ? sim.pScrew*8 : 0)), why:`CMC promedio ${A.avg.toFixed(2)}${sim?`, ${Math.round((sim.pScrew||0)*100)}% manos atascadas`:""}`, w:0.13},
-    {k:"combo", es:"Combos", v:c2==null ? null : clamp10(c2*3.5 + c3*1.2), why:c2==null ? "sin revisar (usa Buscar combos)" : `${c2} de 2 cartas, ${c3} de 3`, w:0.2},
+    {k:"combo", es:"Combos", v:c2==null ? (E.loops ? clamp10(E.loops*1.6) : null) : clamp10(c2*3.5 + c3*1.2 + E.loops*0.8), why:c2==null ? (E.loops ? `motor de sacrificio (${E.outlets} salidas, ${E.drains} drenajes); busca combos para confirmar` : "sin revisar (usa Buscar combos)") : `${c2} de 2 cartas, ${c3} de 3${E.loops?", motor de sacrificio":""}`, w:0.2},
     {k:"synergy", es:"Sinergia", v:Y ? clamp10(Y.cohesion/10) : null, why:Y ? `cohesión ${Y.cohesion}%` : "", w:0.08},
   ];
   const have = comp.filter(c=>c.v!=null);
@@ -3011,7 +3063,7 @@ function powerOf(d, A){
   const saltLabel = salt>=70 ? "Muy salado" : salt>=45 ? "Salado" : salt>=25 ? "Picante" : "Suave";
   const threatCards = rows.filter(r=>(r.m.tg||[]).some(k=>["stax","drawPay","theft","extraCombat"].includes(k)) || ((r.m.r||[]).includes("draw") && r.m.t!=="Instant" && r.m.t!=="Sorcery") || (r.m.sb||[]).includes("counter"));
   const threat = Math.round(clamp10((threatCards.length*0.3 + stax*0.8 + A.gc.length*0.4) / (A.isC?1:0.6)) * 10) / 10;
-  return {power, abs, comp, real, official, cedh, salt, saltLabel, saltTop:salty.slice(0,10), threat, threatCards, sim, c2};
+  return {power, abs, comp, E, real, official, cedh, salt, saltLabel, saltTop:salty.slice(0,10), threat, threatCards, sim, c2};
 }
 
 /* ---------- vista del mazo ---------- */
@@ -3064,7 +3116,7 @@ document.addEventListener("click", async ev => {
    base casual o cEDH, tabla nutricional, radiografía por áreas
    y tarjeta de regla 0 para conversar el nivel antes de jugar.
    ========================================================= */
-const RF_V = 1;   // versión de las marcas de cada carta; si sube, se vuelven a calcular
+const RF_V = 2;   // versión de las marcas de cada carta; si sube, se vuelven a calcular
 
 // marcas extra por carta, calculadas con el texto de Oracle (se guardan en m.rf y m.tq)
 function cardFlags(o, t, tl){
@@ -3084,12 +3136,15 @@ function cardFlags(o, t, tl){
   if (/creatures you control get \+|other (\w+ ){1,2}(creatures )?(you control )?get \+|\w+s you control get \+\d|creatures you control (gain|have) (trample|double strike|flying)|can't be blocked|additional combat|double strike|\w+walk\b/.test(o)) f.add("wcCombat");
   if (/spells? you cast (of the chosen type |that share a creature type )?costs? \{\d\} less|(\w+ )?(creature )?spells (and \w+ spells )?you cast (of the chosen type )?cost \{\d\} less/.test(o)) f.add("reducer");
   if (/(^|\n)infect|toxic \d|poison counter/.test(o)) f.add("wcPoison");
+  if (/(each|target) (opponent|other player|player)s? sacrifices?|each player sacrifices/.test(o)) f.add("edict");
+  if (/base toughness 1|creatures your opponents control (get|have) -|(opponents|players) can't (cast|untap|search|draw more)/.test(o)) f.add("hoser");
+  if (/whenever [^.]*(creature|another creature)[^.]*dies[^.]*(loses|deals? \d+ damage to each opponent)|whenever you sacrifice [^.]*(loses|damage)/.test(o)) f.add("deathDrain");
   if (perm && !land && /whenever|at the beginning of/.test(o)) f.add("repeat");
   if (!perm && /draw|create|search your library|return|put [^.]*counter|onto the battlefield/.test(o)) f.add("oneShot");
   if (/when(ever)? [^.]*(enters|enter the battlefield)/.test(o)) f.add("etb");
   if (/when(ever)? [^.]*dies|when(ever)? [^.]*is put into a graveyard from the battlefield/.test(o)) f.add("dies");
   if (/(search your library for|put) [^.]*\bland (card|cards)?[^.]*onto the battlefield|put (a|up to (one|two)) land cards? from your hand onto the battlefield|play (an|two) additional lands?|search your library for (a|up to (one|two|three)) basic land/.test(o) && !land) f.add("landRamp");
-  if (/(return|put) [^.]*from (your|a) graveyard (to|onto|into)|return target [^.]*card from your graveyard/.test(o)) f.add("recursion");
+  if (/(return|put) [^.]*from (your|a) graveyard (to|onto|into)|return target [^.]*card from your graveyard|return the chosen cards to the battlefield|return (that card|it) to the battlefield under your control|(^|\n)(undying|persist)\b/.test(o)) f.add("recursion");
   if (land){
     if (/search your library for/.test(o)) f.add("fetch");
     const lines = o.replace(/\([^)]*\)/g,"").split("\n").map(x=>x.trim()).filter(Boolean);
@@ -3182,8 +3237,9 @@ function reportOf(d, A){
   const paths = [];
   const combatN = sum(rows.filter(r=>has(r,"wcCombat") || (r.m.tg||[]).includes("extraCombat")));
   if (combatN>=3 || sum(nonland.filter(r=>r.m.t==="Creature"))>=25) paths.push({k:"combat", es:"Combate", n:combatN});
-  const drainN = cnt("wcDrain"); if (drainN>=2) paths.push({k:"drain", es:"Drenar vidas", n:drainN});
+  const drainN = cnt("wcDrain") + cnt("deathDrain"); if (drainN>=2) paths.push({k:"drain", es:"Drenar vidas", n:drainN});
   if (c2>0 || (d.combos && (d.combos.inc||[]).length)) paths.push({k:"combo", es:"Combo", n:(d.combos&&(d.combos.inc||[]).length)||c2});
+  else if (P.E && P.E.loops) paths.push({k:"combo", es:"Bucle de sacrificio", n:P.E.loops});
   const altN = cnt("wcAlt"); if (altN) paths.push({k:"alt", es:"Victoria alternativa", n:altN});
   const millN = cnt("wcMill"); if (millN>=2) paths.push({k:"mill", es:"Moler", n:millN});
   const poisonN = cnt("wcPoison"); if (poisonN>=3) paths.push({k:"poison", es:"Veneno", n:poisonN});
@@ -3219,7 +3275,7 @@ function reportOf(d, A){
     {es:"Control", v: (counters*1.2 + inter.wipes*1.4 + removal*0.6 + (timing.pct||0)/20) * (creatures>=22 ? 0.3 : creatures>=15 ? 0.6 : 1)},
     {es:"Aggro", v: (creatures>=28?4:creatures/8) + (A.avg<=2.6?3:0) + combatN*0.3 - counters*0.5},
     {es:"Midrange", v: 4 + (creatures>=15 && creatures<=34 ? 2 : 0) + Math.min(3, interTotal/8) - Math.abs(A.avg-3)},
-    {es:"Combo", v: c2*3 + tutors.n*0.7 + (altN?2:0)},
+    {es:"Combo", v: c2*3 + (P.E ? P.E.loops*2.5 : 0) + tutors.n*0.7 + (altN?2:0)},
     {es:"Stax", v: deny.stax*1.5 + deny.tax*0.6},
     {es:"Ramp", v: ramp.n*0.35 + ramp.land*0.3 + curve.fin*0.5 - 1},
   ].sort((a,b)=>b.v-a.v);
@@ -3244,7 +3300,7 @@ function reportOf(d, A){
     {k:"eff", es:"Eficiencia", v:clamp10(10 - (A.avg-1.9)*2.6 + ramp.n*0.12 + curve.cheap*0.06 - 1.2), why:`CMC ${A.avg.toFixed(2)}, ${curve.cheap} baratas, ${ramp.n} ramp`},
     {k:"speed", es:"Velocidad", v:clamp10(fast*1.3 + sum(rampR.filter(r=>(r.m.cmc||0)<=2))*0.45 + (A.avg<=2.6?1.5:A.avg<=3.2?0.7:0)), why:`${fast} maná rápido, ${sum(rampR.filter(r=>(r.m.cmc||0)<=2))} ramp de 2 o menos`},
     {k:"inter", es:"Interacción", v:clamp10(inter10 + inter.free*0.5 + ((timing.pct||0)>=80?0.5:0)), why:`${interTotal} piezas, ${inter.free} gratis`},
-    {k:"wins", es:"Remates", v:clamp10(paths.length*1.5 + c2*2.2 + Math.min(2, curve.fin*0.4) + Math.min(5, combatN*0.4) + (altN?1:0)), why: paths.length ? paths.map(p=>p.es.toLowerCase()).join(", ") : "sin remate claro"},
+    {k:"wins", es:"Remates", v:clamp10(paths.length*1.5 + c2*2.2 + (P.E ? Math.min(4, P.E.loops*2) : 0) + Math.min(2, drainN*0.35) + Math.min(2, curve.fin*0.4) + Math.min(5, combatN*0.4) + (altN?1:0)), why: paths.length ? paths.map(p=>p.es.toLowerCase()).join(", ") : "sin remate claro"},
     {k:"res", es:"Resiliencia", v:clamp10(cards.rec*0.8 + inter.protect*0.7 + engine.rep*0.08 + (cards.draw>=10?1:0)), why:`${cards.rec} reciclaje, ${inter.protect} protección`},
   ];
   const BASE = {casual:{cons:4.5, eff:5, speed:3, inter:4.5, wins:4.5, res:4}, cedh:{cons:9, eff:9, speed:9, inter:8.5, wins:8.5, res:7}};
@@ -3253,9 +3309,9 @@ function reportOf(d, A){
   const nutri = DV.map(([es, n, ref])=>({es, n, pct: Math.round(100*n/ref)}));
   const report = {grades:[
       {es:"Sal", v:P.salt, g:GRADE(P.salt/10), s:P.saltLabel},
-      {es:"Interacción", v:interTotal, g:GRADE(pill[3].v), s:`${interTotal} piezas`},
+      {es:"Interacción", v:interTotal, g:GRADE(pill[3].v*0.855), s:`${interTotal} piezas`},
       {es:"Remates", v:paths.length, g:GRADE(pill[4].v), s:wins.lv.es.toLowerCase()},
-      {es:"Sinergia", v:syn?syn.score:null, g:syn?GRADE(syn.score/10):"—", s:syn?`${syn.score}% conectado`:"sin datos"},
+      {es:"Sinergia", v:syn?syn.score:null, g:syn?GRADE(Math.min(10, syn.score/10*1.24)):"—", s:syn?`${syn.score}% conectado`:"sin datos"},
     ]};
   const R = {P, Y, abs: P.abs, type: DECK_TYPE(P.power), tier: cmdTier(d), plan, strat, chips, mana, comp, nonlandN, compN, permN, curve, ramp, tutors, cards, inter, deny, timing, wins, engine, tribe, syn, pill, BASE, nutri, report, creatures, stale};
   _repMemo.set(d, {ep:_anaEpoch, A, R});
@@ -3310,6 +3366,8 @@ function reportHTML(d, A){
     <div class="rp-pills">${R.pill.map(p=>{ const b = B[p.k]; const diff = Math.round(100*(p.v-b)/b); return `<div class="rp-pill"><span class="rp-pn">${p.es}</span><span class="rp-track"><i style="width:${p.v*10}%"></i><em style="left:${b*10}%" title="base ${base==="casual"?"casual":"cEDH"}: ${b}"></em></span><span class="num rp-pv">${p.v.toFixed(1)}</span><span class="rp-diff ${diff>=0?"up":"down"} num">${diff>=0?"▲":"▼"} ${Math.abs(diff)}%</span><span class="muted rp-why">${esc(p.why)}</span></div>`; }).join("")}</div>
     <p class="foot">La marca vertical es un mazo ${base==="casual"?"casual típico (bracket 2–3)":"de cEDH típico"}; el porcentaje dice cuánto te alejas de esa base.</p></section>
 
+  ${pillarCardsHTML(d, A)}
+
   <div class="rp-grid">
     ${repBoxHTML("Base de maná", lvPill(R.mana.lv.k==="dense"?{k:"dense",es:"Densa"}:R.mana.lv.k==="mod"?{k:"mod",es:"Justa"}:{k:"light",es:"Corta"}), `<p class="muted rp-sub">${R.mana.colors} color${R.mana.colors===1?"":"es"}</p><div class="rp-big"><b class="num">${R.mana.lands}</b> tierras</div>
       <div class="rp-split"><i style="flex:${R.mana.basics||0.01}">${R.mana.basics} básicas</i><i style="flex:${R.mana.nonbasic||0.01}">${R.mana.nonbasic} no básicas</i></div>
@@ -3343,6 +3401,65 @@ function reportHTML(d, A){
   <section class="rp-card rp-r0"><div><h4>Tarjeta de regla 0</h4><p class="muted" style="margin:0">Una imagen con el nivel, el bracket, el plan y las cartas que conviene avisar. Mándala al grupo antes de jugar.</p></div>
     <div class="row"><button class="btn primary" data-rp="r0">Crear tarjeta</button><button class="btn" data-rp="r0-text">Copiar como texto</button></div></section>
   </div>`;
+}
+
+/* ---------- cartas por pilar (qué aporta cada carta) ---------- */
+const PILLAR_GROUPS = [
+  {k:"cons", es:"Consistencia", subs:[["draw","Robo"],["rec","Reciclaje"],["sel","Selección"],["tutor","Tutores"]]},
+  {k:"eff", es:"Eficiencia", subs:[["fast","Maná rápido"],["ramp","Ramp"],["red","Reductores"]]},
+  {k:"inter", es:"Interacción", subs:[["removal","Removal"],["counter","Contrahechizos"],["wipe","Barridos"],["protect","Protección"],["evasion","Evasión"],["control","Otro control"],["stax","Stax"]]},
+  {k:"wins", es:"Remates", subs:[["combo","Combos"],["drain","Drenaje"],["tokens","Fichas"],["stompy","Criaturas grandes"],["combat","Combate"],["poison","Veneno"]]},
+];
+function pillarCards(d, A){
+  const cmdTags = new Set(A.cmdMeta.filter(Boolean).flatMap(m=>[...(m.tg||[]), ...(m.rf||[])]));
+  const rows = [...A.cmdMeta.filter(Boolean).map(m=>({n:m.n, q:1, m, cmd:true})), ...A.rows.filter(r=>r.m && r.m.t!=="Land")];
+  const has = (m,k) => (m.tg||[]).includes(k) || (m.rf||[]).includes(k) || (m.r||[]).includes(k);
+  const isInst = m => m.t==="Instant" || has(m,"flash");
+  const cheap = m => Math.max(0, 6 - (m.cmc||0));
+  const out = {};
+  const add = (sub, r, score) => { (out[sub] = out[sub] || []).push({n:r.n, m:r.m, cmd:!!r.cmd, s:Math.round(score*10)/10, syn: !r.cmd && ((r.m.tg||[]).some(k=>cmdTags.has(k)) || (r.m.rf||[]).some(k=>["minusCounters","minusPay","deathDrain"].includes(k) && cmdTags.has(k)))}); };
+  for (const r of rows){ const m = r.m;
+    if (has(m,"draw")) add("draw", r, 8 + (has(m,"repeat")?6:0) + cheap(m)*0.6);
+    if (has(m,"recursion") || has(m,"reanimate")) add("rec", r, 8 + cheap(m)*0.8 + (m.t==="Instant"?1:0));
+    if (has(m,"select")) add("sel", r, 5 + cheap(m)*0.5);
+    if (has(m,"tutor")) add("tutor", r, (m.tq!=null?m.tq:60)/5 + cheap(m)*0.4);
+    if (FAST_MANA.has(r.n.toLowerCase())) add("fast", r, 14 + cheap(m)*0.3);
+    else if (has(m,"ramp") || has(m,"landRamp")) add("ramp", r, 6 + cheap(m)*1.1 + ((m.pm||[]).length>2?0.6:0));
+    if (has(m,"reducer")) add("red", r, 6 + cheap(m)*0.6);
+    const counter = has(m,"counter") || (m.sb||[]).includes("counter");
+    if (counter) add("counter", r, 9 + cheap(m)*1.2 + (FREE_INTERACTION.has(r.n.toLowerCase())?4:0));
+    else if (has(m,"removal")) add("removal", r, 8 + cheap(m)*1.4 + (isInst(m)?1.5:0) + (FREE_INTERACTION.has(r.n.toLowerCase())?4:0));
+    if (has(m,"wipe")) add("wipe", r, 10 + cheap(m)*0.8);
+    if (has(m,"protect") || has(m,"protection")) add("protect", r, 6 + cheap(m)*1 + (isInst(m)?1:0));
+    if (has(m,"evasion")) add("evasion", r, 5 + cheap(m)*0.5);
+    if (has(m,"tax") || has(m,"hoser") || has(m,"edict")) add("control", r, 7 + cheap(m)*0.6);
+    if ((m.tg||[]).includes("stax")) add("stax", r, 10 + cheap(m)*0.6);
+    if (has(m,"deathDrain") || has(m,"wcDrain")) add("drain", r, 9 + cheap(m)*0.8);
+    if (has(m,"token") && m.t!=="Instant" && m.t!=="Sorcery") add("tokens", r, 6 + (has(m,"repeat")?3:0) + cheap(m)*0.4);
+    if (m.t==="Creature" && (m.cmc||0)>=6) add("stompy", r, 6 + (m.cmc||0)*0.8);
+    if (has(m,"wcCombat") || (m.tg||[]).includes("extraCombat")) add("combat", r, 6 + (has(m,"repeat")?2:0) + cheap(m)*0.4);
+    if (has(m,"wcPoison") || has(m,"poison")) add("poison", r, 8);
+  }
+  for (const k of Object.keys(out)) out[k].sort((a,b)=>b.s-a.s);
+  return out;
+}
+function pillarCardsHTML(d, A){
+  const P = pillarCards(d, A);
+  const g = PILLAR_GROUPS.find(x=>x.k===(S.rpPil||"cons")) || PILLAR_GROUPS[0];
+  const sub = g.subs.some(([k])=>k===S.rpSub) ? S.rpSub : null;
+  const seen = new Set(); const list = (sub ? (P[sub]||[]) : g.subs.flatMap(([k])=>P[k]||[])).filter(x=>{ if (seen.has(x.n)) return false; seen.add(x.n); return true; }).sort((a,b)=>b.s-a.s);
+  const combosHTML = () => {
+    const inc = (d.combos && d.combos.inc) || [];
+    if (inc.length) return `<div class="pc-combos">${inc.slice(0,12).map(c=>`<div class="pc-combo">${c.cards.map(n=>`<span class="pill neutral">${cardName(n)}</span>`).join("")}${c.prod&&c.prod.length?`<small class="muted">${esc(c.prod.slice(0,2).join(" · "))}</small>`:""}</div>`).join("")}</div>`;
+    const E = powerOf(d, A).E;
+    return `<p class="muted" style="margin:0">${E && E.loops ? `Motor de sacrificio detectado: ${E.outlets} salidas, ${E.drains} cartas que drenan y ${E.fodder} cuerpos que vuelven. ` : ""}Para ver los combos exactos, búscalos en Commander Spellbook.</p><button class="btn sm" data-act="combos">Buscar combos</button>`;
+  };
+  return `<section class="rp-card pc"><h4 class="sc">cartas por pilar</h4>
+    <div class="subtabs" role="tablist">${PILLAR_GROUPS.map(x=>`<button class="subtab" role="tab" data-rp-pil="${x.k}" aria-selected="${x.k===g.k}">${x.es}</button>`).join("")}</div>
+    <div class="chips">${g.subs.filter(([k])=>(P[k]||[]).length || k==="combo").map(([k,es])=>`<button class="chip" data-rp-sub="${k}" aria-pressed="${sub===k}">${es} <b class="num">${k==="combo" ? ((d.combos&&d.combos.inc||[]).length || "?") : (P[k]||[]).length}</b></button>`).join("")}</div>
+    ${sub==="combo" ? combosHTML() : list.length ? `<div class="pc-list">${list.slice(0, 40).map(x=>`<div class="pc-row"><span>${cardName(x.n, x.m)}${x.cmd?` <span class="pill good">comandante</span>`:x.syn?` <span class="pill neutral" title="Comparte mecánica con tu comandante">★ comandante</span>`:""}</span><b class="num">${x.s.toFixed(1)}</b></div>`).join("")}</div>
+      <p class="foot">El número es el impacto estimado de la carta en ese pilar (costo, velocidad y si se repite). ★ = trabaja con tu comandante.</p>` : `<p class="muted">Ninguna carta del mazo aporta aquí.</p>`}
+  </section>`;
 }
 
 /* ---------- tarjeta de regla 0 ---------- */
@@ -3402,6 +3519,8 @@ function recordPower(d, A){
 
 document.addEventListener("click", async ev => {
   const bb = ev.target.closest("[data-rp-base]"); if (bb){ S.rpBase = bb.dataset.rpBase; render(); return; }
+  const pl = ev.target.closest("[data-rp-pil]"); if (pl){ S.rpPil = pl.dataset.rpPil; S.rpSub = null; render(); return; }
+  const ps = ev.target.closest("[data-rp-sub]"); if (ps){ S.rpSub = S.rpSub===ps.dataset.rpSub ? null : ps.dataset.rpSub; render(); return; }
   const b = ev.target.closest("[data-rp]"); if (!b) return;
   const d = S.data.decks.find(x=>x.id===S.sel[S.view]); if (!d) return;
   const A = analyze(d);
@@ -3531,7 +3650,7 @@ function deckHTML(d){
 }
 function missingBanner(A){
   if (S.busy || !A.missing.length) return "";
-  return `<div class="banner"><span><b class="num">${A.missing.length}</b> carta${A.missing.length>1?"s":""} sin datos todavía. El análisis las cuenta como desconocidas.</span><button class="btn sm primary" data-act="fetch">Actualizar cartas</button></div>`;
+  return `<div class="banner"><span><b class="num">${A.missing.length}</b> carta${A.missing.length>1?"s":""} sin datos todavía. El análisis las cuenta como desconocidas.${S.lastFetchErr?`<br><small class="down">${esc(S.lastFetchErr)}</small>`:""}${S.busy?`<br><small class="muted">Hay una actualización en curso (${esc(S.busy.label||"")}); al terminar se completan.</small>`:""}</span><button class="btn sm primary" data-act="fetch">Actualizar cartas</button></div>`;
 }
 function ringSVG(score){
   const r=40, c=2*Math.PI*r, col = score>=80?"var(--good)":score>=60?"var(--warn)":"var(--bad)";
