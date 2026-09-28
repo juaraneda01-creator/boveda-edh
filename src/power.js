@@ -135,14 +135,19 @@ function powerBoardHTML(){
   const rows = all.map(d=>{ const A = analyze(d); return {d, P:powerOf(d, A)}; })
     .sort((a,b)=> sort==="salt" ? b.P.salt-a.P.salt : sort==="threat" ? b.P.threat-a.P.threat : b.P.power-a.P.power);
   const th = (k,l) => `<th class="n"><button class="linkish" data-pw-sort="${k}" aria-pressed="${sort===k}">${l}${sort===k?" ↓":""}</button></th>`;
+  const anyCS = all.some(d=>d.csRef), anyG = all.some(d=>typeof gameRecord==="function" && gameRecord(d));
   return `<div class="sec"><h3>Tabla de poder y sal</h3><p class="lede">Todos tus mazos y los de tus amigos con los mismos criterios. Toca una columna para ordenar.</p>
-    <div class="tbl-wrap"><table><thead><tr><th>#</th><th>Mazo</th>${th("power","Nivel")}${th("salt","Sal")}${th("threat","Amenaza")}<th class="n">Bracket</th></tr></thead><tbody>
-    ${rows.map((r,i)=>`<tr${r.d.rival?"":' style="background:var(--accent-soft)"'}><td class="num">${i+1}</td><td><b>${esc(r.d.name)}</b><br><span class="muted" style="font-size:.85rem">${esc((r.d.commanders||[]).join(" + "))} · ${r.d.rival?esc(r.d.rival.owner||"amigo"):"tú"}</span></td><td class="n">${r.P.power.toFixed(1)}</td><td class="n">${r.P.salt}</td><td class="n">${r.P.threat.toFixed(1)}</td><td class="n">${r.P.official.b} / ${r.P.real}</td></tr>`).join("")}
-    </tbody></table></div><p class="foot">Bracket: oficial / realista.</p></div>`;
+    <div class="tbl-wrap"><table><thead><tr><th>#</th><th>Mazo</th>${th("power","Nivel")}${th("salt","Sal")}${th("threat","Amenaza")}<th class="n">Bracket</th>${anyCS?`<th class="n">Commandersalt</th>`:""}${anyG?`<th class="n">Récord</th>`:""}</tr></thead><tbody>
+    ${rows.map((r,i)=>`<tr${r.d.rival?"":' style="background:var(--accent-soft)"'}><td class="num">${i+1}</td><td><b>${esc(r.d.name)}</b><br><span class="muted" style="font-size:.85rem">${esc((r.d.commanders||[]).join(" + "))} · ${r.d.rival?esc(r.d.rival.owner||"amigo"):"tú"}</span></td><td class="n">${r.P.power.toFixed(1)}</td><td class="n">${r.P.salt}</td><td class="n">${r.P.threat.toFixed(1)}</td><td class="n">${r.P.official.b} / ${r.P.real}</td>${anyCS?`<td class="n">${r.d.csRef?Number(r.d.csRef.p).toFixed(1):"—"}</td>`:""}${anyG?(()=>{ const g = gameRecord(r.d); return `<td class="n">${g?`${g.w}-${g.l}${g.dr?`-${g.dr}`:""} · ${Math.round(g.pct*100)}%`:"—"}</td>`; })():""}</tr>`).join("")}
+    </tbody></table></div><p class="foot">Bracket: oficial / realista.${anyCS?" Commandersalt: el nivel que anotaste en la ficha de cada mazo.":""}</p>
+    ${anyCS?`<div class="row"><button class="btn sm" data-pw="cs-copy">Copiar comparación con Commandersalt</button></div>`:""}</div>`;
 }
 function powerPromptText(d, A){ const P = powerOf(d, A); return `Nivel estimado por la app: ${P.power}/10 (${PL_ES(P.power)}); sal ${P.salt}/100; bracket oficial ${P.official.b}, realista ${P.real}.`; }
 
 document.addEventListener("click", async ev => {
   const s = ev.target.closest("[data-pw-sort]"); if (s){ S.pwSort = s.dataset.pwSort; render(); return; }
   const b = ev.target.closest("[data-pw]"); if (b && b.dataset.pw==="salt") await loadSaltLive();
+  if (b && b.dataset.pw==="cs-copy"){
+    const rows = S.data.decks.filter(d=>d.format==="commander" && d.csRef).map(d=>{ const A = analyze(d), P = powerOf(d, A); return `${d.name} (${(d.commanders||[]).join(" + ")}): Bóveda ${P.power.toFixed(1)} · Commandersalt ${Number(d.csRef.p).toFixed(2)} · diferencia ${(P.power-d.csRef.p>=0?"+":"")+(P.power-d.csRef.p).toFixed(1)} · bracket ${P.official.b}/${P.real}`; });
+    copyText("Comparación Bóveda EDH vs Commandersalt\n" + rows.join("\n")); }
 });

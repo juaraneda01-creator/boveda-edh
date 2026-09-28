@@ -248,6 +248,7 @@ function accMerge(cloud){
   for (const it of cloud.d.collection.items){ const k=key(it); if (idx.has(k)){ const x=d.collection.items[idx.get(k)]; x.q=Math.max(x.q, it.q); } else d.collection.items.push(it); }
   for (const w of cloud.d.wishlist||[]) if (!d.wishlist.some(x=>slug(x.n)===slug(w.n) && (x.pk||"")===(w.pk||""))) d.wishlist.push(w);
   const bid = new Set(d.binders.map(b=>b.id)); for (const b of cloud.d.binders||[]) if (!bid.has(b.id)) d.binders.push(b);
+  const gid = new Set((d.games||[]).map(g=>g.id)); for (const g of cloud.d.games||[]) if (!gid.has(g.id)) (d.games = d.games||[]).push(g);
 }
 
 document.addEventListener("click", async ev=>{

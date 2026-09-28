@@ -94,17 +94,17 @@ function deckHTML(d){
     ["resumen","Resumen",[["analisis","Análisis"],["nivel","Ficha y nivel"],["mana","Base de maná"]]],
     ["lista","Lista",[["lista","Lista"]]],
     ["mejorar","Mejorar",[["sinergias","Sinergias"],["mejorar","Recomendaciones"],["ia","Con IA"],["brackets","Brackets"],["combos","Combos"]]],
-    ["jugar","Jugar",[["mano","Probar mano"],["radiografia","Cómo se juega"]]],
+    ["jugar","Jugar",[["partidas","Partidas"],["mano","Probar mano"],["radiografia","Cómo se juega"]]],
     ["precio","Precio",[["precio","Valor"],["versiones","Versiones"],["manabox","ManaBox"],["compartir","Compartir"]]]]
   : [
     ["resumen","Resumen",[["analisis","Análisis"],["mana","Base de maná"]]],
     ["lista","Lista",[["lista","Lista"]]],
     ["mejorar","Mejorar",[["sinergias","Sinergias"],["meta","Contra el meta"],["ia","Con IA"]]],
-    ["jugar","Jugar",[["mano","Probar mano"],["radiografia","Cómo se juega"]]],
+    ["jugar","Jugar",[["partidas","Partidas"],["mano","Probar mano"],["radiografia","Cómo se juega"]]],
     ["precio","Precio",[["precio","Valor"],["versiones","Versiones"],["manabox","ManaBox"],["compartir","Compartir"]]]];
   const tabs = G.flatMap(g=>g[2]);
   if (!tabs.some(t=>t[0]===S.deckTab)) S.deckTab="analisis";
-  const body = {analisis:analysisHTML, lista:listHTML, mana:manaHTML, combos:combosHTML, brackets:bracketsHTML, mejorar:(d,A)=>improveHTML(d,A)+(A.isC&&typeof tdDeckHTML==="function"?tdDeckHTML(d,A):""), precio:priceHTML, meta:deckMetaHTML, manabox:mbDeckHTML, ia:iaHTML, radiografia:radioHTML, mano:manoHTML, versiones:versionesHTML, compartir:compartirHTML, sinergias:synergyHTML, nivel:powerHTML}[S.deckTab](d,A);
+  const body = {analisis:analysisHTML, lista:listHTML, mana:manaHTML, combos:combosHTML, brackets:bracketsHTML, mejorar:(d,A)=>improveHTML(d,A)+(A.isC&&typeof tdDeckHTML==="function"?tdDeckHTML(d,A):""), precio:priceHTML, meta:deckMetaHTML, manabox:mbDeckHTML, ia:iaHTML, radiografia:radioHTML, mano:manoHTML, versiones:versionesHTML, compartir:compartirHTML, sinergias:synergyHTML, nivel:powerHTML, partidas:gamesHTML}[S.deckTab](d,A);
   const pendN = d.mb ? boardDiff(mbBase(d.mb), boardsOf(d)).n : 0;
   return `<div class="pane">
     <div class="pane-head">

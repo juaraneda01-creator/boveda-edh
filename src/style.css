@@ -699,3 +699,28 @@ body.web [data-act="fetch-meta"],body.web [data-act="fetch-meta-all"],body.web [
 .pc-row b{color:var(--accent)}
 .pc-combos{display:grid;gap:8px}
 .pc-combo{display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--bg)}
+
+/* perfil de sinergia */
+.sy-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.sy-stats>div{background:var(--bg);border-radius:10px;padding:10px;display:grid;gap:2px}
+.sy-stats b{font-size:1.4rem;overflow-wrap:anywhere}
+.sy-stats b:not(.num){font-size:1.1rem}
+.sy-stats .muted{font-size:.8rem}
+.sy-mix{display:flex;height:22px;border-radius:6px;overflow:hidden;margin-top:6px;font-size:.75rem}
+.sy-mix i{display:flex;align-items:center;justify-content:center;color:#fff;font-style:normal}
+.m-t{background:var(--bad)}.m-a{background:var(--warn)}.m-s{background:var(--mU)}.m-r{background:var(--good)}
+.sy-legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.8rem;color:var(--muted);margin-top:6px}
+.sy-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+.sy-shape{display:grid;gap:2px;font-size:.92rem}
+@media (max-width:640px){.sy-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.rp-cs{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:.92rem}
+.rp-cs input{width:84px}
+/* partidas */
+.gm-form{display:grid;gap:12px}
+.gm-row{display:grid;grid-template-columns:120px minmax(0,1fr);gap:10px;align-items:center}
+.gm-l{font-family:var(--sc);color:var(--muted);letter-spacing:.04em}
+.gm-step{display:flex;align-items:center;gap:12px}.gm-step b{font-size:1.4rem;min-width:28px;text-align:center}
+.gm-item{align-items:center}
+.gm-seats{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width:640px){.gm-row{grid-template-columns:1fr;gap:4px}.gm-seats{grid-template-columns:repeat(2,minmax(0,1fr))}}

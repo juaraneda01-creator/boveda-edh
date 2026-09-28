@@ -148,9 +148,10 @@ function syMerge(base, loc, rem){
   const bi = syMergeList(base.binders, loc.binders, rem.binders, x=>x.id, byTime);
   const co = syMergeList(base.collection&&base.collection.items, loc.collection.items, rem.collection.items, x=>collKey(x));
   const wi = syMergeList(base.wishlist, loc.wishlist, rem.wishlist, x=>slug(x.n)+"|"+(x.pk||"")+"|"+(x.finish||""));
+  const gm = syMergeList(base.games, loc.games, rem.games, x=>x.id);
   const noKey = o => { const x = {...(o||{})}; delete x.aiKey; return x; };
   const scalar = k => k==="settings" ? (syJ(noKey(loc.settings))!==syJ(noKey(base.settings)) ? loc.settings : rem.settings) : (syJ(loc[k])!==syJ(base[k]) ? loc[k] : rem[k]);
-  const out = {...rem, ...loc, decks:d.list, binders:bi.list, collection:{...loc.collection, items:co.list, v:(loc.collection.v||0)+1}, wishlist:wi.list,
+  const out = {...rem, ...loc, decks:d.list, binders:bi.list, collection:{...loc.collection, items:co.list, v:(loc.collection.v||0)+1}, wishlist:wi.list, games:gm.list,
     settings: {...scalar("settings"), aiKey: loc.settings && loc.settings.aiKey}, dismissed: scalar("dismissed"), roles: scalar("roles"), mbLog: scalar("mbLog")};
   return {d: out, clash: d.clash + bi.clash + co.clash + wi.clash};
 }

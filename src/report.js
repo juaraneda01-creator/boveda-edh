@@ -4,7 +4,7 @@
    base casual o cEDH, tabla nutricional, radiografía por áreas
    y tarjeta de regla 0 para conversar el nivel antes de jugar.
    ========================================================= */
-const RF_V = 2;   // versión de las marcas de cada carta; si sube, se vuelven a calcular
+const RF_V = 3;   // versión de las marcas de cada carta; si sube, se vuelven a calcular
 
 // marcas extra por carta, calculadas con el texto de Oracle (se guardan en m.rf y m.tq)
 function cardFlags(o, t, tl){
@@ -28,6 +28,12 @@ function cardFlags(o, t, tl){
   if (/base toughness 1|creatures your opponents control (get|have) -|(opponents|players) can't (cast|untap|search|draw more)/.test(o)) f.add("hoser");
   if (/whenever [^.]*(creature|another creature)[^.]*dies[^.]*(loses|deals? \d+ damage to each opponent)|whenever you sacrifice [^.]*(loses|damage)/.test(o)) f.add("deathDrain");
   if (perm && !land && /whenever|at the beginning of/.test(o)) f.add("repeat");
+  // tipo de mecánica (para el perfil de sinergia): disparada, activada, estática o de reemplazo
+  const body = o.replace(/\([^)]*\)/g, "");
+  if (/(^|\n|\. )(whenever|when|at the beginning of)\b/.test(body)) f.add("trig");
+  if (/(^|\n)[^\n"—]*[^\s]:\s/.test(body) && !/(^|\n)(choose one|spree)/.test(body)) f.add("act");
+  if (/\binstead\b|if [^.]*would|enters with|as [^.]* enters/.test(body)) f.add("repl");
+  if (perm && /(creatures?|permanents?|spells?|lands?|\w+s) (you control|your opponents control|you cast) (get|have|gain|cost|can't)|you may (look|cast|play)|other [^.]*get [+-]|^(flying|trample|deathtouch|lifelink|menace|reach|hexproof|indestructible)/m.test(body)) f.add("static");
   if (!perm && /draw|create|search your library|return|put [^.]*counter|onto the battlefield/.test(o)) f.add("oneShot");
   if (/when(ever)? [^.]*(enters|enter the battlefield)/.test(o)) f.add("etb");
   if (/when(ever)? [^.]*dies|when(ever)? [^.]*is put into a graveyard from the battlefield/.test(o)) f.add("dies");
@@ -149,13 +155,38 @@ function reportOf(d, A){
       if (tribe && cmdRows.some(m=>subtypesOf(m).includes(tribe.s)) && subtypesOf(r.m).includes(tribe.s)) return true; return false; });
     const cmdPct = nonlandN ? Math.round(100*sum(linkedToCmd)/nonlandN) : 0;
     const top = Y.themes[0], topShare = top && nonlandN ? (top.E+top.P)/nonlandN : 0;
-    const shape = cmdPct>=60 ? {es:"Estrella", s:"gira en torno al comandante"} : Y.themes.filter(t=>t.state==="fuerte").length>=3 ? {es:"Red", s:"varios temas que se cruzan"} : top && top.state==="fuerte" ? {es:"Núcleo", s:"un tema principal"} : {es:"Suelta", s:"pocas conexiones entre cartas"};
+    const strongN = Y.themes.filter(t=>t.state==="fuerte").length;
+    const shape0 = cmdPct>=60 ? {es:"Estrella", s:"gira en torno al comandante"} : strongN>=3 ? {es:"Red", s:"varios temas que se cruzan"} : top && top.state==="fuerte" ? {es:"Núcleo", s:"un tema principal"} : {es:"Suelta", s:"pocas conexiones entre cartas"};
     const focus = topShare>=0.45 || (tribe && tribe.pct>=60) ? {es:"Concentrada", s:"pocos temas, bien cubiertos"} : {es:"Repartida", s:"muchos temas a la vez"};
     const lonely = new Set(Y.lonely.map(r=>r.n));
     const covered = nonland.filter(r=>!lonely.has(r.n) || (tribe && tribe.pct>=40 && subtypesOf(r.m).includes(tribe.s)) || linkedToCmd.includes(r));
     const cov = nonlandN ? Math.round(100*sum(covered)/nonlandN) : 0;
     const score = Math.round((Y.cohesion + cov + cmdPct)/3);
-    syn = {score, cov, cmd:cmdPct, shape, focus, lv:LV(score, 75, 50, 1)};
+    const shape = shape0.es==="Suelta" && cov>=60 ? (strongN>=2 ? {es:"Red", s:"varios temas que se cruzan"} : {es:"Núcleo", s:"un tema principal"}) : shape0;
+    // perfil: cuántas conexiones tiene cada carta, qué tan concentradas están y de qué tipo son sus mecánicas
+    const L = nonland.map(r=>({r, n:(Y.links.get(r.n)||{n:0}).n, why:(Y.links.get(r.n)||{why:[]}).why})).filter(x=>x.n>0);
+    const tot = L.reduce((a,x)=>a+x.n,0) || 1;
+    const sorted = [...L].sort((a,b)=>b.n-a.n);
+    const topEntry = sorted.length ? sorted[0].n/tot : 0, top5 = sorted.slice(0,5).reduce((a,x)=>a+x.n,0)/tot;
+    const ns = sorted.map(x=>x.n).sort((a,b)=>a-b); let gini = 0;
+    if (ns.length > 1){ const m = tot/ns.length; let acc = 0; for (const a of ns) for (const b of ns) acc += Math.abs(a-b); gini = acc/(2*ns.length*ns.length*m); }
+    const entries = L.reduce((a,x)=>a+x.why.length,0);
+    const mix = {trig:0, act:0, stat:0, repl:0};
+    for (const x of L){ const f = x.r.m.rf||[]; if (f.includes("trig")) mix.trig++; if (f.includes("act")) mix.act++; if (f.includes("static")) mix.stat++; if (f.includes("repl")) mix.repl++; }
+    const mixT = (mix.trig+mix.act+mix.stat+mix.repl) || 1;
+    const partners = entries ? Math.round(10*tot/entries)/10 : 0;
+    const labels = [];
+    if (sorted.length && topEntry >= 0.12) labels.push({es:`${sorted[0].r.n} sostiene la red`, tone:"warn"});
+    if (mix.trig/mixT >= 0.5) labels.push({es:"Motor de disparadores", tone:"warn"});
+    if (cov >= 80) labels.push({es:"La sinergia toca casi todo el mazo", tone:"good"});
+    if (cmdPct >= 60) labels.push({es:"Gira en torno al comandante", tone:"warn"});
+    if (partners >= 5) labels.push({es:"Apoyo redundante", tone:"good"});
+    if (top5 < 0.35 && sorted.length >= 10) labels.push({es:"Peso repartido en muchas piezas", tone:"good"});
+    else if (top5 >= 0.5) labels.push({es:"Depende de pocas piezas clave", tone:"bad"});
+    const prof = {entries, cards:L.length, partners, mix:{trig:Math.round(100*mix.trig/mixT), act:Math.round(100*mix.act/mixT), stat:Math.round(100*mix.stat/mixT), repl:Math.round(100*mix.repl/mixT)},
+      gini:Math.round(100*gini)/100, topEntry:Math.round(100*topEntry), top5:Math.round(100*top5), hubs:sorted.slice(0,5).map(x=>({n:x.r.n, m:x.r.m, pct:Math.round(100*x.n/tot)})), labels,
+      cmdRole: cmdPct>=60 ? "Dominante" : cmdPct>=35 ? "Importante" : "De apoyo"};
+    syn = {score, cov, cmd:cmdPct, shape, focus, prof, lv:LV(score, 75, 50, 1)};
   }
   // perfil (arquetipo de juego / estrategia)
   const inter10 = clamp10(interTotal/2.4);
@@ -193,8 +224,18 @@ function reportOf(d, A){
   ];
   const BASE = {casual:{cons:4.5, eff:5, speed:3, inter:4.5, wins:4.5, res:4}, cedh:{cons:9, eff:9, speed:9, inter:8.5, wins:8.5, res:7}};
   // tabla nutricional contra la plantilla de EDH (puntos medios de lo recomendado)
-  const DV = [["Tierras", mana.lands, 36.5], ["Ramp", ramp.n, 10], ["Robo", cards.draw, 10], ["Removal", removal+counters, 8], ["Barridos", inter.wipes, 3], ["Protección", inter.protect, 4], ["Tutores", tutors.n, 3], ["Reciclaje", cards.rec, 3]];
-  const nutri = DV.map(([es, n, ref])=>({es, n, pct: Math.round(100*n/ref)}));
+  // base de maná: arreglo de colores, tierras que entran enderezadas y jugar en curva
+  const deckCols = (A.ci||"").split("").filter(c=>WUBRG.includes(c));
+  const fixers = sum(rows.filter(r=>{ const pm = (r.m.pm||[]).filter(c=>deckCols.includes(c)); return (r.m.t==="Land" || (r.m.r||[]).includes("ramp")) && (pm.length>=2 || (r.m.rf||[]).includes("fetch")); }));
+  const fixNeed = deckCols.length<=1 ? 1 : 8 + (deckCols.length-2)*6;
+  const untapped = lands.length ? sum(lands.filter(r=>!r.m.tap))/Math.max(1,mana.lands) : 1;
+  const onCurve = P.sim && P.sim.pScrew!=null ? (1-P.sim.pScrew) : null;
+  mana.fix = deckCols.length<=1 ? 100 : Math.round(100*fixers/fixNeed); mana.untapped = Math.round(100*untapped);
+  const landsOK = mana.lands>=35 && mana.lands<=39 ? 1 : mana.lands>=33 && mana.lands<=40 ? 0.8 : 0.5;
+  const nonbasicShare = deckCols.length<=1 ? 1 : (mana.lands ? mana.nonbasic/mana.lands : 0);
+  mana.quality = Math.round(100*Math.min(1, 0.35*Math.min(1, fixers/fixNeed) + 0.3*untapped + 0.2*landsOK + 0.15*nonbasicShare));
+  const DV = [["Arreglo de colores", fixers, fixNeed], ...(onCurve!=null ? [["Juega en curva", Math.round(onCurve*100)+"%", 85, Math.round(onCurve*100)]] : []), ["Calidad de la base", mana.quality+"%", 80, mana.quality], ["Tierras", mana.lands, 36.5], ["Ramp", ramp.n, 10], ["Robo", cards.draw, 10], ["Removal", removal+counters, 8], ["Barridos", inter.wipes, 3], ["Protección", inter.protect, 4], ["Tutores", tutors.n, 3], ["Reciclaje", cards.rec, 3]];
+  const nutri = DV.map(([es, n, ref, val])=>({es, n, pct: Math.round(100*(val!=null ? val : n)/ref)}));
   const report = {grades:[
       {es:"Sal", v:P.salt, g:GRADE(P.salt/10), s:P.saltLabel},
       {es:"Interacción", v:interTotal, g:GRADE(pill[3].v*0.855), s:`${interTotal} piezas`},
@@ -234,6 +275,8 @@ function reportHTML(d, A){
       ${repMeterHTML(P.power)}
       <div class="rp-abs"><span class="muted">Puntaje exacto</span> <b class="num">${R.abs.toFixed(2)}</b> <span class="muted">· cEDH = 10</span></div>
       ${prev ? `<div class="rp-chg ${hist[1].p>prev.p?"up":"down"}">${hist[1].p>prev.p?"Subió":"Bajó"} de ${prev.p.toFixed(1)} a ${hist[1].p.toFixed(1)} desde el ${new Date(hist[1].at).toLocaleDateString("es-CL")}</div>` : ""}
+      <div class="rp-cs">${d.csRef ? `<span>Commandersalt: <b class="num">${Number(d.csRef.p).toFixed(2)}</b> <span class="muted">(${(P.power - d.csRef.p >= 0 ? "+" : "") + (P.power - d.csRef.p).toFixed(1)} aquí)</span></span>` : `<span class="muted">¿Lo mediste en Commandersalt?</span>`}
+        <input type="text" id="rp-cs" inputmode="decimal" placeholder="Ej: 6,6" value="${d.csRef?esc(String(d.csRef.p)):""}" aria-label="Nivel en Commandersalt"><button class="btn sm" data-rp="cs">Guardar</button></div>
       <details class="rp-what"><summary>¿Qué significa?</summary><p>El nivel práctico mide qué tan fuerte juega el mazo en la mesa, de 1 a 10, donde 10 es cEDH. Sale de seis pilares (consistencia, eficiencia, velocidad, interacción, remates y resiliencia) más los Game Changers, el stax y los combos. Es una estimación para conversar antes de jugar, no un veredicto.</p></details>
     </div>
     <div class="rp-hero-r">
@@ -259,7 +302,7 @@ function reportHTML(d, A){
   <div class="rp-grid">
     ${repBoxHTML("Base de maná", lvPill(R.mana.lv.k==="dense"?{k:"dense",es:"Densa"}:R.mana.lv.k==="mod"?{k:"mod",es:"Justa"}:{k:"light",es:"Corta"}), `<p class="muted rp-sub">${R.mana.colors} color${R.mana.colors===1?"":"es"}</p><div class="rp-big"><b class="num">${R.mana.lands}</b> tierras</div>
       <div class="rp-split"><i style="flex:${R.mana.basics||0.01}">${R.mana.basics} básicas</i><i style="flex:${R.mana.nonbasic||0.01}">${R.mana.nonbasic} no básicas</i></div>
-      <p class="muted rp-sub">${R.mana.fetch} fetch · ${R.mana.utility} de utilidad</p><button class="btn sm ghost" data-sub="mana" style="padding:0">Ver base de maná completa →</button>`)}
+      <p class="muted rp-sub">${R.mana.fetch} fetch · ${R.mana.utility} de utilidad · ${R.mana.untapped}% entran enderezadas · calidad ${R.mana.quality}%</p><button class="btn sm ghost" data-sub="mana" style="padding:0">Ver base de maná completa →</button>`)}
     ${repBoxHTML("Composición", "", `<p class="muted rp-sub">${R.compN} sin contar tierras (con el comandante) · ${R.compN?Math.round(100*R.permN/R.compN):0}% permanentes</p>
       ${compRows.map(([k,es])=>`<div class="rp-line"><span>${es}</span><span class="rp-track sm"><i style="width:${100*R.comp[k]/maxComp}%"></i></span><b class="num">${R.comp[k]}</b></div>`).join("")}
       <p class="foot">Una carta con varios tipos cuenta en cada uno.</p>`, "wide")}
@@ -282,13 +325,36 @@ function reportHTML(d, A){
     ${R.tribe?repBoxHTML("Tribal", "", `<p class="muted rp-sub">Tribal ${esc(R.tribe.s)}</p><p class="rp-sub"><b class="num">${R.tribe.n}</b> <span class="muted">${esc(R.tribe.s)}</span> · <b class="num">${R.tribe.pct}%</b> <span class="muted">de las criaturas</span> · <b class="num">${R.tribe.pay}</b> <span class="muted">la aprovechan</span></p>`):""}
   </div>
 
+  ${R.syn && R.syn.prof ? synProfileHTML(R.syn) : ""}
+
   <section class="rp-card rp-nutri"><h4>Información nutricional</h4><div class="rp-nh"><span>por mazo de 100 cartas</span><span>% valor diario*</span></div>
     ${R.nutri.map(n=>`<div class="rp-nr"><span><b>${n.es}</b> ${n.n}</span><b class="num ${n.pct<70?"down":n.pct>150?"warn":""}">${n.pct}%</b></div>`).join("")}
-    <p class="foot">*Contra la plantilla recomendada para Commander (36–37 tierras, 10 ramp, 10 robo, 8 respuestas, 3 barridos, 4 protección).</p></section>
+    <p class="foot">*Contra la plantilla recomendada para Commander (36–37 tierras, 10 ramp, 10 robo, 8 respuestas, 3 barridos, 4 protección). Arreglo de colores: tierras y ramp que dan dos o más de tus colores. Juega en curva: manos que no se atascan en la simulación. Calidad: arreglo, tierras que entran enderezadas y cantidad de tierras.</p></section>
 
   <section class="rp-card rp-r0"><div><h4>Tarjeta de regla 0</h4><p class="muted" style="margin:0">Una imagen con el nivel, el bracket, el plan y las cartas que conviene avisar. Mándala al grupo antes de jugar.</p></div>
     <div class="row"><button class="btn primary" data-rp="r0">Crear tarjeta</button><button class="btn" data-rp="r0-text">Copiar como texto</button></div></section>
   </div>`;
+}
+
+/* ---------- perfil de sinergia ---------- */
+function synProfileHTML(Y){
+  const P = Y.prof;
+  const seg = (k, es, cls) => P.mix[k] ? `<i class="${cls}" style="flex:${P.mix[k]}" title="${es} ${P.mix[k]}%">${P.mix[k]>=12?`${P.mix[k]}%`:""}</i>` : "";
+  const mixLead = P.mix.trig>=50 ? "Basada en disparadores" : P.mix.act>=40 ? "Basada en habilidades activadas" : P.mix.stat>=40 ? "Basada en efectos estáticos" : "Mezclada";
+  return `<section class="rp-card sy-prof"><div class="rp-h"><h4 class="sc">perfil de sinergia</h4><span class="muted">${esc(Y.shape.es)} · ${esc(Y.focus.es)}</span></div>
+    ${P.labels.length?`<div class="chips">${P.labels.map(l=>`<span class="pill ${l.tone}">${esc(l.es)}</span>`).join("")}</div>`:""}
+    <div class="sy-stats">
+      <div><small class="sc">conexiones</small><b class="num">${P.entries}</b><span class="muted">en ${P.cards} cartas</span></div>
+      <div><small class="sc">apoyo por conexión</small><b class="num">${String(P.partners).replace(".",",")}</b><span class="muted">cartas que la sostienen</span></div>
+      <div><small class="sc">alcance</small><b class="num">${Y.cov}%</b><span class="muted">de las cartas sin tierras</span></div>
+      <div><small class="sc">comandante</small><b>${esc(P.cmdRole)}</b><span class="muted">${Y.cmd}% conectado a él</span></div>
+    </div>
+    <div><small class="sc muted">tipo de mecánicas · ${mixLead}</small>
+      <div class="sy-mix">${seg("trig","Disparadas","m-t")}${seg("act","Activadas","m-a")}${seg("stat","Estáticas","m-s")}${seg("repl","De reemplazo","m-r")}</div>
+      <div class="sy-legend"><span><i class="m-t"></i>Disparadas ${P.mix.trig}%</span><span><i class="m-a"></i>Activadas ${P.mix.act}%</span><span><i class="m-s"></i>Estáticas ${P.mix.stat}%</span><span><i class="m-r"></i>Reemplazo ${P.mix.repl}%</span></div></div>
+    <div class="sy-shape"><span><small class="sc">forma de la red</small> ${esc(Y.shape.es)}: ${esc(Y.shape.s)}</span><span class="muted num">gini ${String(P.gini).replace(".",",")} · la carta principal ${P.topEntry}% · las 5 principales ${P.top5}%</span></div>
+    ${P.hubs.length?`<div><small class="sc muted">cartas que sostienen el plan</small>${P.hubs.map(h=>`<div class="rec"><span>${cardName(h.n,h.m)}</span><span class="meta num">${h.pct}%</span></div>`).join("")}</div>`:""}
+    <p class="foot">Gini cerca de 0 = el peso está repartido; cerca de 1 = unas pocas cartas cargan todo. Si una carta sostiene mucho, protégela o busca redundancia.</p></section>`;
 }
 
 /* ---------- cartas por pilar (qué aporta cada carta) ---------- */
@@ -415,4 +481,7 @@ document.addEventListener("click", async ev => {
   if (b.dataset.rp==="refresh"){ await fetchCards(allNames(d), {force:true, label:"Actualizando datos de las cartas del mazo"}); bumpAnalysis(); render(); }
   else if (b.dataset.rp==="r0"){ b.disabled = true; try { await rule0Card(d, A); } finally { b.disabled = false; } }
   else if (b.dataset.rp==="r0-text"){ copyText(rule0Text(d, A)); }
+  else if (b.dataset.rp==="cs"){ const v = parseFloat(String(($("#rp-cs")||{}).value||"").replace(",", "."));
+    if (!(v>=1 && v<=10)){ if (d.csRef){ const {csRef, ...rest} = d; saveDeck(rest, {silent:true, noLog:true}); toast("Referencia de Commandersalt quitada."); } else toast("Escribe el nivel de Commandersalt, entre 1 y 10."); render(); return; }
+    saveDeck({...d, csRef:{p:Math.round(v*100)/100, at:Date.now()}}, {silent:true, noLog:true}); toast("Referencia guardada: se ve en la tabla de todos tus mazos."); render(); }
 });
