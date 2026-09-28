@@ -165,6 +165,7 @@ const LINK_SRC = [
   {k:"mtgdecks", n:"MTGDecks", re:/mtgdecks\.net\/[^\s]+/i},
   {k:"melee", n:"Melee", re:/melee\.gg\/Decklist\/View\/([\w-]+)/i},
   {k:"goldfisharch", n:"MTGGoldfish", re:/mtggoldfish\.com\/archetype\/[\w-]+/i},
+  {k:"topdeck", n:"TopDeck.gg", re:/topdeck\.gg\/deck\/([\w-]+\/[\w-]+)/i},
 ];
 const PROXIES = [u=>"https://corsproxy.io/?url="+encodeURIComponent(u), u=>"https://api.allorigins.win/raw?url="+encodeURIComponent(u)];
 async function getVia(url, {json=false}={}){
@@ -203,6 +204,12 @@ async function namesFromIds(ids){
   return out;
 }
 const IMPORTERS = {
+  async topdeck(id){
+    if (typeof LIVE==="undefined" || !LIVE) throw new Error("Las listas de TopDeck.gg se importan desde la versión en vivo (boveda-edh.netlify.app).");
+    const r = await fetch("/api/cedh?q=deck&id=" + id.split("/").map(encodeURIComponent).join("/")); const j = await r.json().catch(()=>({}));
+    if (!r.ok || !j.raw) throw new Error(j.error==="sin_clave" ? "Falta conectar TopDeck.gg en el sitio (clave TOPDECK_KEY)." : (j.error || "TopDeck.gg no entregó la lista."));
+    return {raw:j.raw, name:j.name||""};
+  },
   async moxfield(id){
     let j; try { j = await getVia(`https://api2.moxfield.com/v3/decks/all/${id}`, {json:true}); } catch(e){ j = await getVia(`https://api2.moxfield.com/v2/decks/all/${id}`, {json:true}); }
     const board = b => { if (!b) return []; const cards = b.cards || b; return Object.values(cards).map(x=>({n:(x.card&&x.card.name)||x.name, q:x.quantity||1})); };

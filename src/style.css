@@ -665,3 +665,29 @@ body.web [data-act="fetch-meta"],body.web [data-act="fetch-meta-all"],body.web [
   .rp-r0{grid-template-columns:1fr}
   .rp-nutri{max-width:none}
 }
+
+/* ---------- torneos cEDH (cedh.js) ---------- */
+.td .td-filters{display:grid;gap:8px;margin:6px 0 12px}
+.td-stats{margin-bottom:6px}
+.td-h{margin:18px 0 8px;font-family:var(--sc);font-size:1rem;letter-spacing:.05em;color:var(--muted);font-weight:600;text-transform:lowercase}
+.td-tbl td{vertical-align:top}
+.td table{min-width:0;width:100%}
+.td th,.td td{padding-left:6px;padding-right:6px}
+.td-mine{background:var(--accent-soft)}
+.td-seats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.td-seat{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--surface);display:grid;gap:4px}
+.td-seat b{font-size:1.25rem}
+.td-tours{display:grid;gap:8px}
+.td-tour{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+.td-tour-h{all:unset;box-sizing:border-box;width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;cursor:pointer}
+.td-tour-h:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.td-tour-h[aria-expanded="true"]{background:var(--accent-soft)}
+.td-size{font-size:1.1rem;font-weight:700;white-space:nowrap}.td-size small{font-weight:400;color:var(--muted);font-size:.75rem}
+.td-body{padding:10px 14px 14px;display:grid;gap:8px;border-top:1px solid var(--line)}
+.td-std .rec{align-items:center}
+.td-staples{columns:2;column-gap:24px}.td-staples .rec{break-inside:avoid}
+@media (max-width:640px){
+  .td-seats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .td table{font-size:.88rem}.td .td-rank{display:none}
+  .td-staples{columns:1}
+}

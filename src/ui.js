@@ -104,7 +104,7 @@ function deckHTML(d){
     ["precio","Precio",[["precio","Valor"],["versiones","Versiones"],["manabox","ManaBox"],["compartir","Compartir"]]]];
   const tabs = G.flatMap(g=>g[2]);
   if (!tabs.some(t=>t[0]===S.deckTab)) S.deckTab="analisis";
-  const body = {analisis:analysisHTML, lista:listHTML, mana:manaHTML, combos:combosHTML, brackets:bracketsHTML, mejorar:improveHTML, precio:priceHTML, meta:deckMetaHTML, manabox:mbDeckHTML, ia:iaHTML, radiografia:radioHTML, mano:manoHTML, versiones:versionesHTML, compartir:compartirHTML, sinergias:synergyHTML, nivel:powerHTML}[S.deckTab](d,A);
+  const body = {analisis:analysisHTML, lista:listHTML, mana:manaHTML, combos:combosHTML, brackets:bracketsHTML, mejorar:(d,A)=>improveHTML(d,A)+(A.isC&&typeof tdDeckHTML==="function"?tdDeckHTML(d,A):""), precio:priceHTML, meta:deckMetaHTML, manabox:mbDeckHTML, ia:iaHTML, radiografia:radioHTML, mano:manoHTML, versiones:versionesHTML, compartir:compartirHTML, sinergias:synergyHTML, nivel:powerHTML}[S.deckTab](d,A);
   const pendN = d.mb ? boardDiff(mbBase(d.mb), boardsOf(d)).n : 0;
   return `<div class="pane">
     <div class="pane-head">
@@ -430,10 +430,11 @@ function cedhMetaHTML(){
   return `<div class="pane"><div class="pane-head"><div><h2>Meta cEDH y brackets</h2><div class="sub">${live?`EDHTop16 en vivo · ${new Date(live.at).toLocaleString("es-CL",{dateStyle:"medium",timeStyle:"short"})}`:`${esc(META.cedh.src)} · foto del ${META_AT}`}</div></div>
     <div class="actions"><button class="btn sm" data-act="cedh-live">Actualizar desde EDHTop16</button><a class="btn sm ghost" href="${META.cedh.url}" target="_blank" rel="noopener">EDHTop16</a></div></div>
     <div class="pane-body">
+      ${typeof tdHTML==="function"?tdHTML():""}
       <div class="sec"><h3>Los 5 brackets</h3><div class="tbl-wrap"><table><thead><tr><th>Bracket</th><th>Game Changers</th><th>Combos de 2 cartas</th><th>Turnos extra</th><th>Destrucción de tierras</th></tr></thead><tbody>
         ${BRACKETS.slice(1).map(b=>`<tr><td><b>${b.n}</b> · ${b.name}</td><td>${b.gc===0?"no":b.gc<99?"hasta "+b.gc:"sin límite"}</td><td>${b.combo2?"sí":"no"}</td><td>${b.xt===0?"no":b.xt<99?"sin encadenar":"sí"}</td><td>${b.mld?"sí":"no"}</td></tr>`).join("")}</tbody></table></div>
         <p class="foot">Guía oficial de Wizards, actualización del 9 de febrero de 2026. En cada mazo, la pestaña “Brackets” te dice qué sacar o agregar para llegar al nivel que elijas.</p></div>
-      <div class="sec"><h3>Comandantes más jugados en torneos cEDH</h3><div class="tbl-wrap"><table><thead><tr><th>#</th><th>Comandante</th><th class="n">% del meta</th><th class="n">Mazos</th>${live?`<th class="n">Conversión</th>`:""}</tr></thead><tbody>
+      <div class="sec"><h3>Comandantes más jugados en torneos cEDH <span class="muted" style="font-weight:400;font-size:.9rem">(EDHTop16)</span></h3><div class="tbl-wrap"><table><thead><tr><th>#</th><th>Comandante</th><th class="n">% del meta</th><th class="n">Mazos</th>${live?`<th class="n">Conversión</th>`:""}</tr></thead><tbody>
         ${top.map((t,i)=>`<tr><td class="num">${i+1}</td><td>${esc(t[0])} ${isMine(t[0])?`<span class="pill good">tienes un mazo</span>`:""}</td><td class="n">${t[1]!=null?Number(t[1]).toFixed(2)+"%":"—"}</td><td class="n">${t[2]??"—"}</td>${live?`<td class="n">${t[3]!=null?Number(t[3]).toFixed(1)+"%":"—"}</td>`:""}</tr>`).join("")}</tbody></table></div></div>
       <div class="sec"><h3>Piezas habituales de cEDH por color</h3><p class="lede">Referencia para el bracket 5. Mana Crypt, Jeweled Lotus, Dockside Extortionist y Nadu están prohibidas desde septiembre de 2024.</p>
         <div class="tiers">${Object.entries(CEDH_STAPLES).map(([c,l])=>`<div class="tier"><h4><span class="row" style="gap:6px"><i class="pip p-${c}"></i>${c==="C"?"Incoloras":COLOR_ES[c]}</span></h4>${l.map(n=>`<div class="rec"><span>${cardName(n)}</span><span class="meta">${ownedOf(n)>0?`<span class="own y">tengo</span>`:money(refPrice(cardOf(n)))}</span></div>`).join("")}</div>`).join("")}</div>
