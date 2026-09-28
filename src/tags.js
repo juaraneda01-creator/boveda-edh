@@ -54,7 +54,7 @@ const TAG_DEFS = [
   // ataque
   {k:"extraCombat", es:"combate extra", re:/additional combat phase|untap all creatures[^.]*after this (main )?phase/},
   {k:"attackPay", es:"aprovecha atacar", re:/whenever (a creature you control|one or more creatures you control|this) attacks|whenever you attack|\bmelee\b|\bbattalion\b|\braid\b/},
-  {k:"evasion", es:"evasión", re:/\bflying\b|can't be blocked|\bmenace\b|\btrample\b|\bshadow\b|\bhorsemanship\b/, ty:t=>t==="Creature"},
+  {k:"evasion", es:"evasión", re:/\bflying\b|can't be blocked|\bmenace\b|\btrample\b|\bshadow\b|\bhorsemanship\b|\b(island|swamp|forest|mountain|plains)walk\b/, ty:t=>t==="Creature"},
   // maná e interacción con el comandante
   {k:"untap", es:"endereza permanentes", re:/untap (target|another target|all|up to \w+ target) (\w+ )?(permanent|creature|artifact|land)/},
   {k:"tapPay", es:"habilidades de girar", re:/\{t\}(, [^:]*)?: (?!add)/},

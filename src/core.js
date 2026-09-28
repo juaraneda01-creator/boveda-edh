@@ -234,6 +234,7 @@ function fromScry(c){
     ...(typeof cardFlags==="function" ? cardFlags(o,t,tl) : {}),
     xt:/take an extra turn/.test(o), mld:/destroy all lands|each player sacrifices (all|\w+) lands|lands don't untap|destroy all permanents/.test(o),
     tap: t==="Land" && /enters( the battlefield)? tapped\./.test(o) && !/unless|if you control|you may pay|you may reveal/.test(o),
+    pw: (()=>{ const v = parseInt(c.power!=null ? c.power : f0.power, 10); return isNaN(v) ? undefined : v; })(), tu: (()=>{ const v = parseInt(c.toughness!=null ? c.toughness : f0.toughness, 10); return isNaN(v) ? undefined : v; })(),
     leg:/Legendary/.test(tl), lg:{commander:lg.commander||"", pauper:lg.pauper||"", pioneer:lg.pioneer||""},
     usd:pr.usd!=null?pr.usd:pr.usdF, eur:pr.eur!=null?pr.eur:pr.eurF, img:pr.img, uri:pr.uri, ck:pr.ck,
     rank:c.edhrec_rank||null, rsv:!!c.reserved, rel:c.released_at||"", rar:c.rarity||"", at:Date.now()

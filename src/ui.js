@@ -104,7 +104,7 @@ function deckHTML(d){
     ["precio","Precio",[["precio","Valor"],["versiones","Versiones"],["manabox","ManaBox"],["compartir","Compartir"]]]];
   const tabs = G.flatMap(g=>g[2]);
   if (!tabs.some(t=>t[0]===S.deckTab)) S.deckTab="analisis";
-  const body = {analisis:analysisHTML, lista:listHTML, mana:manaHTML, combos:combosHTML, brackets:bracketsHTML, mejorar:(d,A)=>improveHTML(d,A)+(A.isC&&typeof tdDeckHTML==="function"?tdDeckHTML(d,A):""), precio:priceHTML, meta:deckMetaHTML, manabox:mbDeckHTML, ia:iaHTML, radiografia:radioHTML, mano:manoHTML, versiones:versionesHTML, compartir:compartirHTML, sinergias:synergyHTML, nivel:powerHTML, partidas:gamesHTML}[S.deckTab](d,A);
+  const body = {analisis:analysisHTML, lista:listHTML, mana:manaHTML, combos:combosHTML, brackets:bracketsHTML, mejorar:(d,A)=>improveHTML(d,A)+(A.isC&&typeof tdDeckHTML==="function"?tdDeckHTML(d,A):""), precio:priceHTML, meta:deckMetaHTML, manabox:mbDeckHTML, ia:iaHTML, radiografia:radioHTML, mano:manoHTML, versiones:versionesHTML, compartir:compartirHTML, sinergias:synergyHTML, nivel:powerHTML, partidas:(d,A)=>gamesHTML(d,A)+(typeof simGamesHTML==="function"?simGamesHTML(d,A):"")}[S.deckTab](d,A);
   const pendN = d.mb ? boardDiff(mbBase(d.mb), boardsOf(d)).n : 0;
   return `<div class="pane">
     <div class="pane-head">

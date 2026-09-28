@@ -54,8 +54,8 @@ async function claudeFill(names){
   if (own) setBusy("Completando datos de las cartas con Claude", names.length);
   const prompt = chunk => `You are a Magic: The Gathering card database. For each card name below, give its official Oracle data in English.
 Reply with ONLY a JSON array (no wrapper object), one object per name, same order, exactly this shape:
-{"q":"<name as given>","name":"<official name>","type_line":"Creature — Elf Druid","mana_cost":"{1}{G}","cmc":2,"colors":["G"],"color_identity":["G"],"oracle_text":"<full oracle text>","produced_mana":["G"],"legal":{"commander":"legal","pauper":"not_legal","pioneer":"legal"},"game_changer":false,"known":true}
-Rules: produced_mana lists the colors of mana the card can add (empty array if none). legal values are "legal", "not_legal" or "banned". game_changer is true only if the card is on the official Commander Game Changers list. For double-faced cards use the front face's type_line and mana_cost and join both faces' oracle text with "\n//\n". If you are not sure a card exists or do not know its exact text, set "known":false and leave the other fields empty.
+{"q":"<name as given>","name":"<official name>","type_line":"Creature — Elf Druid","mana_cost":"{1}{G}","cmc":2,"colors":["G"],"color_identity":["G"],"oracle_text":"<full oracle text>","power":"1","toughness":"1","produced_mana":["G"],"legal":{"commander":"legal","pauper":"not_legal","pioneer":"legal"},"game_changer":false,"known":true}
+Rules: power/toughness only for creatures (null otherwise). produced_mana lists the colors of mana the card can add (empty array if none). legal values are "legal", "not_legal" or "banned". game_changer is true only if the card is on the official Commander Game Changers list. For double-faced cards use the front face's type_line and mana_cost and join both faces' oracle text with "\n//\n". If you are not sure a card exists or do not know its exact text, set "known":false and leave the other fields empty.
 Names:
 ${chunk.join("\n")}`;
   const take = arr => {
@@ -64,7 +64,7 @@ ${chunk.join("\n")}`;
       if (!x || x.known===false || !x.name || !x.type_line) continue;
       const c = fromScry({name:String(x.name), cmc:+x.cmc||0, type_line:String(x.type_line), mana_cost:String(x.mana_cost||""),
         colors:Array.isArray(x.colors)?x.colors:[], color_identity:Array.isArray(x.color_identity)?x.color_identity:[],
-        oracle_text:String(x.oracle_text||""), produced_mana:Array.isArray(x.produced_mana)?x.produced_mana:[],
+        oracle_text:String(x.oracle_text||""), power:x.power, toughness:x.toughness, produced_mana:Array.isArray(x.produced_mana)?x.produced_mana:[],
         legalities:x.legal||{}, game_changer:x.game_changer===true});
       c.est = true; c.at = 1; c.usd = null; c.eur = null; c.img = ""; c.uri = SF_CARD(c.n);
       S.cards[slug(c.n)] = c; if (x.q) S.cards[slug(x.q)] = c;
