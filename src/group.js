@@ -68,7 +68,11 @@ function grpImport(){
 async function grpRefresh(){
   if (!grpState() || S.grp.busy) return; S.grp.busy = true; S.grp.err = "";
   try { grpSetDoc(await grpCall("GET")); S.grp.moved = false; grpImport(); await grpPublish(false); }
-  catch(e){ S.grp.err = grpErrText(e); S.grp.moved = e.status===410; }
+  catch(e){
+    const G = grpState();
+    // cambio de código cuya respuesta se perdió: se prueba el código nuevo guardado
+    if (e.status===410 && G && G.pending){ S.data.group = {...G, code:G.pending}; delete S.data.group.pending; saveData(); S.grp.busy = false; return grpRefresh(); }
+    S.grp.err = grpErrText(e); S.grp.moved = e.status===410; }
   finally { S.grp.busy = false; render(); }
 }
 function grpErrText(e){
@@ -119,7 +123,8 @@ function grpHTML(){
   const decksBy = mid => Object.entries(doc.decks||{}).filter(([,d])=>d.mid===mid);
   const F = S.grp.f;
   // el formulario solo conserva jugadores y mazos que siguen en el grupo
-  for (const mid of Object.keys(F.players)){ const k = F.players[mid]; if (!Object.hasOwn(doc.members||{}, mid) || !Object.hasOwn(doc.decks||{}, k) || doc.decks[k].mid!==mid){ delete F.players[mid]; delete F.seats[mid]; if (F.winner===mid) F.winner = null; } }
+  F.gone = [];
+  for (const mid of Object.keys(F.players)){ const k = F.players[mid]; if (!Object.hasOwn(doc.members||{}, mid) || !Object.hasOwn(doc.decks||{}, k) || doc.decks[k].mid!==mid){ if (F.edit){ F.gone.push(mid); continue; } delete F.players[mid]; delete F.seats[mid]; if (F.winner===mid) F.winner = null; } }
   // tabla del grupo
   const board = grpBoard(doc), rivals = grpRivalries(doc);
   const admin = doc.owner === G.mid;
@@ -142,7 +147,8 @@ function grpHTML(){
       <div class="gm-row"><span class="gm-l">Ganó</span><div class="chips">${playing.map(([mid,m])=>chip("win", mid, esc(m.name), F.winner===mid)).join("")}${chip("win", "draw", "Empate", F.winner==="draw")}</div></div>
       <div class="gm-row"><span class="gm-l">Turno</span><div class="gm-step"><button class="btn sm" data-grp-turn="-1">−</button><b class="num">${F.turn}</b><button class="btn sm" data-grp-turn="1">+</button></div></div>
       <div class="gm-row"><span class="gm-l">Cómo terminó</span><div class="chips">${GAME_HOW.map(([k,es])=>chip("how", k, es, F.how===k)).join("")}</div></div>
-      <div class="row"><button class="btn primary" data-grp="save" ${F.winner && !S.grp.saving?"":"disabled"}>${S.grp.saving?"Guardando…":F.edit?"Guardar corrección":"Guardar partida para el grupo"}</button>${F.edit?`<button class="btn ghost" data-grp="edit-cancel">Cancelar</button>`:""}</div>`:`<p class="muted" style="margin:0">Elige el mazo de al menos dos jugadores.</p>`}
+      ${F.edit && F.gone.length ? `<p class="down" style="margin:0">Esta partida tiene jugadores o mazos que ya no están en el grupo: no se puede corregir (sí borrar).</p>` : ""}
+      <div class="row"><button class="btn primary" data-grp="save" ${F.winner && !S.grp.saving && !(F.edit && F.gone.length)?"":"disabled"}>${S.grp.saving?"Guardando…":F.edit?"Guardar corrección":"Guardar partida para el grupo"}</button>${F.edit?`<button class="btn ghost" data-grp="edit-cancel">Cancelar</button>`:""}</div>`:`<p class="muted" style="margin:0">Elige el mazo de al menos dos jugadores.</p>`}
     </div>
 
     ${board.length?`<h4 class="td-h">Tabla del grupo</h4><div class="tbl-wrap"><table><thead><tr><th>#</th><th>Jugador</th><th class="n">Partidas</th><th class="n">Victorias</th><th class="n" title="Porcentaje ajustado por la cantidad de partidas">Ajustado</th></tr></thead><tbody>${board.map((x,i)=>`<tr${x.mid===G.mid?' class="td-mine"':""}><td class="num">${i+1}</td><td>${esc(x.name)}</td><td class="n">${x.n}</td><td class="n">${x.w} · ${Math.round(100*x.w/x.n)}%</td><td class="n"><b>${Math.round(100*x.adj)}%</b></td></tr>`).join("")}</tbody></table></div>
@@ -198,8 +204,10 @@ document.addEventListener("click", async ev => {
   if (act==="rotate"){
     if (S.grp.busy || !confirm("¿Cambiar el código del grupo? El código actual deja de servir: tendrás que mandar la invitación nueva a los miembros (ellos siguen con sus mazos y partidas al unirse con el código nuevo).")) return;
     const G = grpState(), code = syNewCode(); S.grp.busy = true; render();
-    try { const doc = await grpCall("POST", {op:"rotate", to: await grpId(code)}); S.data.group = {...G, code}; saveData(); S.grp.doc = doc; S.grp.show = true; toast("Código cambiado. Copia la invitación nueva y mándala al grupo."); }
-    catch(e){ toast(grpErrText(e)); }
+    // el código nuevo se guarda antes de pedirlo: si la respuesta se pierde, el grupo no queda inaccesible
+    S.data.group = {...G, pending: code}; saveData();
+    try { const doc = await grpCall("POST", {op:"rotate", to: await grpId(code)}); S.data.group = {...G, code}; delete S.data.group.pending; saveData(); S.grp.doc = doc; S.grp.show = true; toast("Código cambiado. Copia la invitación nueva y mándala al grupo."); }
+    catch(e){ if (e.status){ const g2 = {...grpState()}; delete g2.pending; S.data.group = g2; saveData(); } toast(e.status ? grpErrText(e) : "Sin conexión: si el cambio alcanzó a hacerse, el código nuevo se recupera solo al volver la señal."); }
     finally { S.grp.busy = false; render(); } return; }
   if (act==="show"){ S.grp.show = !S.grp.show; render(); return; }
   if (act==="link"){ copyText(`Únete a mi grupo en la Bóveda EDH: ${location.origin}/#grupo=${grpState().code.replace(/-/g,"")}`); return; }

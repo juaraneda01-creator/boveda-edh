@@ -12,7 +12,8 @@ S.gm = S.gm || {res:null, turn:7, how:null, seat:null, opp:[], oppTxt:"", note:"
 const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
 function gamesOf(d){
   const grp = typeof grpGamesFor==="function" ? grpGamesFor(d) : [];
-  const own = (S.data.games||[]).filter(g=>g.deck===d.id).map(g=>grp.some(x=>sameDay(x.at, g.at) && x.res===g.res && (!g.turn || !x.turn || x.turn===g.turn)) ? {...g, dup:true} : g);
+  const free = [...grp];   // cada partida del grupo empareja a lo más una anotada aquí
+  const own = (S.data.games||[]).filter(g=>g.deck===d.id).map(g=>{ const i = free.findIndex(x=>sameDay(x.at, g.at) && x.res===g.res && (!g.turn || !x.turn || x.turn===g.turn)); if (i<0) return g; free.splice(i,1); return {...g, dup:true}; });
   return [...own, ...grp].sort((a,b)=>b.at-a.at);
 }
 function gameStats(list){

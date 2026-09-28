@@ -7,7 +7,7 @@ const POST_OK = [["edhtop16.com", /^\/api\/graphql$/], ["backend.commanderspellb
 const MAX_BYTES = 6 * 1024 * 1024, MAX_BODY = 256 * 1024;
 const limited = limiter(90);
 const SAFE = {"x-content-type-options":"nosniff", "content-security-policy":"sandbox; default-src 'none'", "referrer-policy":"no-referrer", "vary":"Accept"};
-const TIMEOUT = 12000;   // un sitio lento no deja la función colgada
+const TIMEOUT = 8000;    // un sitio lento no deja la función colgada
 const txt = (msg, status, extra) => new Response(msg, {status, headers:{"content-type":"text/plain; charset=utf-8", ...SAFE, ...(extra||{})}});
 
 export default async (req) => {

@@ -75,4 +75,19 @@ expect("solo quien administra cambia el código", s === 403, s);
 expect("cambiar el código conserva el grupo", s === 200 && d.members.pedro2 && d.games.length, d);
 expect("el código antiguo avisa", (await fn(new Request(U))).status === 410, null);
 { const r = await fn(new Request("https://x/api/group?id=" + "c".repeat(64))); const j = await r.json(); expect("el código nuevo responde", r.status === 200 && j.name === "Los del jueves", j); }
+// grupo antiguo: el primer miembro no tiene clave; quien reclama su id no se vuelve administrador
+{ const lid = "d".repeat(64), LU = "https://x/api/group?id=" + lid;
+  const blobsMod = blobs; // mismo almacén en memoria
+  const lpost = async b => { const r = await fn(new Request(LU, {method:"POST", body: JSON.stringify(b)})); return [r.status, await r.json()]; };
+  let [ls, ld] = await lpost({op:"create", name:"Real", group:"Viejo", mid:"real1", tok:"tok-real-1234567890"});
+  // se simula un documento de antes de las claves: el creador sin huella
+  const { getStore } = blobsMod; const st = getStore(); const cur = await st.getWithMetadata(lid); delete cur.data.members.real1.th; delete cur.data.owner; await st.setJSON(lid, cur.data, {onlyIfMatch: cur.etag});
+  [ls] = await lpost({op:"decks", decks:[], mid:"real1", tok:"tok-intruso-1234567"});
+  expect("se puede reclamar un id antiguo durante la transición", ls === 200, ls);
+  [ls] = await lpost({op:"rotate", to:"e".repeat(64), mid:"real1", tok:"tok-intruso-1234567"});
+  expect("un id reclamado no cambia el código", ls === 403, ls);
+  [ls, ld] = await lpost({op:"join", name:"Nuevo", mid:"nuevo1", tok:"tok-nuevo-123456789"});
+  expect("administra el primero que se unió con su clave", ld.owner === "nuevo1", ld.owner);
+  [ls] = await lpost({op:"kick", who:"nuevo1", mid:"real1", tok:"tok-intruso-1234567"});
+  expect("un id reclamado no expulsa", ls === 403, ls); }
 console.log("Grupo OK: crear/unirse, claves por miembro, mazos sin pisarse, partidas validadas y escrituras simultáneas sin pérdidas.");

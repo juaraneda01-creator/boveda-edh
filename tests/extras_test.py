@@ -25,7 +25,7 @@ def flow(pg):
     pg.click('[data-mt="play"]'); pg.wait_for_timeout(200)
     out["mt"] = pg.locator('.mt-p').count()
     # Voja (asiento 2) pega 21 de comandante a Hapatra; Hakbal (asiento 1) se queda sin vida
-    for _ in range(21): pg.click('[data-mt="cd"][data-i="2"][data-from="1"]')
+    for _ in range(21): pg.click('[data-mt="cd"][data-i="2"][data-from="1:0"]')
     pg.evaluate("S.match.players[0].life = 1; matchSave(); render()")
     pg.click('[data-mt="life"][data-i="0"][data-v="-1"]'); pg.wait_for_timeout(100)
     out["done"] = pg.evaluate("S.match.done")

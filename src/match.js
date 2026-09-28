@@ -23,7 +23,7 @@ function matchCheck(M, by){
     if (p.out) continue;
     const cmd = Object.entries(p.cd).find(([,v])=>v>=21);
     const how = p.life<=0 ? "life" : p.poison>=10 ? "poison" : cmd ? "cmdr" : null;
-    if (how){ p.out = {how, turn:M.turn, by: how==="cmdr" ? +cmd[0] : by}; M.log.push({t:M.turn, s:`${p.name} queda fuera (${{life:"sin vida",poison:"10 de veneno",cmdr:"21 de comandante"}[how]})`}); }
+    if (how){ p.out = {how, turn:M.turn, by: how==="cmdr" ? parseInt(cmd[0],10) : by}; M.log.push({t:M.turn, s:`${p.name} queda fuera (${{life:"sin vida",poison:"10 de veneno",cmdr:"21 de comandante"}[how]})`}); }
   }
   const alive = matchAlive(M);
   if (alive.length<=1 && !M.done){
@@ -37,12 +37,12 @@ function matchHTML(){
   const M = S.match;
   if (!M) return `<div class="sec"><h3>Partida en vivo</h3><p class="lede">Elige los mazos en “Mesa de hoy” y toca “Jugar esta mesa”.</p><button class="btn primary" data-home="mesa">Ir a Mesa de hoy</button></div>`;
   const others = i => M.players.map((q,j)=>({q,j})).filter(x=>x.j!==i);
-  const card = (p, i) => `<section class="mt-p ${p.out?"out":""} ${M.active===i && !M.done?"act":""}" style="--seat:${i}">
+  const card = (p, i) => `<section class="mt-p ${p.out?"out":""}">
     <div class="mt-h"><b>${esc(p.name)}</b><span class="muted">${esc(p.deckName)}</span></div>
     <div class="mt-life"><button class="mt-b" data-mt="life" data-i="${i}" data-v="-1" aria-label="Menos 1 de vida a ${esc(p.name)}" ${p.out?"disabled":""}>−</button><b class="num" aria-live="polite">${p.life}</b><button class="mt-b" data-mt="life" data-i="${i}" data-v="1" aria-label="Más 1 de vida a ${esc(p.name)}" ${p.out?"disabled":""}>+</button></div>
     <div class="mt-row"><button class="btn sm" data-mt="life" data-i="${i}" data-v="-5" ${p.out?"disabled":""}>−5</button><button class="btn sm" data-mt="life" data-i="${i}" data-v="5" ${p.out?"disabled":""}>+5</button>
       <span class="mt-psn">Veneno <button class="btn sm ghost" data-mt="psn" data-i="${i}" data-v="-1" aria-label="Menos veneno" ${p.out?"disabled":""}>−</button><b class="num">${p.poison}</b><button class="btn sm ghost" data-mt="psn" data-i="${i}" data-v="1" aria-label="Más veneno" ${p.out?"disabled":""}>+</button></span></div>
-    ${M.isC?`<div class="mt-cd"><small class="sc">daño de comandante recibido</small>${others(i).map(({q,j})=>`<button class="chip" data-mt="cd" data-i="${i}" data-from="${j}" ${p.out?"disabled":""} title="Toca para sumar 1 del comandante de ${esc(q.name)} (también resta 1 de vida)">${esc(String(q.cmd||q.deckName).split(/[,+]/)[0].trim().slice(0,16))} <b class="num">${p.cd[j]||0}</b></button>`).join("")}
+    ${M.isC?`<div class="mt-cd"><small class="sc">daño de comandante recibido</small>${others(i).flatMap(({q,j})=>{ const cs = String(q.cmd||q.deckName).split(" + ").filter(Boolean); return cs.map((cn,k)=>`<button class="chip" data-mt="cd" data-i="${i}" data-from="${j}:${k}" ${p.out?"disabled":""} title="Toca para sumar 1 de ${esc(cn)} (${esc(q.name)}); también resta 1 de vida">${esc(cn.split(",")[0].trim().slice(0,16))} <b class="num">${p.cd[j+":"+k]||0}</b></button>`); }).join("")}
       ${Object.values(p.cd).some(v=>v>0)&&!p.out?`<button class="btn sm ghost" data-mt="cdundo" data-i="${i}" title="Deshacer el último daño de comandante">↶</button>`:""}</div>`:""}
     ${p.out?`<p class="mt-out">Fuera en el turno ${p.out.turn} · ${{life:"sin vida",poison:"veneno",cmdr:"daño de comandante"}[p.out.how]} <button class="btn sm ghost" data-mt="revive" data-i="${i}">Volver</button></p>`:""}
   </section>`;
@@ -53,7 +53,7 @@ function matchHTML(){
       <button class="btn sm ghost" data-mt="reset">Reiniciar</button></div>
     ${M.done?`<div class="banner info mt-done"><span>${W?`<b>${esc(W.name)} gana</b> con ${esc(W.deckName)} en el turno ${M.done.turn}.`:"Nadie quedó en pie: empate."} ¿La anoto?</span>
       <div class="row">${matchHowChips(M)}</div>
-      <div class="row"><button class="btn primary" data-mt="save" ${M.saved?"disabled":""}>${M.saved?"Anotada":"Anotar partida"}</button>${matchGroupOk(M)?`<span class="muted" style="font-size:.88rem">Todos los mazos son del grupo: queda anotada para todos.</span>`:""}</div></div>`:""}
+      <div class="row"><button class="btn primary" data-mt="save" ${M.saved||M.saving?"disabled":""}>${M.saved?"Anotada":M.saving?"Anotando…":"Anotar partida"}</button>${matchGroupOk(M)?`<span class="muted" style="font-size:.88rem">Todos los mazos son del grupo: queda anotada para todos.</span>`:""}</div></div>`:""}
     <div class="mt-grid n${M.players.length}">${M.players.map(card).join("")}</div>
     ${M.log.length?`<details class="mt-log"><summary class="muted">Historial (${M.log.length})</summary>${M.log.slice(-20).reverse().map(l=>`<div><span class="num muted">T${l.t}</span> ${esc(l.s)}</div>`).join("")}</details>`:""}
     <p class="foot">La partida se guarda en este teléfono mientras juegas: si cierras la app, sigue donde quedó. Toca “+” en Turno al pasar a la siguiente vuelta de la mesa.</p>
@@ -74,11 +74,15 @@ function matchGroupOk(M){
   return ks.every(Boolean) && new Set(ks.map(k=>k.mid)).size === ks.length ? ks : null;
 }
 async function matchSaveGame(){
-  const M = S.match; if (!M || !M.done || M.saved) return;
+  const M = S.match; if (!M || !M.done || M.saved || M.saving) return;
+  M.gid = M.gid || uid(); M.saving = true; matchSave(); render();   // el mismo id si se reintenta: el grupo no la duplica
+  try { await matchSaveGameInner(M); } finally { M.saving = false; matchSave(); render(); }
+}
+async function matchSaveGameInner(M){
   const res = i => M.done.winner<0 ? "draw" : M.done.winner===i ? "win" : "loss";
   const grp = matchGroupOk(M);
   if (grp){
-    const game = {id:uid(), at:M.at, turn:M.done.turn, how:M.done.how, players: M.players.map((p,i)=>({mid:grp[i].mid, deck:grp[i].k, seat:p.seat, res:res(i)}))};
+    const game = {id:M.gid, at:M.at, turn:M.done.turn, how:M.done.how, players: M.players.map((p,i)=>({mid:grp[i].mid, deck:grp[i].k, seat:p.seat, res:res(i)}))};
     try { S.grp.doc = await grpCall("POST", {op:"game", game}); M.saved = true; matchSave(); render(); toast("Partida anotada para todo el grupo."); return; }
     catch(e){ toast("No se pudo anotar en el grupo (" + e.message + "). La anoto solo en tus mazos."); }
   }
@@ -105,7 +109,7 @@ document.addEventListener("click", async ev => {
   if (act==="turn"){ M.turn = Math.max(1, Math.min(40, M.turn + v)); if (M.done && !M.saved) M.done.turn = M.turn; }
   else if (act==="life" && p && !p.out){ p.life += v; if (v<0) M.log.push({t:M.turn, s:`${p.name} ${v} de vida (${p.life})`}); matchCheck(M); }
   else if (act==="psn" && p && !p.out){ p.poison = Math.max(0, p.poison + v); matchCheck(M); }
-  else if (act==="cd" && p && !p.out){ const f = +b.dataset.from; p.cd[f] = (p.cd[f]||0) + 1; p.life -= 1; p.cdLast = f; M.log.push({t:M.turn, s:`${M.players[f].name} pega 1 de comandante a ${p.name} (${p.cd[f]})`}); matchCheck(M, f); }
+  else if (act==="cd" && p && !p.out){ const f = b.dataset.from, fi = parseInt(f,10); p.cd[f] = (p.cd[f]||0) + 1; p.life -= 1; p.cdLast = f; M.log.push({t:M.turn, s:`${M.players[fi].name} pega 1 de comandante a ${p.name} (${p.cd[f]})`}); matchCheck(M, fi); }
   else if (act==="cdundo" && p && p.cdLast!=null && p.cd[p.cdLast]){ p.cd[p.cdLast]--; p.life++; p.cdLast = null; }
   else if (act==="revive" && p){ p.out = null; if (p.life<=0) p.life = 1; if (p.poison>=10) p.poison = 9; for (const k of Object.keys(p.cd)) if (p.cd[k]>=21) p.cd[k] = 20; if (!M.saved) M.done = null; }
   else if (act==="how" && M.done){ M.done.how = M.done.how===b.dataset.v ? null : b.dataset.v; }

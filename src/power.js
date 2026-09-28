@@ -160,7 +160,7 @@ function powerOfRaw(d, A){
   const absCal = k > 1 && absNC > 8 ? Math.max(1, Math.min(10, 8 + (absNC - 8) * k + (abs0 - absNC))) : abs0;
   // ajuste a tus referencias de Commandersalt (si lo activaste)
   const fit = !S.noFit && S.data && S.data.settings && S.data.settings.csFit;
-  const abs = fit && fit.on && fit.a ? Math.max(1, Math.min(10, fit.a*absCal + fit.b)) : absCal;
+  const abs = A.isC && fit && fit.on && fit.a ? Math.max(1, Math.min(10, fit.a*absCal + fit.b)) : absCal;
   const power = Math.round(abs * 10) / 10;
   // bracket realista según el nivel y los elementos que definen cEDH
   const cedh = fast>=5 && A.tutors.length>=5 && (c2||0)>=1;
@@ -178,7 +178,7 @@ function powerOfRaw(d, A){
   const SS = stapleSet(); const spellsN = rows.filter(r=>!r.cmd && r.m.t!=="Land").reduce((a,r)=>a+r.q,0);
   const stN = rows.filter(r=>!r.cmd && r.m.t!=="Land" && SS.has(slug(r.n))).reduce((a,r)=>a+r.q,0);
   const density = spellsN ? {pct: stN/spellsN, n: stN, of: spellsN} : null;
-  return {power, abs, abs0, absNC, absCal, fit: fit && fit.on ? fit : null, comp, E, early, real, official, cedh, salt, saltLabel, saltTop:salty.slice(0,10), threat, threatCards, sim, c2, axes, density};
+  return {power, abs, abs0, absNC, absCal, fit: A.isC && fit && fit.on ? fit : null, comp, E, early, real, official, cedh, salt, saltLabel, saltTop:salty.slice(0,10), threat, threatCards, sim, c2, axes, density};
 }
 
 /* ---------- vista del mazo ---------- */

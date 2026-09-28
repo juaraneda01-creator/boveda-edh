@@ -4,7 +4,7 @@ import { limiter, crossSite, readCapped, overDailyQuota } from "../lib/guard.mjs
 const limited = limiter(40);
 
 const MAX = 5 * 1024 * 1024;
-const NEW_PER_DAY = 20;   // códigos nuevos por conexión y día
+const NEW_PER_DAY = 60;   // códigos nuevos por conexión y día
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json", "cache-control": "no-store", "x-content-type-options": "nosniff" } });
 
 // límite por persona: 40 lecturas o escrituras por minuto en cada instancia
@@ -20,6 +20,9 @@ async function handle(req){
   if (req.method === "GET"){
     const r = await store.getWithMetadata(id, { type: "arrayBuffer" });
     if (!r) return json({ error: "sin datos" }, 404);
+    const at0 = Number(r.metadata && r.metadata.at) || 0, seen = Math.max(at0, Number(r.metadata && r.metadata.seen) || 0);
+    // un código que solo se lee también está en uso: se marca cada tanto para que la limpieza no lo borre
+    if (Date.now() - seen > 30 * 86400e3 && r.etag) await store.set(id, r.data, { metadata: { at: at0, seen: Date.now() }, onlyIfMatch: r.etag }).catch(() => {});
     return new Response(r.data, { headers: { "content-type": "application/octet-stream", "content-disposition": "attachment; filename=\"boveda.bin\"", "x-content-type-options": "nosniff", "x-at": String((r.metadata && r.metadata.at) || 0), "cache-control": "no-store" } });
   }
   if (req.method === "PUT"){

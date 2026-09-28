@@ -42,7 +42,9 @@ async function handle(req){
   names.forEach((n, i) => { const h = hits[i]; if (h && h.card && now - (h.at || 0) < FRESH) data.push(h.card); else cand.push({n, old:h && h.card}); });
   // caché negativa: nombres que Scryfall no encontró hace poco
   const nfHits = await Promise.all(cand.map(x => x.old ? null : store.get("nf/" + slug(x.n.split(" // ")[0]), {type:"json"}).catch(() => null)));
-  cand.forEach((x, i) => { const h = nfHits[i]; if (h && now - (h.at || 0) < NF_TTL) not_found.push({name:x.n}); else miss.push(x); });
+  const low = n => String(n).split(" // ")[0].trim().toLowerCase();
+  // solo cuenta si se pidió exactamente el mismo nombre (una variante mal escrita no bloquea la carta real)
+  cand.forEach((x, i) => { const h = nfHits[i]; if (h && h.q === low(x.n) && now - (h.at || 0) < NF_TTL) not_found.push({name:x.n}); else miss.push(x); });
   for (let i = 0; i < miss.length; i += 75){
     const chunk = miss.slice(i, i + 75);
     let j;
@@ -56,7 +58,7 @@ async function handle(req){
     const saves = [];
     for (const x of chunk){
       const c = byName.get(slug(x.n.split(" // ")[0])) || byName.get(slug(x.n)) || ((j.data || []).length + nf.size === chunk.length ? byPos.get(x.n) : null);
-      if (!c){ if (x.old) data.push(x.old); else { not_found.push({name:x.n}); if (nf.has(slug(x.n.split(" // ")[0]))) saves.push(store.setJSON("nf/" + slug(x.n.split(" // ")[0]), {at: now}).catch(() => {})); } continue; }
+      if (!c){ if (x.old) data.push(x.old); else { not_found.push({name:x.n}); if (nf.has(slug(x.n.split(" // ")[0]))) saves.push(store.setJSON("nf/" + slug(x.n.split(" // ")[0]), {at: now, q: x.n.split(" // ")[0].trim().toLowerCase()}).catch(() => {})); } continue; }
       const t = trim(c); data.push(t);
       const keys = new Set([slug(x.n.split(" // ")[0]), slug(c.name.split(" // ")[0])]);
       for (const k of keys) saves.push(store.setJSON("c/" + k, {at: now, card: t}).catch(() => {}));

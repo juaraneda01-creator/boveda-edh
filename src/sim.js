@@ -9,6 +9,9 @@
    ========================================================= */
 
 // cada carta se reduce a lo que importa para la carrera
+// maná total que da cada ritual (sin descontar su coste); las guías de espíritu se lanzan gratis desde la mano
+const RITUAL_OUT = {"dark ritual":3, "cabal ritual":3, "rite of flame":2, "seething song":5, "culling the weak":4, "desperate ritual":3, "pyretic ritual":3, "songs of the damned":3, "jeska's will":4, "mana geyser":6, "infernal plunge":3, "simian spirit guide":1, "elvish spirit guide":1, "lotus bloom":3};
+const FREE_CAST = new Set(["simian spirit guide","elvish spirit guide"]);
 function simCard(r, cmd){
   const m = r.m || {}; const has = k => (m.tg||[]).includes(k) || (m.rf||[]).includes(k) || (m.r||[]).includes(k);
   const t = m.t || "Creature"; const name = r.n.toLowerCase();
@@ -20,7 +23,7 @@ function simCard(r, cmd){
   c.anthem = has("wcCombat") ? 1 : 0;
   c.mana = 0;
   if (!c.land && !c.perm && has("landRamp")){ c.landRamp = has("landRamp2") ? 2 : 1; if (has("landHand")) c.landHand = 1; }   // Rampant Growth +1; Explosive Vegetation +2; Cultivate +1 y otra a la mano
-  else if (!c.land && has("ramp")){ c.mana = FAST_MANA.has(name) && /ring|vault|crypt/.test(name) ? 2 : 1; if (!c.perm) { c.ritual = FAST_MANA.has(name) ? 2 : 1; c.mana = 0; } }
+  else if (!c.land && has("ramp")){ c.mana = FAST_MANA.has(name) && /ring|vault|crypt/.test(name) ? 2 : 1; if (!c.perm || FREE_CAST.has(name)) { c.ritual = RITUAL_OUT[name] != null ? RITUAL_OUT[name] : c.cmc + 1; if (FREE_CAST.has(name)) c.cmc = 0; c.mana = 0; c.perm = false; } }
   if (!c.land && c.perm && has("landRamp")) c.mana = Math.max(c.mana, 1);
   if (FAST_MANA.has(name) && c.perm && !c.land) c.fast = true;
   c.draw = has("draw") ? (c.perm && has("repeat") ? 1 : 2) : 0; c.drawEngine = c.perm && has("draw") && has("repeat");
@@ -152,7 +155,7 @@ function simGame(decks, rnd, {life=40, maxTurns=20}={}){
         // los más grandes atacan primero hacia donde no hay bloqueador; el comandante suma su daño aparte (21 mata)
         atk.sort((a,b)=>(b.evasive?1:0)-(a.evasive?1:0) || b.pow-a.pow).forEach((c,i)=>{ const pw = c.pow + anth; const hit = c.evasive || i >= blockers ? pw : pw*0.35;
           if (c.poison) psn += hit; else dmg += hit;
-          if (c.cmd && hit >= 1 && !c.poison){ const k = p.seat; tgt.cmdDmg[k] = (tgt.cmdDmg[k]||0) + Math.round(hit); if (tgt.cmdDmg[k] >= 21 && tgt.alive){ tgt.life = Math.min(tgt.life, 0); tgt.alive = false; p.how = "cmdr"; } } });
+          if (c.cmd && hit >= 1 && !c.poison){ const k = p.seat + ":" + c.n;   /* cada comandante por separado: los compañeros no se suman */ tgt.cmdDmg[k] = (tgt.cmdDmg[k]||0) + Math.round(hit); if (tgt.cmdDmg[k] >= 21 && tgt.alive){ tgt.life = Math.min(tgt.life, 0); tgt.alive = false; p.how = "cmdr"; } } });
         if (psn > 0){ tgt.poison += Math.round(psn); if (tgt.poison >= 10 && tgt.alive){ tgt.alive = false; tgt.life = Math.min(tgt.life, 0); p.how = "poison"; } }
         dmg += p.board.reduce((a,c)=>a+(c.tokensMade||0),0) * (blockers>atk.length?0.3:1);
         if (dmg>0){ tgt.life -= Math.round(dmg); kill(p, tgt, "combat"); }

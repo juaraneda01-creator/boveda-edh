@@ -394,8 +394,8 @@ async function runBuilder(){
   const quotas = [["ramp",10],["draw",10],["counter",inter.counter],["removal",inter.removal],["wipe",inter.wipe],["protection",3]];
   for (const [role,n] of quotas){ let k=0; for (const p of spells){ if (k>=n) break; const fits = role==="counter" ? isCounter(p.m) : (p.m.r||[]).includes(role); if (fits && take(p)) k++; } }
   // poca interacción: el resto no se llena con más removal
-  const interN = [...chosen.values()].filter(p=>(p.m.r||[]).includes("removal")||(p.m.r||[]).includes("wipe")||isCounter(p.m)).length, interMax = inter.removal + inter.wipe + inter.counter + 2;
-  for (const p of spells){ if (chosen.size>=63) break; const isInt = (p.m.r||[]).includes("removal")||(p.m.r||[]).includes("wipe")||isCounter(p.m); if (isInt && interN >= interMax && !chosen.has(slug(p.m.n))) continue; take(p); }
+  let interN = [...chosen.values()].filter(p=>(p.m.r||[]).includes("removal")||(p.m.r||[]).includes("wipe")||isCounter(p.m)).length, interMax = inter.removal + inter.wipe + inter.counter + 2;
+  for (const p of spells){ if (chosen.size>=63) break; const isInt = (p.m.r||[]).includes("removal")||(p.m.r||[]).includes("wipe")||isCounter(p.m); if (isInt && interN >= interMax && !chosen.has(slug(p.m.n))) continue; if (take(p) && isInt) interN++; }
   const nonbasic = pool.filter(p=>p.m.t==="Land").slice(0, ci.length<=1?6:14).filter(p=>take(p) || chosen.has(slug(p.m.n)));
   for (const p of nonbasic) chosen.delete(slug(p.m.n));
   const landsN=36, basicsN=Math.max(0, landsN-nonbasic.length);

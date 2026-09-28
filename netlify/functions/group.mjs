@@ -8,7 +8,7 @@ const limited = limiter(60);
 
 const json = (o, status = 200) => new Response(JSON.stringify(o), {status, headers:{"content-type":"application/json", "cache-control":"no-store", "x-content-type-options":"nosniff"}});
 const MAX_MEMBERS = 16, MAX_DECKS = 25, MAX_GAMES = 3000, MAX_LIST = 9000, MAX_DOC = 1_500_000;
-const NEW_PER_DAY = 10;                                   // grupos nuevos por conexión y día
+const NEW_PER_DAY = 30;                                   // grupos nuevos por conexión y día
 // miembros de antes de las claves: pueden reclamar su lugar hasta esta fecha; después deben volver a unirse
 const LEGACY_UNTIL = Date.parse("2026-11-01T00:00:00Z");
 const RESERVED = new Set(["__proto__", "constructor", "prototype", "hasOwnProperty", "toString", "valueOf"]);
@@ -48,14 +48,18 @@ function apply(doc, op, b){
   if (isMember && !doc.members[mid].th && Date.now() > LEGACY_UNTIL) throw fail("vuelve a unirte al grupo con tu nombre", 403);
   // el id de alguien que salió o fue expulsado no se reutiliza
   if (!isMember && has(doc.left, mid)) throw fail("ese miembro ya salió del grupo: vuelve a unirte", 403);
-  if (!doc.owner || !has(doc.members, doc.owner)) doc.owner = Object.keys(doc.members)[0] || null;   // grupos antiguos: el primero en llegar
+  // pasada la transición, los miembros que nunca tuvieron clave salen (ocupan cupo y no pueden actuar)
+  if (Date.now() > LEGACY_UNTIL) for (const k of Object.keys(doc.members)) if (!doc.members[k].th && k !== mid) removeMember(doc, k);
+  // administrar (quitar, traspasar, cambiar el código) exige una clave obtenida al unirse, no reclamada
+  const trusted = isMember && !!doc.members[mid].th && !doc.members[mid].legacy;
   if (op === "create" || op === "join"){
     if (!isMember && Object.keys(doc.members).length >= MAX_MEMBERS) throw fail("el grupo está lleno", 409);
-    doc.members[mid] = {name: str(b.name, 40) || "Jugador", at: Date.now(), th};
+    const claimed = isMember && !doc.members[mid].th;   // entrar con el id de un miembro antiguo sin clave: no da administración
+    doc.members[mid] = {...(isMember ? doc.members[mid] : {}), name: str(b.name, 40) || "Jugador", at: Date.now(), th, ...(claimed ? {legacy:true} : {})};
     if (op === "create"){ if (b.group) doc.name = str(b.group, 60); doc.owner = mid; }
-    if (!doc.owner) doc.owner = mid;
   } else {
     if (!isMember) throw fail("primero únete al grupo", 403);
+    if (!doc.members[mid].th) doc.members[mid].legacy = true;   // clave reclamada, no obtenida al unirse
     Object.assign(doc.members[mid], {at: Date.now(), th});
     if (op === "decks"){
       // lo borrado queda anotado (con su hora): un dispositivo atrasado no lo puede revivir
@@ -83,23 +87,29 @@ function apply(doc, op, b){
       removeMember(doc, mid);
     } else if (op === "kick"){
       const who = str(b.who, 40);
-      if (doc.owner !== mid) throw fail("solo quien administra el grupo puede quitar miembros", 403);
+      if (doc.owner !== mid || !trusted) throw fail("solo quien administra el grupo puede quitar miembros", 403);
       if (who === mid || !has(doc.members, who)) throw fail("miembro inválido", 400);
       removeMember(doc, who);
     } else if (op === "owner"){
       const who = str(b.who, 40);
-      if (doc.owner !== mid) throw fail("solo quien administra el grupo puede traspasarlo", 403);
+      if (doc.owner !== mid || !trusted) throw fail("solo quien administra el grupo puede traspasarlo", 403);
       if (!has(doc.members, who)) throw fail("miembro inválido", 400);
       doc.owner = who;
     } else throw fail("operación no válida", 400);
   }
+  pickOwner(doc);
   doc.at = Date.now(); return doc;
+}
+// grupos antiguos o sin administrador: el primero que se unió con su propia clave
+function pickOwner(doc){
+  const ok = k => has(doc.members, k) && doc.members[k].th && !doc.members[k].legacy;
+  if (!doc.owner || !ok(doc.owner)) doc.owner = Object.keys(doc.members).find(ok) || null;
 }
 function removeMember(doc, who){
   delete doc.members[who]; doc.left[who] = Date.now();
   for (const k of Object.keys(doc.decks)) if (doc.decks[k].mid === who) delete doc.decks[k];
   const lk = Object.keys(doc.left); if (lk.length > 200) for (const k of lk.sort((a, b) => doc.left[a] - doc.left[b]).slice(0, lk.length - 200)) delete doc.left[k];
-  if (doc.owner === who) doc.owner = Object.keys(doc.members)[0] || null;
+  if (doc.owner === who) doc.owner = null;
 }
 // lo que sale nunca lleva las huellas de las claves
 function pub(doc){
@@ -117,7 +127,11 @@ async function handle(req){
   if (req.method === "GET"){
     const r = await store.getWithMetadata(id, {type:"json"});
     if (r && r.data && r.data.moved) return json({error:"el grupo cambió de código: pide la nueva invitación", moved:true}, 410);
-    return r && r.data ? json(pub(r.data)) : json({error:"no existe"}, 404);
+    if (r && r.data){ const seen = Math.max(Number(r.metadata && r.metadata.at) || 0, Number(r.metadata && r.metadata.seen) || 0);
+      // un grupo que solo se consulta también está vivo: se marca cada tanto para que la limpieza no lo borre
+      if (Date.now() - seen > 30 * 86400e3 && r.etag) await store.setJSON(id, r.data, {metadata:{at: r.data.at || 0, seen: Date.now()}, onlyIfMatch: r.etag}).catch(()=>{});
+      pickOwner(r.data); return json(pub(r.data)); }
+    return json({error:"no existe"}, 404);
   }
   if (req.method !== "POST") return json({error:"método no permitido"}, 405);
   let b; try { b = await readJSON(req, 256 * 1024); } catch(e){ return json({error:e.message}, e.status || 400); }
@@ -144,6 +158,8 @@ async function rotate(store, id, b){
   const cur = await store.getWithMetadata(id, {type:"json"});
   if (!cur || !cur.data || cur.data.moved) return json({error:"no existe"}, 404);
   const doc = cur.data; doc.members = doc.members || {}; doc.decks = doc.decks || {}; doc.games = Array.isArray(doc.games) ? doc.games : [];
+  const m0 = doc.members[str(b.mid, 40)];
+  if (!m0 || !m0.th || m0.legacy) return json({error:"solo quien administra el grupo puede cambiar el código"}, 403);
   try { apply(doc, "noop-check", {...b, op:"noop-check"}); } catch(e){ if (e.status !== 400 || e.message !== "operación no válida") return json({error:e.message}, e.status || 400); }
   if (doc.owner !== str(b.mid, 40)) return json({error:"solo quien administra el grupo puede cambiar el código"}, 403);
   doc.at = Date.now();
