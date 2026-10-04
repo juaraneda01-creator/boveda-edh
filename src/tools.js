@@ -33,6 +33,8 @@ const TOOLS = [
   {k:"constructor", i:"tool", t:"Constructor", d:"Crea un mazo desde cero: guiado con EDHREC y tu colección, o libre."},
   {k:"coleccion", i:"box", t:"Colección", d:"Guarda tus cartas y optimiza usando lo que ya tienes."},
   {k:"local", i:"people", t:"Meta local", d:"Compara la velocidad de tu mazo con los de tus amigos."},
+  {k:"chequeo", i:"scale", t:"Chequeo rápido de mesa", d:"Pega de 2 a 4 enlaces o listas y mira si la mesa está pareja, sin guardar los mazos."},
+  {k:"biblioteca", i:"box", t:"Biblioteca por bracket", d:"Tus mazos, los de tus amigos, el grupo y torneo, filtrados por bracket."},
   {k:"versiones", i:"scale", t:"Comparar versiones", d:"El antes y el después de cada cambio, con sus números."},
   {k:"compartir", i:"link", t:"Compartir", d:"Enlace o código de solo lectura, página del mazo y lista para copiar."},
   {k:"pdf", i:"file", t:"Exportar informe PDF", d:"Decklist y análisis listos para imprimir o guardar como PDF."},
@@ -70,6 +72,8 @@ function openTool(k){
   if (k==="constructor"){ S.view="commander"; S.editing={format:"commander", name:"", commanders:[], text:""}; S.showMeta.commander=false; render(); setTimeout(()=>{ const el=$("#bld-cmd"); if (el) el.focus(); },50); return; }
   if (k==="coleccion"){ S.view="coll"; render(); return; }
   if (k==="local"){ S.view="commander"; S.showMeta.commander="local"; S.editing=null; render(); return; }
+  if (k==="chequeo"){ S.view="commander"; S.showMeta.commander="local"; S.editing=null; render(); setTimeout(()=>{ const el=$("#qc-0"); if (el){ el.scrollIntoView({block:"center"}); el.focus(); } }, 60); return; }
+  if (k==="biblioteca"){ S.view="commander"; S.showMeta.commander="lib"; S.editing=null; render(); return; }
   if (k==="vigilancias"){ S.view="market"; S.marketTab="busqueda"; render(); return; }
   if (k==="novedades"){ S.view="news"; render(); return; }
   if (k==="semanal"){ S.view="weekly"; render(); return; }
@@ -423,6 +427,7 @@ function localMetaHTML(){
     <div class="pane-body">
       ${typeof grpHTML==="function"?grpHTML():""}
       ${typeof mesaHTML==="function"?mesaHTML():""}
+      ${S.qc?quickCheckHTML():""}
       ${typeof powerBoardHTML==="function"?powerBoardHTML():""}
       ${missing&&!S.busy?`<div class="banner"><span>Hay cartas de tus amigos sin datos.</span><button class="btn sm primary" data-t="local-fetch">Actualizar cartas</button></div>`:""}
       ${rows.length?`<div class="tbl-wrap"><table><thead><tr><th>#</th><th>Mazo</th><th>De</th><th class="n">Bracket</th><th class="n">Comandante en mesa</th><th class="n">Reloj de victoria</th><th class="n">Interacción</th><th class="n">Ramp</th><th class="n">Maná rápido</th><th class="n">Tutores</th><th class="n">CMC</th><th></th></tr></thead><tbody>

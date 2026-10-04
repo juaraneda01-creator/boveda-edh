@@ -66,7 +66,9 @@ function renderSettings(){
     <h3 style="font-size:1.1rem;margin-top:6px">Respaldo</h3>
     <p class="muted" style="margin:0;font-size:.9rem">Tus datos viven en este navegador. Descarga un respaldo para pasarlos a otro equipo o por seguridad.</p>
     <div class="row"><button class="btn sm primary" data-act="backup">Descargar respaldo</button><button class="btn sm" data-act="restore">Importar respaldo</button></div>
-    <div class="row"><button class="btn sm ghost" data-act="refresh-all">Actualizar precios ahora</button><button class="btn sm ghost" data-act="clear-cache">Borrar caché de cartas</button></div>`;
+    <div class="row"><button class="btn sm ghost" data-act="refresh-all">Actualizar precios ahora</button><button class="btn sm ghost" data-act="clear-cache">Borrar caché de cartas</button></div>
+    ${typeof pricesFileHTML==="function"?pricesFileHTML():""}
+    ${typeof storageHTML==="function"?storageHTML():""}`;
 }
 
 /* ---------- vistas de formato ---------- */
@@ -77,11 +79,13 @@ function formatViewHTML(fmt){
     <button class="btn primary" data-act="new">+ Nuevo mazo de ${FORMATS[fmt].name}</button>
     <button class="btn meta-btn" data-act="show-meta" aria-pressed="${S.showMeta[fmt]===true}">${fmt==="commander"?"Meta cEDH y brackets":"Meta de "+FORMATS[fmt].name}</button>
     ${fmt==="commander"?`<button class="btn meta-btn" data-act="show-local" aria-pressed="${S.showMeta[fmt]==="local"}">Mazos de mis amigos</button>`:""}
+    ${fmt==="commander"&&S.lib?`<button class="btn meta-btn" data-act="show-lib" aria-pressed="${S.showMeta[fmt]==="lib"}">Biblioteca por bracket</button>`:""}
     <ul class="deck-list">${decks.map(d=>{ const A=analyze(d); return `<li><button class="deck-item" data-deck="${esc(d.id)}" aria-current="${d.id===S.sel[fmt] && !S.editing && !S.showMeta[fmt]}"><span class="dn">${esc(d.name)}</span><span class="dc">${pipsHTML(A.ci)} ${esc(fmt==="commander"?((d.commanders||[]).join(" + ")||"sin comandante"):`${A.main} + ${A.sideN}`)} · <span class="num">${money(A.price)}</span>${d.mb?` · <span class="tag">ManaBox</span>`:""}</span></button></li>`; }).join("") || `<li class="muted" style="padding:8px 12px">Aún no tienes mazos de ${FORMATS[fmt].name}.</li>`}</ul>
   </aside>`;
   let pane;
   if (S.editing && S.editing.format===fmt) pane = editorHTML(S.editing);
   else if (S.showMeta[fmt]==="local") pane = localMetaHTML();
+  else if (S.showMeta[fmt]==="lib" && S.lib) pane = libraryHTML();
   else if (S.showMeta[fmt]) pane = fmt==="commander" ? cedhMetaHTML() : metaHTML(fmt);
   else {
     const d = S.data.decks.find(x=>x.id===S.sel[fmt] && (x.format||"commander")===fmt);
@@ -89,6 +93,8 @@ function formatViewHTML(fmt){
   }
   return `<div class="decks-layout">${rail}<div id="deck-pane">${busyBanner()}${pane}</div></div>`;
 }
+// canShareImg vive en un módulo que se carga después del primer dibujo
+function snapCanShare(){ try { return canShareImg(); } catch { return false; } }
 function deckHTML(d){
   const A = analyze(d);
   // cinco grupos; cada uno con sus vistas
@@ -106,12 +112,12 @@ function deckHTML(d){
     ["precio","Precio",[["precio","Valor"],["versiones","Versiones"],["manabox","ManaBox"],["compartir","Compartir"]]]];
   const tabs = G.flatMap(g=>g[2]);
   if (!tabs.some(t=>t[0]===S.deckTab)) S.deckTab="analisis";
-  const body = {analisis:analysisHTML, lista:listHTML, mana:manaHTML, combos:combosHTML, brackets:bracketsHTML, mejorar:(d,A)=>improveHTML(d,A)+(A.isC&&typeof tdDeckHTML==="function"?tdDeckHTML(d,A):""), precio:priceHTML, meta:deckMetaHTML, manabox:mbDeckHTML, ia:iaHTML, radiografia:radioHTML, mano:manoHTML, versiones:versionesHTML, compartir:compartirHTML, sinergias:synergyHTML, nivel:powerHTML, partidas:(d,A)=>gamesHTML(d,A)+(typeof simGamesHTML==="function"?simGamesHTML(d,A):"")}[S.deckTab](d,A);
+  const body = {analisis:analysisHTML, lista:listHTML, mana:manaHTML, combos:combosHTML, brackets:bracketsHTML, mejorar:(d,A)=>improveHTML(d,A)+(A.isC&&typeof tdDeckHTML==="function"?tdDeckHTML(d,A):""), precio:priceHTML, meta:deckMetaHTML, manabox:mbDeckHTML, ia:iaHTML, radiografia:radioHTML, mano:manoHTML, versiones:versionesHTML, compartir:compartirHTML, sinergias:synergyHTML, nivel:powerHTML, partidas:(d,A)=>gamesHTML(d,A)+(typeof winTurnHTML==="function"?winTurnHTML(d,A):"")+(typeof simGamesHTML==="function"?simGamesHTML(d,A):"")}[S.deckTab](d,A);
   const pendN = d.mb ? boardDiff(mbBase(d.mb), boardsOf(d)).n : 0;
   return `<div class="pane">
     <div class="pane-head">
       <div><h2>${esc(d.name)}</h2>${d.rival?`<div class="pill neutral" style="margin:4px 0">Mazo de ${esc(d.rival.owner||"un amigo")} · mazos de mis amigos</div>`:""}<div class="sub">${pipsHTML(A.ci)} <span>${esc(A.isC?((d.commanders||[]).join(" + ")||"Sin comandante"):FORMATS[A.fmt].name)}</span> <span class="num muted">· ${A.isC?`${A.total} cartas`:`main ${A.main}`} · side ${A.sideN} · maybe ${A.maybeN} · ${money(A.price)}</span>${pendN?` <span class="pill warn">${pendN} cambio${pendN>1?"s":""} sin pasar a ManaBox</span>`:""}</div></div>
-      <div class="actions"><button class="btn sm" data-act="edit">Editar lista</button><button class="btn sm ghost danger" data-act="askdel">Borrar</button></div>
+      <div class="actions"><button class="btn sm" data-act="edit">Editar lista</button>${typeof snapDeckSection==="function"?`<button class="btn sm ghost" data-act="${snapCanShare()?"snap-share":"snap"}" title="La sección abierta, como imagen">${snapCanShare()?"Compartir imagen":"Imagen"}</button><button class="btn sm ghost" data-act="snap-all" title="Todas las secciones del mazo, en un .zip de imágenes">Todas (.zip)</button>`:""}<button class="btn sm ghost danger" data-act="askdel">Borrar</button></div>
     </div>
     ${S.confirmDel?`<div style="padding:12px 20px 0"><div class="confirm">¿Borrar “${esc(d.name)}” de este navegador? <button class="btn sm danger" data-act="del">Sí, borrar</button><button class="btn sm ghost" data-act="nodel">Cancelar</button></div></div>`:""}
     <div class="subtabs grp" role="tablist">${G.map(([gk,gl,items])=>{ const on=items.some(i=>i[0]===S.deckTab); return `<button class="subtab" role="tab" data-sub="${on?S.deckTab:items[0][0]}" aria-selected="${on}">${gl}</button>`; }).join("")}</div>
@@ -330,11 +336,11 @@ function deckMetaHTML(d,A){
   const best = ms[0];
   const mine = new Map(); for (const r of [...A.rows,...A.side]) mine.set(slug(r.n),(mine.get(slug(r.n))||0)+r.q);
   const missFrom = a => [...a.main, ...a.side].filter(c=>!BASICS.has(slug(c.n)) && (mine.get(slug(c.n))||0)<c.q);
-  return `<div class="sec"><h3>Contra el meta de ${FORMATS[A.fmt].name}</h3><p class="lede">Comparado con una lista reciente de cada arquetipo principal (${esc(META[A.fmt].src)}, foto del ${META_AT}).</p>
-    ${ms.map(({a,score})=>`<div class="arch"><div><div class="an">${esc(a.name)} <span class="muted num" style="font-weight:400">${a.share}% del meta</span></div><div class="as">Coincide ${Math.round(score*100)}% con tu main · <a href="${a.arch}" target="_blank" rel="noopener">MTGTop8</a></div></div><div class="meter" style="width:120px"><span class="fill ${score>0.6?"good":score>0.3?"warn":""}" style="width:${score*100}%"></span></div></div>`).join("")}</div>
+  return `<div class="sec"><h3>Contra el meta de ${FORMATS[A.fmt].name}</h3><p class="lede">Comparado con una lista reciente de cada arquetipo principal (${esc(META[A.fmt].src)}, ${typeof metaWhen==="function"?metaWhen(A.fmt):"foto del "+META_AT}).</p>
+    ${ms.map(({a,score})=>`<div class="arch"><div><div class="an">${esc(a.name)} <span class="muted num" style="font-weight:400">${a.share}% del meta</span></div><div class="as">Coincide ${Math.round(score*100)}% con tu main · <a href="${esc(a.arch)}" target="_blank" rel="noopener">MTGTop8</a></div></div><div class="meter" style="width:120px"><span class="fill ${score>0.6?"good":score>0.3?"warn":""}" style="width:${score*100}%"></span></div></div>`).join("")}</div>
   ${best && best.score>0.15 ? `<div class="sec"><h3>Para acercarte a ${esc(best.a.name)}</h3><p class="lede">Cartas de la lista de referencia (main y sideboard) que no tienes en el mazo, con precio y si están en tu colección.</p>
     ${missFrom(best.a).map(c=>{ const m=cardOf(c.n); const have=mine.get(slug(c.n))||0; return `<div class="rec"><span>${c.q-have}× ${cardName(c.n,m)} ${c.side?`<span class="tag">side</span>`:""} ${ownedOf(c.n)>=c.q?`<span class="pill good">tienes</span>`:""}</span><span class="meta">${money(refPrice(m))}</span></div>`; }).join("") || `<p class="muted">Tu lista ya tiene todas sus cartas.</p>`}
-    <div class="row" style="margin-top:10px"><button class="btn sm" data-act="fetch-meta" data-arch="${esc(best.a.name)}">Traer precios de estas cartas</button><a class="btn sm ghost" href="${best.a.deck}" target="_blank" rel="noopener">Ver la lista original</a></div></div>` : ""}
+    <div class="row" style="margin-top:10px"><button class="btn sm" data-act="fetch-meta" data-arch="${esc(best.a.name)}">Traer precios de estas cartas</button><a class="btn sm ghost" href="${esc(best.a.deck)}" target="_blank" rel="noopener">Ver la lista original</a></div></div>` : ""}
   ${A.fmt==="pauper"?pauperDeckMuHTML(d,A):""}
   ${sideGuideHTML(A)}
   ${promptBlock()}`;
@@ -409,20 +415,26 @@ function editorHTML(e){
 }
 
 /* ---------- meta ---------- */
+// etiquetas de un arquetipo del meta: sin datos de matchup en Paupergeddon, o recién llegado al top (plan de sideboard por categoría)
+function metaTagsHTML(fmt, a){
+  const vs = (META_VS[fmt]||{})[a.name];
+  const noMu = fmt==="pauper" && typeof PAUPER_MU!=="undefined" && !PAUPER_MU.arch.includes(PAUPER_MU.alias[a.name]||a.name);
+  return `${noMu?` <span class="tag" title="Paupergeddon no tiene datos de matchup de este arquetipo">sin matchups</span>`:""}${vs&&vs.auto?` <span class="tag" title="Arquetipo nuevo en el top: su guía de sideboard usa el plan general de su categoría">nuevo</span>`:""}`;
+}
 function metaHTML(fmt){
   const M = META[fmt];
   const arr = metaDecks(fmt).map(a=>({a, cov:metaCoverage(a)}));
-  return `<div class="pane"><div class="pane-head"><div><h2>Meta de ${FORMATS[fmt].name}</h2><div class="sub">${esc(M.src)} · foto del ${META_AT}</div></div>
-    <div class="actions"><a class="btn sm" href="${M.url}" target="_blank" rel="noopener">MTGTop8</a><a class="btn sm" href="${M.mtgdecks}" target="_blank" rel="noopener">MTGDecks</a></div></div>
+  return `<div class="pane"><div class="pane-head"><div><h2>Meta de ${FORMATS[fmt].name}</h2><div class="sub">${esc(M.src)} · ${typeof metaWhen==="function"?metaWhen(fmt):"foto del "+META_AT}</div></div>
+    <div class="actions"><a class="btn sm" href="${esc(M.url)}" target="_blank" rel="noopener">MTGTop8</a><a class="btn sm" href="${esc(M.mtgdecks)}" target="_blank" rel="noopener">MTGDecks</a></div></div>
     <div class="pane-body">
       <p class="muted" style="margin:0">Cada arquetipo con su parte del meta, una lista reciente de referencia y cuánto de ella ya tienes en tu colección. Úsalo para ver qué mazo competitivo te queda más cerca.</p>
       ${arr.some(x=>x.cov.miss.some(m=>m.p==null))?`<div class="banner"><span>Faltan precios de cartas del meta.</span><button class="btn sm primary" data-act="fetch-meta-all">Traer precios</button></div>`:""}
-      <div>${arr.map(({a,cov})=>`<div class="arch"><div><div class="an">${esc(a.name)} <span class="muted num" style="font-weight:400">${a.share}%</span></div>
-        <div class="as">${esc(a.sample)} · tienes ${Math.round(cov.p*100)}% · te falta ${money(cov.cost)}</div>
+      <div>${arr.map(({a,cov})=>`<div class="arch"><div><div class="an">${esc(a.name)} <span class="muted num" style="font-weight:400">${a.share}%</span>${metaTagsHTML(fmt, a)}</div>
+        <div class="as">${esc(a.sample)}${typeof listAgeHTML==="function"?listAgeHTML(a):""} · tienes ${Math.round(cov.p*100)}% · te falta ${money(cov.cost)}</div>
         <div class="meter" style="margin-top:6px;max-width:320px"><span class="fill ${cov.p===1?"good":cov.p>0.6?"warn":"bad"}" style="width:${cov.p*100}%"></span></div></div>
-        <div class="row"><button class="btn sm" data-act="meta-create" data-arch="${esc(a.name)}">Crear mazo</button><a class="btn sm ghost" href="${a.arch}" target="_blank" rel="noopener">Listas</a></div></div>`).join("")}</div>
+        <div class="row"><button class="btn sm" data-act="meta-create" data-arch="${esc(a.name)}">Crear mazo</button><a class="btn sm ghost" href="${esc(a.arch)}" target="_blank" rel="noopener">Listas</a></div></div>`).join("")}</div>
       ${fmt==="pauper"?pauperMatrixHTML():""}
-      <p class="foot">Los porcentajes y listas vienen de MTGTop8. Para el meta de hoy, abre los enlaces: esta foto no se actualiza sola porque MTGTop8 y MTGDecks no permiten conectarse desde otra página.</p>
+      <p class="foot">${typeof LIVE!=="undefined"&&LIVE?"Los porcentajes y listas vienen de MTGTop8 y se renuevan solos cada día; si el servidor no responde, se muestra la foto guardada. La lista de referencia es la más reciente de cada arquetipo.":"Los porcentajes y listas vienen de MTGTop8. Esta versión muestra la foto guardada; el meta al día está en la versión en vivo (boveda-edh.netlify.app)."}</p>
     </div></div>`;
 }
 function cedhMetaHTML(){

@@ -765,3 +765,8 @@ body.web [data-act="fetch-meta"],body.web [data-act="fetch-meta-all"],body.web [
 .jz-a{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--surface)}
 .jz-a summary{cursor:pointer;min-height:32px}
 .mt button{touch-action:manipulation}
+
+/* chequeo rápido de mesa */
+.qc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin:10px 0}
+.qc-f{display:grid;gap:4px;min-width:0}
+.qc-f textarea{min-height:92px;width:100%}

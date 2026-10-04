@@ -878,7 +878,7 @@ function metaMatch(A){
   const mine = new Map(); for (const r of A.rows) mine.set(slug(r.n), (mine.get(slug(r.n))||0)+r.q);
   return metaDecks(A.fmt).map(a=>{ let hit=0, tot=0; for (const c of a.main){ if (BASICS.has(slug(c.n))) continue; tot+=c.q; hit+=Math.min(c.q, mine.get(slug(c.n))||0); } return {a, score: tot?hit/tot:0}; }).sort((x,y)=>y.score-x.score);
 }
-const metaCardSet = (() => { let s=null; return () => { if (s) return s; s=new Map(); for (const f of ["pauper","pioneer"]) for (const a of metaDecks(f)) for (const c of [...a.main,...a.side]){ const k=slug(c.n); if(!s.has(k)) s.set(k,new Set()); s.get(k).add(`${FORMATS[f].name} (${a.name})`); } for (const n of Object.values(CEDH_STAPLES).flat()){ const k=slug(n); if(!s.has(k)) s.set(k,new Set()); s.get(k).add("cEDH"); } return s; }; })();
+const metaCardSet = (() => { let s=null; const get = () => { if (s) return s; s=new Map(); for (const f of ["pauper","pioneer"]) for (const a of metaDecks(f)) for (const c of [...a.main,...a.side]){ const k=slug(c.n); if(!s.has(k)) s.set(k,new Set()); s.get(k).add(`${FORMATS[f].name} (${a.name})`); } for (const n of Object.values(CEDH_STAPLES).flat()){ const k=slug(n); if(!s.has(k)) s.set(k,new Set()); s.get(k).add("cEDH"); } return s; }; get.reset = () => { s = null; }; return get; })();
 
 /* ---------- guía de sideboard ---------- */
 function sideGuide(A, a){

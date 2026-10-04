@@ -28,6 +28,7 @@ function homeHTML(){
   const alertRow = a => `<div class="alert"><span class="ic ${a.kind==="up"?"up":a.kind==="down"?"down":"tg"}" aria-hidden="true">${a.kind==="up"?"↑":a.kind==="down"?"↓":"★"}</span><div><div class="t">${cardName(a.n)} ${a.kind==="up"?`<span class="up">${pct(a.ch.pct)}</span>`:a.kind==="down"?`<span class="down">${pct(a.ch.pct)}</span>`:""}</div><div class="s">${esc(a.s||"")}</div></div></div>`;
   const week = W.delta || W.changes.length || W.sales.length || W.up.length || W.down.length;
   return `${S.sharedPreview && typeof sharedImportHTML==="function" ? sharedImportHTML(S.sharedPreview) : ""}
+  ${typeof priceBannerHTML==="function" ? priceBannerHTML() : ""}
   ${typeof installCardHTML==="function" && S.data.settings.onboarded ? installCardHTML(false) : ""}
   <div class="home">
     ${homeWelcomeHTML()}

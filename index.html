@@ -783,6 +783,11 @@ body.web [data-act="fetch-meta"],body.web [data-act="fetch-meta-all"],body.web [
 .jz-a{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--surface)}
 .jz-a summary{cursor:pointer;min-height:32px}
 .mt button{touch-action:manipulation}
+
+/* chequeo rápido de mesa */
+.qc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin:10px 0}
+.qc-f{display:grid;gap:4px;min-width:0}
+.qc-f textarea{min-height:92px;width:100%}
 </style>
 </head>
 <body>
@@ -799,18 +804,47 @@ body.web [data-act="fetch-meta"],body.web [data-act="fetch-meta-all"],body.web [
 <input type="file" id="file-backup" accept=".json,application/json" hidden>
 <script>
 /* =========================================================
-   Datos de referencia del meta (foto al 27-sep-2026)
-   Fuentes: MTGTop8 (últimas 2 semanas), EDHTop16 (3 meses),
+   Datos de referencia del meta (foto al 1-oct-2026)
+   Fuentes: MTGTop8 (últimas 2 semanas, lista más reciente por fecha), EDHTop16 (3 meses),
    guía oficial de brackets (actualización 9-feb-2026).
    ========================================================= */
-const META_AT = "27 de septiembre de 2026";
+const META_AT = "1 de octubre de 2026";
 const META = {
   pauper: {
-    src: "MTGTop8 · últimas 2 semanas · 786 mazos",
+    src: "MTGTop8 · últimas 2 semanas · 843 mazos",
     url: "https://mtgtop8.com/format?f=PAU",
     mtgdecks: "https://mtgdecks.net/Pauper",
     archetypes: [
-      {name:"Burn", share:13, arch:"https://mtgtop8.com/archetype?a=536&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=91302&d=893393&f=PAU", sample:"Madness Burn · MTGO Challenge 16 · 26/09/26",
+      {name:"Affinity", share:13, arch:"https://mtgtop8.com/archetype?a=512&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=91446&d=894514&f=PAU", sample:"Grixis Affinity · MTGO League (1º) · 30/09/26",
+       list:`3 Great Furnace
+4 Reckoner's Bargain
+4 Myr Enforcer
+4 Galvanic Blast
+2 Blood Fountain
+4 Drossforge Bridge
+3 Vault of Whispers
+4 Ichor Wellspring
+2 Nihil Spellbomb
+3 Fanatical Offering
+4 Mistvault Bridge
+2 Seat of the Synod
+2 Silverbluff Bridge
+4 Thoughtcast
+3 Krark-Clan Shaman
+4 Refurbished Familiar
+1 Makeshift Munitions
+2 Toxin Analysis
+1 Swamp
+2 Black Mage's Rod
+2 Sewer-veillance Cam
+Sideboard
+2 Cast into the Fire
+3 Hydroblast
+4 Red Elemental Blast
+1 Blue Elemental Blast
+3 Stone Rain
+2 Extract a Confession`},
+      {name:"Burn", share:12, arch:"https://mtgtop8.com/archetype?a=536&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=91302&d=893393&f=PAU", sample:"Madness Burn · MTGO Challenge 16 · 26/09/26",
        list:`20 Mountain
 4 Guttersnipe
 4 Fireblast
@@ -829,33 +863,6 @@ Sideboard
 3 Searing Blaze
 3 Relic of Progenitus
 3 Smash to Smithereens`},
-      {name:"Affinity", share:11, arch:"https://mtgtop8.com/archetype?a=512&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=90109&d=883952&f=PAU", sample:"Grixis Affinity · MTGO Challenge 32 · 26/08/26",
-       list:`2 Blood Fountain
-4 Drossforge Bridge
-4 Vault of Whispers
-4 Thoughtcast
-3 Seat of the Synod
-3 Krark-Clan Shaman
-1 Makeshift Munitions
-4 Mistvault Bridge
-3 Nihil Spellbomb
-4 Myr Enforcer
-4 Reckoner's Bargain
-4 Refurbished Familiar
-4 Ichor Wellspring
-1 Sewer-veillance Cam
-2 Silverbluff Bridge
-3 Great Furnace
-2 Toxin Analysis
-4 Utrom Monitor
-4 Galvanic Blast
-Sideboard
-1 Krark-Clan Shaman
-4 Hydroblast
-2 Extract a Confession
-2 Blue Elemental Blast
-4 Pyroblast
-2 Red Elemental Blast`},
       {name:"Urzatron", share:8, arch:"https://mtgtop8.com/archetype?a=515&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=91121&d=892043&f=PAU", sample:"Trono Monster · LPA S1 T3 · 21/09/26",
        list:`1 Haunted Fengraf
 2 Forest
@@ -907,54 +914,7 @@ Sideboard
 3 Steel Sabotage
 2 Annul
 2 Relic of Progenitus`},
-      {name:"Weenie White", share:6, arch:"https://mtgtop8.com/archetype?a=551&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=88606&d=872554&f=PAU", sample:"Weenie White · Mont Weekly Event · 22/07/26",
-       list:`1 Rally the Peasants
-4 Springleaf Drum
-4 Galvanic Blast
-2 Martyr's Soul
-3 Ardent Recruit
-4 Phyrexian Walker
-4 Ornithopter
-4 Novice Inspector
-4 Mardu Devotee
-4 Salt Road Packbeast
-4 Spider-Man, Web-Slinger
-4 Thraben Inspector
-4 Leonardo, Big Brother
-1 Survivors' Encampment
-4 Ancient Den
-9 Plains
-Sideboard
-2 Ultimate Alliance
-4 Thraben Charm
-4 Festival of Trokin
-4 Dust to Dust
-1 Rally the Peasants`},
-      {name:"Elves", share:5, arch:"https://mtgtop8.com/archetype?a=620&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=91302&d=893392&f=PAU", sample:"Elves · MTGO Challenge 16 · 26/09/26",
-       list:`4 Llanowar Elves
-10 Forest
-2 Elvish Mystic
-4 Lead the Stampede
-4 Winding Way
-1 Gingerbread Cabin
-4 Masked Vandal
-4 Quirion Ranger
-4 Generous Ent
-4 Nyxborn Hydra
-4 Priest of Titania
-1 Sagu Wildling
-4 Avenging Hunter
-4 Timberwatch Elf
-4 Fyndhorn Elves
-2 Land Grant
-Sideboard
-3 Mwonvuli Acid-Moss
-2 Faerie Macabre
-4 Scattershot Archer
-3 Nylea's Disciple
-2 Vitu-Ghazi Inspector
-1 Rooftop Percher`},
-      {name:"Dimir Control", share:5, arch:"https://mtgtop8.com/archetype?a=517&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=90543&d=887270&f=PAU", sample:"Dimir Control · Liga · 06/09/26",
+      {name:"Dimir Control", share:6, arch:"https://mtgtop8.com/archetype?a=517&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=90543&d=887270&f=PAU", sample:"Dimir Control · Liga · 06/09/26",
        list:`10 Island
 4 Contaminated Aquifer
 2 Bojuka Bog
@@ -987,141 +947,153 @@ Sideboard
 1 Arms of Hadar
 2 Annul
 1 Steel Sabotage`},
-      {name:"Ephemerate", share:4, arch:"https://mtgtop8.com/archetype?a=537&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=90066&d=883664&f=PAU", sample:"Snow Jeskai Ephemerate · 25/08/26",
-       list:`7 Snow-Covered Island
-2 Snow-Covered Mountain
-1 Murmuring Mystic
-4 Counterspell
-3 Bender's Waterskin
-4 Ephemerate
-1 Ride's End
-4 Preordain
+      {name:"Ephemerate", share:6, arch:"https://mtgtop8.com/archetype?a=537&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=91390&d=894100&f=PAU", sample:"Esper Ephemerate · Bugbugan sa Endstep #1 (3-4) · 28/09/26",
+       list:`1 Dispel
 1 Union of the Third Path
-2 Dispel
-4 Skred
+2 Cast Down
+2 Cut Down
+3 Bender's Waterskin
+3 Dispatch
+3 Ephemerate
+4 Counterspell
 4 Lorien Revealed
-4 Mulldrifter
-1 Suplex
-1 Fanged Flames
+4 Preordain
+2 Refurbished Familiar
+2 Murmuring Mystic
+3 Mulldrifter
 3 Archaeomancer
-4 Perilous Landscape
-2 Volatile Fjord
-4 Augur of Bolas
-2 Glacial Floodplain
-2 Snow-Covered Plains
+4 Baleful Strix
+1 Ancient Den
+1 Glacial Floodplain
+1 Ice Tunnel
+1 Plains
+1 Swamp
+2 Vault of Whispers
+2 Island
+3 Seat of the Synod
+3 Razortide Bridge
+4 Mistvault Bridge
 Sideboard
-2 Steel Sabotage
-1 Breath Weapon
-4 Pyroblast
-1 Destroy Evil
-2 Cleansing Wildfire
-1 Thraben Charm
-4 Hydroblast`},
-      {name:"Balustrade Spy", share:4, arch:"https://mtgtop8.com/archetype?a=2596&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=89882&d=882095&f=PAU", sample:"Balustrade Spy · FNM · 22/08/26",
-       list:`4 Balustrade Spy
-4 Generous Ent
+1 Return to Dust
+2 Annul
+2 Arms of Hadar
+4 Blue Elemental Blast
+2 Duress
+1 Hydroblast
+2 Nihil Spellbomb
+1 Cut Down`},
+      {name:"Weenie White", share:5, arch:"https://mtgtop8.com/archetype?a=551&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=88606&d=872554&f=PAU", sample:"Weenie White · Mont Weekly Event · 22/07/26",
+       list:`1 Rally the Peasants
+4 Springleaf Drum
+4 Galvanic Blast
+2 Martyr's Soul
+3 Ardent Recruit
+4 Phyrexian Walker
+4 Ornithopter
+4 Novice Inspector
+4 Mardu Devotee
+4 Salt Road Packbeast
+4 Spider-Man, Web-Slinger
+4 Thraben Inspector
+4 Leonardo, Big Brother
+1 Survivors' Encampment
+4 Ancient Den
+9 Plains
+Sideboard
+2 Ultimate Alliance
+4 Thraben Charm
+4 Festival of Trokin
+4 Dust to Dust
+1 Rally the Peasants`},
+      {name:"Elves", share:5, arch:"https://mtgtop8.com/archetype?a=620&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=91379&d=893996&f=PAU", sample:"Elves · LPA S1 T4 (2º) · 28/09/26",
+       list:`4 Llanowar Elves
+4 Fyndhorn Elves
+4 Priest of Titania
+4 Quirion Ranger
+4 Timberwatch Elf
 4 Masked Vandal
-4 Overgrown Battlement
-4 Sagu Wildling
-4 Saruli Caretaker
-3 Mesmeric Fiend
-3 Wall of Roots
-2 Elves of Deep Shadow
-2 Gatecreeper Vine
-2 Lotleth Giant
-2 Quirion Ranger
-1 Jaspera Sentinel
-1 Nyxborn Hydra
-1 Troll of Khazad-dum
-2 Lotus Petal
+4 Avenging Hunter
+4 Nyxborn Hydra
+4 Generous Ent
 4 Land Grant
 4 Lead the Stampede
 4 Winding Way
-2 Dread Return
-3 Forest
-1 Swamp
+1 Gingerbread Cabin
+8 Forest
+3 Sagu Wildling
 Sideboard
-1 Mesmeric Fiend
-3 Faerie Macabre
-3 Fang Dragon
-3 Healer of the Glade
-3 Writhing Chrysalis
-1 Flaring Pain
-1 Mountain`},
+4 Vitu-Ghazi Inspector
+4 Monstrous Emergence
+4 Faerie Macabre
+3 Lignify`},
+      {name:"Aura Aggro", share:4, arch:"https://mtgtop8.com/archetype?a=539&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=89487&d=879226&f=PAU", sample:"Aura Hexproof · Mont Weekly Event (5-8) · 12/08/26",
+       list:`4 Gladecover Scout
+4 Silhana Ledgewalker
+4 Slippery Bogle
+4 Malevolent Rumble
+4 Abundant Growth
+4 Ancestral Mask
+4 Armadillo Cloak
+4 Ethereal Armor
+4 Rancor
+3 Utopia Sprawl
+2 Lifelink
+2 Sentinel's Eyes
+13 Forest
+2 Ash Barrens
+2 Plains
+Sideboard
+3 Mask of Law and Grace
+2 Flaring Pain
+2 Ram Through
+2 Scattershot Archer
+2 Standard Bearer
+2 Tamiyo's Safekeeping
+2 Thraben Charm`},
     ],
   },
   pioneer: {
-    src: "MTGTop8 · últimas 2 semanas · 105 mazos",
+    src: "MTGTop8 · últimas 2 semanas · 110 mazos",
     url: "https://mtgtop8.com/format?f=PI",
     mtgdecks: "https://mtgdecks.net/Pioneer",
     archetypes: [
-      {name:"UR Aggro", share:19, arch:"https://mtgtop8.com/archetype?a=875&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=89866&d=881985&f=PI", sample:"UR Aggro · MTGO Challenge 32 · 20/08/26",
-       list:`4 Flow State
-2 Mountain
-3 Burst Lightning
-1 Riverglide Pathway
-4 Stormchaser's Talent
-4 Academic Dispute
-4 Sleight of Hand
-3 Reckless Rage
-1 Island
-3 Emberheart Challenger
-4 Riverpyre Verge
-4 Soul-Scar Mage
+      {name:"UR Aggro", share:20, arch:"https://mtgtop8.com/archetype?a=875&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=91333&d=893653&f=PI", sample:"UR Aggro (Vivi) · MTGO Challenge 32 (3-4) · 26/09/26",
+       list:`1 This Town Ain't Big Enough
+1 Wild Ride
+2 Torch the Tower
 3 Boomerang Basics
-4 Shivan Reef
-4 Spirebluff Canal
-4 Monastery Swiftspear
+4 Proft's Eidetic Memory
+4 Stormchaser's Talent
+4 Agatha's Soul Cauldron
+4 Winternight Stories
+4 Academic Dispute
+1 Jadzi, Steward of Fate
+1 Voldaren Thrillseeker
+2 Quantum Riddler
+4 Fear of Missing Out
+4 Vivi Ornitier
+1 Mountain
+1 Otawara, Soaring City
+3 Island
 4 Steam Vents
-2 Monstrous Rage
-2 Experimental Synthesizer
+4 Spirebluff Canal
+4 Riverglide Pathway
+4 Riverpyre Verge
 Sideboard
-1 Boomerang Basics
-1 Iroh's Demonstration
+1 Ral, Crackling Wit
+1 Ashiok, Dream Render
+2 Change the Equation
+1 Combustion Technique
 1 Firebending Lesson
-1 Octopus Form
-1 Soul-Guide Lantern
-2 Scorching Shot
-2 Redcap Melee
-1 Quantum Riddler
+1 Improvisation Capstone
+1 Iroh's Demonstration
 1 It'll Quench Ya!
-2 Pyroclasm
-2 Spell Pierce`},
-      {name:"The Rock", share:13, arch:"https://mtgtop8.com/archetype?a=2898&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=90887&d=890278&f=PI", sample:"The Rock · MTGO Challenge 32 · 14/09/26",
-       list:`3 Professor Dellian Fel
-4 Badgermole Cub
-2 Bitter Triumph
-4 Overgrown Tomb
-1 Boseiju, Who Endures
-1 Culling Ritual
-4 Darkbore Pathway
-4 Mutavault
-3 Fatal Push
-1 Go for the Throat
-4 Graveyard Trespasser
-2 Llanowar Wastes
-2 Duress
-1 Restless Cottage
-3 Sheoldred, the Apocalypse
-2 Swamp
-1 Takenuma, Abandoned Mire
-4 Blooming Marsh
-4 Unholy Annex // Ritual Chamber
-4 Abrupt Decay
-1 Wastewood Verge
-4 Thoughtseize
-1 Urborg, Tomb of Yawgmoth
-Sideboard
-1 Professor Dellian Fel
-2 Culling Ritual
-1 Fatal Push
-1 Duress
-3 Go Blank
-2 Invoke Despair
-1 Nowhere to Run
-2 Cruelclaw's Heist
-2 Unlicensed Hearse`},
-      {name:"Greasefang Parhelion", share:10, arch:"https://mtgtop8.com/archetype?a=1317&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=87868&d=866722&f=PI", sample:"Greasefang · MTGO League · 07/07/26",
+1 Octopus Form
+1 Price of Freedom
+2 Spell Pierce
+1 Boomerang Basics
+1 Quantum Riddler`},
+      {name:"Greasefang Parhelion", share:12, arch:"https://mtgtop8.com/archetype?a=1317&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=87868&d=866722&f=PI", sample:"Greasefang · MTGO League · 07/07/26",
        list:`1 Boseiju, Who Endures
 3 Darkbore Pathway
 4 Concealed Courtyard
@@ -1159,7 +1131,7 @@ Sideboard
 1 Origin of Metalbending
 1 Loran of the Third Path
 2 Duress`},
-      {name:"Red Deck Wins", share:8, arch:"https://mtgtop8.com/archetype?a=862&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=89327&d=877896&f=PI", sample:"Red Deck Wins · 07/08/26",
+      {name:"Red Deck Wins", share:10, arch:"https://mtgtop8.com/archetype?a=862&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=89327&d=877896&f=PI", sample:"Red Deck Wins · 07/08/26",
        list:`4 Monastery Swiftspear
 4 Soul-Scar Mage
 4 Emberheart Challenger
@@ -1183,92 +1155,41 @@ Sideboard
 2 Rending Volley
 2 Redcap Melee
 3 Scorching Shot`},
-      {name:"Boros Control", share:8, arch:"https://mtgtop8.com/archetype?a=2319&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=91140&d=892194&f=PI", sample:"Boros Control · MTGO Challenge 32 · 21/09/26",
-       list:`1 Elspeth, Storm Slayer
-2 High Noon
-4 Erode
-4 Cleansing Wildfire
-4 Emergency Eject
-4 The Legend of Roku
-4 Get Lost
-4 Price of Freedom
-4 Avengers Disassembled
-3 Beza, the Bounding Spring
-2 Mountain
-4 Field of Ruin
-4 Demolition Field
-4 Cori Mountain Monastery
-4 Sacred Foundry
-4 Sunken Citadel
-4 Plains
-Sideboard
-3 Temporary Lockdown
-2 Farewell
-2 Hexing Squelcher
-2 Chandra, Awakened Inferno
-4 Rest in Peace
-1 Elspeth, Storm Slayer
-1 Beza, the Bounding Spring`},
-      {name:"Dimir Aggro", share:5, arch:"https://mtgtop8.com/archetype?a=1549&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=87446&d=863612&f=PI", sample:"Dimir Aggro · MTGO Challenge 32 · 28/06/26",
-       list:`3 Go for the Throat
-3 Unholy Annex // Ritual Chamber
-4 Kaito, Bane of Nightmares
-4 Fatal Push
-4 Thoughtseize
-2 Sheoldred, the Apocalypse
-4 Floodpits Drowner
-4 Mockingbird
-4 Moon-Circuit Hacker
-4 Faerie Miscreant
-1 Takenuma, Abandoned Mire
-1 Otawara, Soaring City
-1 Urborg, Tomb of Yawgmoth
-2 Island
-3 Multiversal Passage
-4 Mutavault
-4 Gloomlake Verge
-4 Darkslick Shores
-4 Watery Grave
-Sideboard
-4 Leyline of the Void
-1 Gix's Command
-2 Duress
-2 Disdainful Stroke
+      {name:"The Rock", share:10, arch:"https://mtgtop8.com/archetype?a=2898&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=90887&d=890278&f=PI", sample:"The Rock · MTGO Challenge 32 · 14/09/26",
+       list:`3 Professor Dellian Fel
+4 Badgermole Cub
 2 Bitter Triumph
-2 Path of Peril
-1 Languish
-1 Liliana, the Last Hope`},
-      {name:"Rakdos Sacrifice", share:4, arch:"https://mtgtop8.com/archetype?a=1543&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=91140&d=892198&f=PI", sample:"Rakdos Sacrifice · MTGO Challenge 32 · 21/09/26",
-       list:`1 Takenuma, Abandoned Mire
-1 Sokenzan, Crucible of Defiance
-4 Fatal Push
-4 Bloodtithe Harvester
-4 Cauldron Familiar
-3 Claim the Firstborn
-4 Deadly Dispute
-2 Den of the Bugbear
-4 Eyetwitch
-4 Fable of the Mirror-Breaker
-4 Blood Crypt
-4 Mayhem Devil
-1 Scavenger's Talent
-3 Blightstep Pathway
-4 Blazemire Verge
-3 Swamp
-4 Blackcleave Cliffs
-2 The Sackville-Bagginses
-4 Witch's Oven
-Sideboard
-1 Abandon Attachments
-1 Decorum Dissertation
-1 Firebending Lesson
+4 Overgrown Tomb
+1 Boseiju, Who Endures
+1 Culling Ritual
+4 Darkbore Pathway
+4 Mutavault
+3 Fatal Push
+1 Go for the Throat
+4 Graveyard Trespasser
+2 Llanowar Wastes
+2 Duress
+1 Restless Cottage
+3 Sheoldred, the Apocalypse
+2 Swamp
+1 Takenuma, Abandoned Mire
+4 Blooming Marsh
+4 Unholy Annex // Ritual Chamber
+4 Abrupt Decay
+1 Wastewood Verge
 4 Thoughtseize
-1 Go Blank
-1 Ozai's Cruelty
-3 The Legend of Roku
-2 Ghost Vacuum
-1 Ruinous Waterbending`},
-      {name:"Devotion to Green", share:4, arch:"https://mtgtop8.com/archetype?a=864&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=91108&d=891940&f=PI", sample:"Devotion to Green · 21/09/26",
+1 Urborg, Tomb of Yawgmoth
+Sideboard
+1 Professor Dellian Fel
+2 Culling Ritual
+1 Fatal Push
+1 Duress
+3 Go Blank
+2 Invoke Despair
+1 Nowhere to Run
+2 Cruelclaw's Heist
+2 Unlicensed Hearse`},
+      {name:"Devotion to Green", share:5, arch:"https://mtgtop8.com/archetype?a=864&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=91380&d=894003&f=PI", sample:"Devotion to Green · MTGO League · 28/09/26",
        list:`4 Vibrance
 1 Ba Sing Se
 12 Forest
@@ -1297,20 +1218,113 @@ Sideboard
 1 Emrakul, the Promised End
 2 Prowling Serpopard
 1 Ghost Vacuum`},
+      {name:"Boros Control", share:5, arch:"https://mtgtop8.com/archetype?a=2319&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=91140&d=892194&f=PI", sample:"Boros Control · MTGO Challenge 32 · 21/09/26",
+       list:`1 Elspeth, Storm Slayer
+2 High Noon
+4 Erode
+4 Cleansing Wildfire
+4 Emergency Eject
+4 The Legend of Roku
+4 Get Lost
+4 Price of Freedom
+4 Avengers Disassembled
+3 Beza, the Bounding Spring
+2 Mountain
+4 Field of Ruin
+4 Demolition Field
+4 Cori Mountain Monastery
+4 Sacred Foundry
+4 Sunken Citadel
+4 Plains
+Sideboard
+3 Temporary Lockdown
+2 Farewell
+2 Hexing Squelcher
+2 Chandra, Awakened Inferno
+4 Rest in Peace
+1 Elspeth, Storm Slayer
+1 Beza, the Bounding Spring`},
+      {name:"Izzet Control", share:5, arch:"https://mtgtop8.com/archetype?a=859&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=89239&d=877264&f=PI", sample:"Izzet Control (Lessons) · MTGO Challenge 32 · 03/08/26",
+       list:`1 Iroh's Demonstration
+2 Pop Quiz
+3 Combustion Technique
+3 Accumulate Wisdom
+4 Divide by Zero
+4 Firebending Lesson
+4 It'll Quench Ya!
+4 Tablet of Discovery
+4 Abandon Attachments
+2 Thor, God of Thunder
+3 Questing Druid
+4 Gran-Gran
+1 Mountain
+2 Island
+3 Spirebluff Canal
+4 Riverglide Pathway
+4 Riverpyre Verge
+4 Steam Vents
+4 Willowrush Verge
+Sideboard
+1 True Ancestry
+1 Boomerang Basics
+1 Environmental Sciences
+2 Ghost Vacuum
+2 Improvisation Capstone
+1 Mascot Exhibition
+1 Origin of Metalbending
+1 Price of Freedom
+2 Sokka's Haiku
+1 Iroh's Demonstration
+1 Combustion Technique
+1 Accumulate Wisdom`},
+      {name:"UW Control", share:5, arch:"https://mtgtop8.com/archetype?a=877&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=87670&d=865225&f=PI", sample:"UW Control (Yorion, 80 cartas) · MTGO Challenge 32 · 03/07/26",
+       list:`2 The Wandering Emperor
+4 Hallowed Fountain
+4 Dovin's Veto
+3 Teferi, Hero of Dominaria
+4 Seachrome Coast
+2 Hall of Storm Giants
+2 Plains
+4 Meticulous Archive
+4 No More Lies
+4 March of Otherworldly Light
+2 Get Lost
+4 Memory Deluge
+2 Island
+4 Glacial Fortress
+4 Spell Snare
+4 Deserted Beach
+2 Castle Ardenvale
+2 Farewell
+4 Consult the Star Charts
+4 Supreme Verdict
+2 Erode
+2 Petrified Hamlet
+2 Restless Anchorage
+4 Hengegate Pathway
+4 Get Out
+1 Beza, the Bounding Spring
+Sideboard
+1 Get Lost
+3 Beza, the Bounding Spring
+1 Yorion, Sky Nomad
+3 Emeritus of Ideation
+3 Surge of Salvation
+4 Change the Equation`},
     ],
   },
   cedh: {
     src: "EDHTop16 · últimos 3 meses",
     url: "https://edhtop16.com/?timePeriod=THREE_MONTHS",
     top: [
-      ["Kraum, Ludevic's Opus / Tymna the Weaver",7.04,637],["Kinnan, Bonder Prodigy",6.81,616],["Rograkh, Son of Rohgahh / Thrasios, Triton Hero",4.76,431],
-      ["Rograkh, Son of Rohgahh / Silas Renn, Seeker Adept",4.43,401],["Sisay, Weatherlight Captain",3.67,332],["Thrasios, Triton Hero / Tymna the Weaver",3.01,272],
-      ["Dargo, the Shipwrecker / Tymna the Weaver",1.99,180],["Ral, Monsoon Mage",1.96,177],["Vivi Ornitier",1.78,161],["Nick Fury, Agent of S.H.I.E.L.D.",1.73,157],
-      ["Crystal, Inhuman Princess",1.69,153],["Magda, Brazen Outlaw",1.66,150],["Ishai, Ojutai Dragonspeaker / Rograkh, Son of Rohgahh",1.65,149],
-      ["Etali, Primal Conqueror",1.59,144],["Thrasios, Triton Hero / Yoshimaru, Ever Faithful",1.56,141],["Tayam, Luminous Enigma",1.40,127],
-      ["Ob Nixilis, Captive Kingpin",1.29,117],["Kefka, Court Mage",1.04,94],["Tivit, Seller of Secrets",0.92,83],["Arcum Dagsson",0.81,73],
-      ["Winota, Joiner of Forces",0.77,70],["The Cabbage Merchant",0.76,69],["Rowan, Scion of War",0.76,69],["Lumra, Bellow of the Woods",0.74,67],
-      ["Brigid, Clachan's Heart",0.72,65],
+      ["Kraum, Ludevic's Opus / Tymna the Weaver",6.82,590],["Kinnan, Bonder Prodigy",6.59,570],["Rograkh, Son of Rohgahh / Thrasios, Triton Hero",4.68,405],
+      ["Rograkh, Son of Rohgahh / Silas Renn, Seeker Adept",4.18,361],["Sisay, Weatherlight Captain",3.72,322],["Thrasios, Triton Hero / Tymna the Weaver",3.04,263],
+      ["Ral, Monsoon Mage",1.92,166],["Nick Fury, Agent of S.H.I.E.L.D.",1.85,160],["Dargo, the Shipwrecker / Tymna the Weaver",1.85,160],["Crystal, Inhuman Princess",1.80,156],
+      ["Vivi Ornitier",1.78,154],["Magda, Brazen Outlaw",1.67,144],["Etali, Primal Conqueror",1.64,142],
+      ["Ishai, Ojutai Dragonspeaker / Rograkh, Son of Rohgahh",1.61,139],["Thrasios, Triton Hero / Yoshimaru, Ever Faithful",1.58,137],["Tayam, Luminous Enigma",1.33,115],
+      ["Ob Nixilis, Captive Kingpin",1.20,104],["Kefka, Court Mage",1.02,88],["Tivit, Seller of Secrets",0.87,75],["Arcum Dagsson",0.80,69],
+      ["Winota, Joiner of Forces",0.75,65],["Lumra, Bellow of the Woods",0.74,64],["K'rrik, Son of Yawgmoth",0.74,64],["The Cabbage Merchant",0.72,62],
+      ["Malcolm, Keen-Eyed Navigator / Vial Smasher the Fierce",0.72,62],
     ],
   },
 };
@@ -1339,17 +1353,19 @@ const BRACKETS = [
 const META_VS = {
   pauper: {"Burn":{plan:"aggro",vs:["life","counter","antiRed","removal"]},"Affinity":{plan:"aggro",vs:["artifact","wipe","antiBlue"]},"Urzatron":{plan:"control",vs:["counter","lands","discard"]},
     "Mono Blue Aggro":{plan:"aggro",vs:["antiBlue","wipe","removal"]},"Weenie White":{plan:"aggro",vs:["wipe","removal","artifact"]},"Elves":{plan:"aggro",vs:["wipe","removal"]},
-    "Dimir Control":{plan:"control",vs:["antiBlue","discard","counter"]},"Ephemerate":{plan:"control",vs:["antiBlue","grave","counter"]},"Balustrade Spy":{plan:"combo",vs:["grave","counter","discard"]}},
+    "Dimir Control":{plan:"control",vs:["antiBlue","discard","counter"]},"Ephemerate":{plan:"control",vs:["antiBlue","grave","counter"]},"Balustrade Spy":{plan:"combo",vs:["grave","counter","discard"]},
+    "Aura Aggro":{plan:"aggro",vs:["wipe","removal"]}},
   pioneer: {"UR Aggro":{plan:"aggro",vs:["removal","wipe","life","antiRed","antiBlue"]},"The Rock":{plan:"control",vs:["counter","discard"]},"Greasefang Parhelion":{plan:"combo",vs:["grave","artifact","removal"]},
     "Red Deck Wins":{plan:"aggro",vs:["life","removal","antiRed"]},"Boros Control":{plan:"control",vs:["counter","discard"]},"Dimir Aggro":{plan:"aggro",vs:["removal","wipe","antiBlue"]},
-    "Rakdos Sacrifice":{plan:"aggro",vs:["grave","wipe","removal"]},"Devotion to Green":{plan:"combo",vs:["removal","counter","wipe"]}},
+    "Rakdos Sacrifice":{plan:"aggro",vs:["grave","wipe","removal"]},"Devotion to Green":{plan:"combo",vs:["removal","counter","wipe"]},
+    "Izzet Control":{plan:"control",vs:["counter","discard","antiBlue"]},"UW Control":{plan:"control",vs:["counter","discard","antiBlue"]}},
 };
 const SB_ES = {artifact:"contra artefactos", grave:"contra el cementerio", antiBlue:"contra azul", antiRed:"contra rojo", life:"ganar vida", counter:"contrahechizo", discard:"descarte", lands:"contra tierras", removal:"removal", wipe:"barrido"};
 
 /* ---------- Pauper: matchups y referencias de torneos ----------
    Paupergeddon Summer 2026 (Lucca, 11-12 jul 2026, 1.086 jugadores en el Main Event).
    Matriz agregada Main Event + Top Pauper Player + Rebound: 5.626 partidas.
-   Pauper World: meta MTGO de la semana 13-26 sep 2026 (1.011 mazos, 30 eventos). */
+   Pauper World: meta MTGO del 17-30 sep 2026 (1.095 mazos, 32 eventos). */
 const PAUPER_MU = {
   at: "27 de septiembre de 2026",
   src: "Paupergeddon Summer 2026 · matriz agregada (Main Event + TPP + Rebound, 5.626 partidas)",
@@ -1372,12 +1388,16 @@ const PAUPER_MU = {
     "White Weenie|Dimir Terror":[6,3],
   },
   // participación en el meta: Pauper World (MTGO, 1 semana) y Paupergeddon día 2
-  pw: {"Mono Red Madness":15.2,"Mono Blue Terror":8.3,"Elves":5.2,"Dimir Faeries":4.2,"Grixis Affinity":4.1,"Mono Red Rally":4.1,"Spy Combo":3.3,"Jund Wildfire":3.3},
-  pwOther: {"Bogles":4.2,"Esper Affinity":4.1},
-  pwUrl: "https://pauperworld.com/meta", pwAt: "13-26 sep 2026 · 1.011 mazos MTGO",
+  pw: {"Mono Red Madness":14.4,"Mono Blue Terror":7.4,"Elves":6.7,"Dimir Faeries":4.6,"Mono Red Rally":3.8,"Grixis Affinity":3.6,"Spy Combo":3.2,"Jund Wildfire":2.7},
+  pwOther: {"Esper Affinity":4.5,"Bogles":4.1},
+  pwUrl: "https://pauperworld.com/meta", pwAt: "17-30 sep 2026 · 1.095 mazos MTGO",
   day2: {"Grixis Affinity":13.33,"Mono Red Madness":8,"Mono Blue Terror":8,"Spy Combo":6,"Jund Wildfire":5.33,"Naya Gates":5.33},
   pwSlug: n => "https://pauperworld.com/archetype/"+n.toLowerCase().replace(/[^a-z0-9]+/g,"-"),
   // equivalencias con los nombres de MTGTop8
+  // arquetipos de MTGTop8 sin datos en Paupergeddon (no salen en la matriz)
+  noMu: ["Aura Aggro"],
+  // nombre en Pauper World cuando difiere del de la matriz o de MTGTop8 (sirve para desempatar el top)
+  pwAlias: {"Spy Combo":"Balustrade Spy", "White Weenie":"Mono White Weenie", "Aura Aggro":"Bogles"},
   alias: {"Burn":"Mono Red Madness","Affinity":"Grixis Affinity","Urzatron":"Monster Tron","Weenie White":"White Weenie","Elves":"Elves","Dimir Control":"Dimir Faeries","Ephemerate":"Jeskai Ephemerate","Balustrade Spy":"Spy Combo"},
 };
 // Lista mejor ubicada de cada arquetipo en el Main Event de Paupergeddon Summer 2026 (Top 64)
@@ -2586,7 +2606,7 @@ function metaMatch(A){
   const mine = new Map(); for (const r of A.rows) mine.set(slug(r.n), (mine.get(slug(r.n))||0)+r.q);
   return metaDecks(A.fmt).map(a=>{ let hit=0, tot=0; for (const c of a.main){ if (BASICS.has(slug(c.n))) continue; tot+=c.q; hit+=Math.min(c.q, mine.get(slug(c.n))||0); } return {a, score: tot?hit/tot:0}; }).sort((x,y)=>y.score-x.score);
 }
-const metaCardSet = (() => { let s=null; return () => { if (s) return s; s=new Map(); for (const f of ["pauper","pioneer"]) for (const a of metaDecks(f)) for (const c of [...a.main,...a.side]){ const k=slug(c.n); if(!s.has(k)) s.set(k,new Set()); s.get(k).add(`${FORMATS[f].name} (${a.name})`); } for (const n of Object.values(CEDH_STAPLES).flat()){ const k=slug(n); if(!s.has(k)) s.set(k,new Set()); s.get(k).add("cEDH"); } return s; }; })();
+const metaCardSet = (() => { let s=null; const get = () => { if (s) return s; s=new Map(); for (const f of ["pauper","pioneer"]) for (const a of metaDecks(f)) for (const c of [...a.main,...a.side]){ const k=slug(c.n); if(!s.has(k)) s.set(k,new Set()); s.get(k).add(`${FORMATS[f].name} (${a.name})`); } for (const n of Object.values(CEDH_STAPLES).flat()){ const k=slug(n); if(!s.has(k)) s.set(k,new Set()); s.get(k).add("cEDH"); } return s; }; get.reset = () => { s = null; }; return get; })();
 
 /* ---------- guía de sideboard ---------- */
 function sideGuide(A, a){
@@ -3112,7 +3132,7 @@ const _pwMemo = new WeakMap();
 function powerOf(d, A){
   A = A || analyze(d);
   const st = (S.data && S.data.settings) || {};
-  const key = [S.noCal?1:0, S.noFit?1:0, st.cedhCal ? st.cedhCal.at+":"+st.cedhCal.k : 0, st.csFit && st.csFit.on ? st.csFit.a+":"+st.csFit.b : 0, S.salt ? S.salt.at||1 : 0, d.combos ? (d.combos.at||1)+":"+(d.combos.inc||[]).length : 0, S.td && S.td.data ? S.td.data.at : 0].join("|");
+  const key = [S.noCal?1:0, S.noFit?1:0, st.cedhCal ? st.cedhCal.at+":"+st.cedhCal.k : 0, st.csFit && st.csFit.on ? st.csFit.a+":"+st.csFit.b : 0, S.salt ? S.salt.at||1 : 0, d.combos ? (d.combos.at||1)+":"+(d.combos.inc||[]).length : 0, S.td && S.td.data ? S.td.data.at : 0, typeof winKey==="function" ? winKey(d) : 0].join("|");
   const hit = _pwMemo.get(A); if (hit && hit.key === key && hit.d === d) return hit.P;
   const P = powerOfRaw(d, A); _pwMemo.set(A, {key, d, P}); return P;
 }
@@ -3128,8 +3148,9 @@ function stapleSet(){
 const SPEED_TURNS = [[10,1],[8,2],[6,3],[4,4]];
 function axesOf(d, A, x){
   const {sim, c2, fast, stax, free, cedh} = x;
-  let t = sim && sim.winAvg ? sim.winAvg : null; const why = [];
-  if (t != null) why.push(`remate lanzable en el turno ${t.toFixed(1).replace(".",",")}`);
+  const W = typeof winTurnOf==="function" ? winTurnOf(d, sim) : {t: sim && sim.winAvg ? sim.winAvg : null, n:0};
+  let t = W.t; const why = [];
+  if (t != null) why.push(W.n ? `gana hacia el turno ${t.toFixed(1).replace(".",",")} (simulador corregido con ${W.n} victoria${W.n>1?"s":""} real${W.n>1?"es":""})` : `remate lanzable en el turno ${t.toFixed(1).replace(".",",")}`);
   // un combo de 2 cartas con tutores adelanta la amenaza aunque el remate normal llegue tarde
   if ((c2||0) >= 1 && A.tutors.length >= 3){ const ct = Math.max(3, 7 - A.tutors.length*0.35 - fast*0.3); if (t == null || ct < t){ t = ct; why.push(`combo de 2 cartas con ${A.tutors.length} tutores (≈ turno ${ct.toFixed(1).replace(".",",")})`); } }
   let speed = t == null ? 2 : (SPEED_TURNS.find(([lim])=>t >= lim) || [0, 4])[1];
@@ -3845,6 +3866,30 @@ function gamesHTML(d, A){
 // récord de todos los mazos (para la tabla de poder y sal)
 function gameRecord(d){ const st = gameStats(gamesOf(d)); return st.n ? st : null; }
 
+// Turno de victoria: el del simulador corregido con las victorias reales anotadas (propias y del grupo).
+// El simulador pesa como 10 partidas: con 10 victorias reales, estas pesan la mitad; con 30, el 75 %.
+const WIN_SIM_W = 10;
+function winTurns(d){ return d && d.id && S.data ? gamesOf(d).filter(g=>!g.dup && g.res==="win" && g.turn>0).map(g=>g.turn) : []; }
+function winKey(d){ const ts = winTurns(d); return ts.length ? ts.length+":"+ts.reduce((a,x)=>a+x,0) : 0; }
+function winTurnOf(d, sim){
+  const s = sim && sim.winAvg ? sim.winAvg : null;
+  const ts = winTurns(d), n = ts.length;
+  if (!n) return {t:s, sim:s, real:null, n:0, w:0};
+  const sum = ts.reduce((a,x)=>a+x,0), real = sum/n;
+  if (s == null) return n >= 3 ? {t:real, sim:null, real, n, w:1} : {t:null, sim:null, real, n, w:0};
+  return {t:(WIN_SIM_W*s + sum)/(WIN_SIM_W + n), sim:s, real, n, w:n/(WIN_SIM_W + n)};
+}
+function winTurnHTML(d, A){
+  if (!A.isC) return "";
+  const W = winTurnOf(d, simulate(d, A)); if (W.t == null && !W.n) return "";
+  const f = x => x == null ? "—" : "T" + x.toFixed(1).replace(".",",");
+  return `<div class="sec"><h3>Turno de victoria</h3><p class="lede">El simulador estima cuándo tienes un remate lanzable; tus victorias anotadas (aquí y en el grupo) lo corrigen. El simulador pesa como 10 partidas.</p>
+    <div class="sim-grid"><div class="sim-card"><div class="k">Simulador</div><div class="v">${f(W.sim)}</div></div>
+      <div class="sim-card"><div class="k">Tus victorias con turno anotado${W.n?` (${W.n})`:""}</div><div class="v">${f(W.real)}</div></div>
+      <div class="sim-card"><div class="k">Ajustado${W.n?` · las reales pesan ${Math.round(W.w*100)}%`:""}</div><div class="v">${f(W.t)}</div></div></div>
+    <p class="foot">${W.n ? "Este turno ajustado es el que usan el bracket por velocidad y la Mesa de hoy." : "Anota en qué turno ganas para que el bracket por velocidad y la Mesa de hoy usen tus partidas reales."}${W.n && W.n < 10 ? ` Con ${10 - W.n} victoria${10-W.n>1?"s":""} más, las reales pesarán la mitad.` : ""}</p></div>`;
+}
+
 document.addEventListener("click", ev => {
   const g = k => ev.target.closest(`[data-gm-${k}]`); const F = S.gm; let b;
   const keepInputs = () => { const o = $("#gm-opp"), n = $("#gm-note"); if (o) F.oppTxt = o.value; if (n) F.note = n.value; };
@@ -4122,10 +4167,11 @@ document.addEventListener("click", async ev => {
 S.mesa = S.mesa || {ids:[], sim:null, busy:false};
 
 function mesaDecks(){ return S.mesa.ids.map(id=>S.data.decks.find(d=>d.id===id)).filter(Boolean); }
-function mesaEval(){
-  const decks = mesaDecks(); if (!decks.length) return null;
+function mesaEval(decks = mesaDecks()){
+  if (!decks || !decks.length) return null;
   const rows = decks.map(d=>{ const A = analyze(d); const P = powerOf(d, A); const s = simulate(d, A);
-    return {d, A, P, speed: s && s.winAvg ? s.winAvg : null, owner: d.rival ? (d.rival.owner||"amigo") : "tú"}; });
+    const W = typeof winTurnOf==="function" ? winTurnOf(d, s) : {t: s && s.winAvg ? s.winAvg : null, n:0};
+    return {d, A, P, speed: W.t, real: W.n, owner: d.rival ? (d.rival.owner||"amigo") : "tú"}; });
   const pw = rows.map(r=>r.P.power), avg = pw.reduce((a,x)=>a+x,0)/pw.length;
   const spread = Math.max(...pw) - Math.min(...pw);
   const br = rows.map(r=>r.P.real), brSpread = Math.max(...br) - Math.min(...br);
@@ -4138,7 +4184,7 @@ function mesaEval(){
   const tips = [];
   const hi = rows.filter(r=>r.gap >= 1).sort((a,b)=>b.gap-a.gap), lo = rows.filter(r=>r.gap <= -1).sort((a,b)=>a.gap-b.gap);
   for (const r of hi){
-    const alt = S.data.decks.filter(x=>x.format==="commander" && !mesaDecks().includes(x) && (!!x.rival===!!r.d.rival) && (!x.rival || (x.rival.owner||"")===(r.d.rival.owner||""))).map(x=>({x, p:powerOf(x, analyze(x)).power})).sort((a,b)=>Math.abs(a.p-avg)-Math.abs(b.p-avg))[0];
+    const alt = S.data.decks.filter(x=>x.format==="commander" && !decks.includes(x) && (!!x.rival===!!r.d.rival) && (!x.rival || (x.rival.owner||"")===(r.d.rival.owner||""))).map(x=>({x, p:powerOf(x, analyze(x)).power})).sort((a,b)=>Math.abs(a.p-avg)-Math.abs(b.p-avg))[0];
     const gcs = r.A.gc.slice(0,3);
     tips.push(`${r.d.name} está ${r.gap.toFixed(1).replace(".",",")} niveles sobre el resto de la mesa.${alt && Math.abs(alt.p-avg) < Math.abs(r.gap) ? ` Podría jugar ${alt.x.name} (nivel ${alt.p.toFixed(1)}).` : ""}${gcs.length ? ` O sacar ${gcs.join(", ")} (Game Changer${gcs.length>1?"s":""}).` : ""}`);
   }
@@ -4147,9 +4193,14 @@ function mesaEval(){
   const combos = rows.filter(r=>r.P.c2); if (combos.length) tips.push(`${combos.map(r=>r.d.name).join(" y ")} ${combos.length>1?"tienen":"tiene"} combos de 2 cartas: acuerden si valen.`);
   return {rows, avg, spread, brSpread, verdict, tips};
 }
+function mesaTableHTML(M){
+  return `<div class="tbl-wrap"><table><thead><tr><th>Mazo</th><th class="n">Nivel</th><th class="n">Bracket</th><th class="n">Sal</th><th class="n">Gana en</th></tr></thead><tbody>
+      ${M.rows.map(r=>`<tr><td><b>${esc(r.d.name)}</b><br><span class="muted" style="font-size:.82rem">${esc(r.owner)}</span></td><td class="n ${r.gap>=1?"warn":r.gap<=-1?"muted":""}">${r.P.power.toFixed(1)}${Math.abs(r.gap)>=1?` <small>${r.gap>0?"▲":"▼"}</small>`:""}</td><td class="n">${r.P.official.b}/${r.P.real}</td><td class="n">${r.P.salt}</td><td class="n">${r.speed?`T${r.speed.toFixed(1).replace(".",",")}${r.real?` <small title="Ajustado con ${r.real} victoria${r.real>1?"s":""} real${r.real>1?"es":""}">✓</small>`:""}`:"—"}</td></tr>`).join("")}
+      </tbody></table></div>`;
+}
 function mesaText(M){
   return ["Mesa de hoy — Bóveda EDH", ...M.rows.map(r=>`• ${r.d.name} (${r.owner}): nivel ${r.P.power.toFixed(1)} · bracket ${r.P.official.b}/${r.P.real} · sal ${r.P.salt}`), `${M.verdict.es}${M.rows.length>1?`: diferencia de ${M.spread.toFixed(1)} niveles`:""}.`, ...M.tips.map(t=>"- "+t),
-    ...(S.mesa.sim && S.mesa.sim.key===S.mesa.ids.join("|") ? ["Simulación: " + S.mesa.sim.decks.map(x=>`${x.name} ${Math.round(x.pct*100)}%`).join(" · ")] : [])].join("\n");
+    ...(!M.rows.some(r=>r.d.qc) && S.mesa.sim && S.mesa.sim.key===S.mesa.ids.join("|") ? ["Simulación: " + S.mesa.sim.decks.map(x=>`${x.name} ${Math.round(x.pct*100)}%`).join(" · ")] : [])].join("\n");
 }
 function mesaHTML(){
   const all = S.data.decks.filter(d=>d.format==="commander");
@@ -4161,13 +4212,11 @@ function mesaHTML(){
     ${S.match && !S.match.done ? `<div class="banner info"><span>Hay una partida en vivo en el turno ${S.match.turn}.</span><button class="btn sm primary" data-mt="resume">Seguir la partida</button></div>` : ""}
     <div class="chips">${all.map(chip).join("")}</div>
     ${M ? `<div class="banner ${M.verdict.k==="good"?"info":""} mesa-v mesa-${M.verdict.k}"><span><b>${M.verdict.es}.</b> ${esc(M.verdict.s)} ${M.rows.length>1?`<span class="muted">(diferencia de ${M.spread.toFixed(1).replace(".",",")} niveles)</span>`:""}</span></div>
-      <div class="tbl-wrap"><table><thead><tr><th>Mazo</th><th class="n">Nivel</th><th class="n">Bracket</th><th class="n">Sal</th><th class="n">Gana en</th></tr></thead><tbody>
-      ${M.rows.map(r=>`<tr><td><b>${esc(r.d.name)}</b><br><span class="muted" style="font-size:.82rem">${esc(r.owner)}</span></td><td class="n ${r.gap>=1?"warn":r.gap<=-1?"muted":""}">${r.P.power.toFixed(1)}${Math.abs(r.gap)>=1?` <small>${r.gap>0?"▲":"▼"}</small>`:""}</td><td class="n">${r.P.official.b}/${r.P.real}</td><td class="n">${r.P.salt}</td><td class="n">${r.speed?`T${r.speed.toFixed(1).replace(".",",")}`:"—"}</td></tr>`).join("")}
-      </tbody></table></div>
+      ${mesaTableHTML(M)}
       ${M.tips.length?`<ul class="mesa-tips">${M.tips.map(t=>`<li>${esc(t)}</li>`).join("")}</ul>`:""}
       <div class="row">${M.rows.length>=2?`<button class="btn" data-mesa="sim" ${S.mesa.busy?"disabled":""}>${S.mesa.busy?"Simulando…":"Simular esta mesa (300 partidas)"}</button>`:""}${M.rows.length>=2?`<button class="btn primary" data-mt="play">Jugar esta mesa</button>`:""}<button class="btn" data-mesa="share">Compartir resumen</button>${S.mesa.ids.length?`<button class="btn ghost" data-mesa="clear">Limpiar</button>`:""}</div>
       ${S.mesa.sim && S.mesa.sim.key===S.mesa.ids.join("|") ? `<p class="lede" style="margin-top:8px">Simulación: ${S.mesa.sim.decks.slice().sort((a,b)=>b.pct-a.pct).map(x=>`<b>${esc(x.name)}</b> ${Math.round(x.pct*100)}%`).join(" · ")} <span class="muted">(pareja sería ${Math.round(100/S.mesa.sim.players)}% cada uno)</span></p>` : ""}
-      <p class="foot">“Gana en” es el turno promedio en que el mazo tiene un remate lanzable según la simulación de manos (sin contar la interacción rival); el nivel y el bracket son los de la ficha de cada mazo.</p>` : ""}
+      <p class="foot">“Gana en” es el turno promedio en que el mazo tiene un remate lanzable según la simulación de manos (sin contar la interacción rival), corregido con las victorias reales anotadas cuando las hay (✓); el nivel y el bracket son los de la ficha de cada mazo.</p>` : ""}
   </div>`;
 }
 
@@ -4255,7 +4304,9 @@ function renderSettings(){
     <h3 style="font-size:1.1rem;margin-top:6px">Respaldo</h3>
     <p class="muted" style="margin:0;font-size:.9rem">Tus datos viven en este navegador. Descarga un respaldo para pasarlos a otro equipo o por seguridad.</p>
     <div class="row"><button class="btn sm primary" data-act="backup">Descargar respaldo</button><button class="btn sm" data-act="restore">Importar respaldo</button></div>
-    <div class="row"><button class="btn sm ghost" data-act="refresh-all">Actualizar precios ahora</button><button class="btn sm ghost" data-act="clear-cache">Borrar caché de cartas</button></div>`;
+    <div class="row"><button class="btn sm ghost" data-act="refresh-all">Actualizar precios ahora</button><button class="btn sm ghost" data-act="clear-cache">Borrar caché de cartas</button></div>
+    ${typeof pricesFileHTML==="function"?pricesFileHTML():""}
+    ${typeof storageHTML==="function"?storageHTML():""}`;
 }
 
 /* ---------- vistas de formato ---------- */
@@ -4266,11 +4317,13 @@ function formatViewHTML(fmt){
     <button class="btn primary" data-act="new">+ Nuevo mazo de ${FORMATS[fmt].name}</button>
     <button class="btn meta-btn" data-act="show-meta" aria-pressed="${S.showMeta[fmt]===true}">${fmt==="commander"?"Meta cEDH y brackets":"Meta de "+FORMATS[fmt].name}</button>
     ${fmt==="commander"?`<button class="btn meta-btn" data-act="show-local" aria-pressed="${S.showMeta[fmt]==="local"}">Mazos de mis amigos</button>`:""}
+    ${fmt==="commander"&&S.lib?`<button class="btn meta-btn" data-act="show-lib" aria-pressed="${S.showMeta[fmt]==="lib"}">Biblioteca por bracket</button>`:""}
     <ul class="deck-list">${decks.map(d=>{ const A=analyze(d); return `<li><button class="deck-item" data-deck="${esc(d.id)}" aria-current="${d.id===S.sel[fmt] && !S.editing && !S.showMeta[fmt]}"><span class="dn">${esc(d.name)}</span><span class="dc">${pipsHTML(A.ci)} ${esc(fmt==="commander"?((d.commanders||[]).join(" + ")||"sin comandante"):`${A.main} + ${A.sideN}`)} · <span class="num">${money(A.price)}</span>${d.mb?` · <span class="tag">ManaBox</span>`:""}</span></button></li>`; }).join("") || `<li class="muted" style="padding:8px 12px">Aún no tienes mazos de ${FORMATS[fmt].name}.</li>`}</ul>
   </aside>`;
   let pane;
   if (S.editing && S.editing.format===fmt) pane = editorHTML(S.editing);
   else if (S.showMeta[fmt]==="local") pane = localMetaHTML();
+  else if (S.showMeta[fmt]==="lib" && S.lib) pane = libraryHTML();
   else if (S.showMeta[fmt]) pane = fmt==="commander" ? cedhMetaHTML() : metaHTML(fmt);
   else {
     const d = S.data.decks.find(x=>x.id===S.sel[fmt] && (x.format||"commander")===fmt);
@@ -4278,6 +4331,8 @@ function formatViewHTML(fmt){
   }
   return `<div class="decks-layout">${rail}<div id="deck-pane">${busyBanner()}${pane}</div></div>`;
 }
+// canShareImg vive en un módulo que se carga después del primer dibujo
+function snapCanShare(){ try { return canShareImg(); } catch { return false; } }
 function deckHTML(d){
   const A = analyze(d);
   // cinco grupos; cada uno con sus vistas
@@ -4295,12 +4350,12 @@ function deckHTML(d){
     ["precio","Precio",[["precio","Valor"],["versiones","Versiones"],["manabox","ManaBox"],["compartir","Compartir"]]]];
   const tabs = G.flatMap(g=>g[2]);
   if (!tabs.some(t=>t[0]===S.deckTab)) S.deckTab="analisis";
-  const body = {analisis:analysisHTML, lista:listHTML, mana:manaHTML, combos:combosHTML, brackets:bracketsHTML, mejorar:(d,A)=>improveHTML(d,A)+(A.isC&&typeof tdDeckHTML==="function"?tdDeckHTML(d,A):""), precio:priceHTML, meta:deckMetaHTML, manabox:mbDeckHTML, ia:iaHTML, radiografia:radioHTML, mano:manoHTML, versiones:versionesHTML, compartir:compartirHTML, sinergias:synergyHTML, nivel:powerHTML, partidas:(d,A)=>gamesHTML(d,A)+(typeof simGamesHTML==="function"?simGamesHTML(d,A):"")}[S.deckTab](d,A);
+  const body = {analisis:analysisHTML, lista:listHTML, mana:manaHTML, combos:combosHTML, brackets:bracketsHTML, mejorar:(d,A)=>improveHTML(d,A)+(A.isC&&typeof tdDeckHTML==="function"?tdDeckHTML(d,A):""), precio:priceHTML, meta:deckMetaHTML, manabox:mbDeckHTML, ia:iaHTML, radiografia:radioHTML, mano:manoHTML, versiones:versionesHTML, compartir:compartirHTML, sinergias:synergyHTML, nivel:powerHTML, partidas:(d,A)=>gamesHTML(d,A)+(typeof winTurnHTML==="function"?winTurnHTML(d,A):"")+(typeof simGamesHTML==="function"?simGamesHTML(d,A):"")}[S.deckTab](d,A);
   const pendN = d.mb ? boardDiff(mbBase(d.mb), boardsOf(d)).n : 0;
   return `<div class="pane">
     <div class="pane-head">
       <div><h2>${esc(d.name)}</h2>${d.rival?`<div class="pill neutral" style="margin:4px 0">Mazo de ${esc(d.rival.owner||"un amigo")} · mazos de mis amigos</div>`:""}<div class="sub">${pipsHTML(A.ci)} <span>${esc(A.isC?((d.commanders||[]).join(" + ")||"Sin comandante"):FORMATS[A.fmt].name)}</span> <span class="num muted">· ${A.isC?`${A.total} cartas`:`main ${A.main}`} · side ${A.sideN} · maybe ${A.maybeN} · ${money(A.price)}</span>${pendN?` <span class="pill warn">${pendN} cambio${pendN>1?"s":""} sin pasar a ManaBox</span>`:""}</div></div>
-      <div class="actions"><button class="btn sm" data-act="edit">Editar lista</button><button class="btn sm ghost danger" data-act="askdel">Borrar</button></div>
+      <div class="actions"><button class="btn sm" data-act="edit">Editar lista</button>${typeof snapDeckSection==="function"?`<button class="btn sm ghost" data-act="${snapCanShare()?"snap-share":"snap"}" title="La sección abierta, como imagen">${snapCanShare()?"Compartir imagen":"Imagen"}</button><button class="btn sm ghost" data-act="snap-all" title="Todas las secciones del mazo, en un .zip de imágenes">Todas (.zip)</button>`:""}<button class="btn sm ghost danger" data-act="askdel">Borrar</button></div>
     </div>
     ${S.confirmDel?`<div style="padding:12px 20px 0"><div class="confirm">¿Borrar “${esc(d.name)}” de este navegador? <button class="btn sm danger" data-act="del">Sí, borrar</button><button class="btn sm ghost" data-act="nodel">Cancelar</button></div></div>`:""}
     <div class="subtabs grp" role="tablist">${G.map(([gk,gl,items])=>{ const on=items.some(i=>i[0]===S.deckTab); return `<button class="subtab" role="tab" data-sub="${on?S.deckTab:items[0][0]}" aria-selected="${on}">${gl}</button>`; }).join("")}</div>
@@ -4519,11 +4574,11 @@ function deckMetaHTML(d,A){
   const best = ms[0];
   const mine = new Map(); for (const r of [...A.rows,...A.side]) mine.set(slug(r.n),(mine.get(slug(r.n))||0)+r.q);
   const missFrom = a => [...a.main, ...a.side].filter(c=>!BASICS.has(slug(c.n)) && (mine.get(slug(c.n))||0)<c.q);
-  return `<div class="sec"><h3>Contra el meta de ${FORMATS[A.fmt].name}</h3><p class="lede">Comparado con una lista reciente de cada arquetipo principal (${esc(META[A.fmt].src)}, foto del ${META_AT}).</p>
-    ${ms.map(({a,score})=>`<div class="arch"><div><div class="an">${esc(a.name)} <span class="muted num" style="font-weight:400">${a.share}% del meta</span></div><div class="as">Coincide ${Math.round(score*100)}% con tu main · <a href="${a.arch}" target="_blank" rel="noopener">MTGTop8</a></div></div><div class="meter" style="width:120px"><span class="fill ${score>0.6?"good":score>0.3?"warn":""}" style="width:${score*100}%"></span></div></div>`).join("")}</div>
+  return `<div class="sec"><h3>Contra el meta de ${FORMATS[A.fmt].name}</h3><p class="lede">Comparado con una lista reciente de cada arquetipo principal (${esc(META[A.fmt].src)}, ${typeof metaWhen==="function"?metaWhen(A.fmt):"foto del "+META_AT}).</p>
+    ${ms.map(({a,score})=>`<div class="arch"><div><div class="an">${esc(a.name)} <span class="muted num" style="font-weight:400">${a.share}% del meta</span></div><div class="as">Coincide ${Math.round(score*100)}% con tu main · <a href="${esc(a.arch)}" target="_blank" rel="noopener">MTGTop8</a></div></div><div class="meter" style="width:120px"><span class="fill ${score>0.6?"good":score>0.3?"warn":""}" style="width:${score*100}%"></span></div></div>`).join("")}</div>
   ${best && best.score>0.15 ? `<div class="sec"><h3>Para acercarte a ${esc(best.a.name)}</h3><p class="lede">Cartas de la lista de referencia (main y sideboard) que no tienes en el mazo, con precio y si están en tu colección.</p>
     ${missFrom(best.a).map(c=>{ const m=cardOf(c.n); const have=mine.get(slug(c.n))||0; return `<div class="rec"><span>${c.q-have}× ${cardName(c.n,m)} ${c.side?`<span class="tag">side</span>`:""} ${ownedOf(c.n)>=c.q?`<span class="pill good">tienes</span>`:""}</span><span class="meta">${money(refPrice(m))}</span></div>`; }).join("") || `<p class="muted">Tu lista ya tiene todas sus cartas.</p>`}
-    <div class="row" style="margin-top:10px"><button class="btn sm" data-act="fetch-meta" data-arch="${esc(best.a.name)}">Traer precios de estas cartas</button><a class="btn sm ghost" href="${best.a.deck}" target="_blank" rel="noopener">Ver la lista original</a></div></div>` : ""}
+    <div class="row" style="margin-top:10px"><button class="btn sm" data-act="fetch-meta" data-arch="${esc(best.a.name)}">Traer precios de estas cartas</button><a class="btn sm ghost" href="${esc(best.a.deck)}" target="_blank" rel="noopener">Ver la lista original</a></div></div>` : ""}
   ${A.fmt==="pauper"?pauperDeckMuHTML(d,A):""}
   ${sideGuideHTML(A)}
   ${promptBlock()}`;
@@ -4598,20 +4653,26 @@ function editorHTML(e){
 }
 
 /* ---------- meta ---------- */
+// etiquetas de un arquetipo del meta: sin datos de matchup en Paupergeddon, o recién llegado al top (plan de sideboard por categoría)
+function metaTagsHTML(fmt, a){
+  const vs = (META_VS[fmt]||{})[a.name];
+  const noMu = fmt==="pauper" && typeof PAUPER_MU!=="undefined" && !PAUPER_MU.arch.includes(PAUPER_MU.alias[a.name]||a.name);
+  return `${noMu?` <span class="tag" title="Paupergeddon no tiene datos de matchup de este arquetipo">sin matchups</span>`:""}${vs&&vs.auto?` <span class="tag" title="Arquetipo nuevo en el top: su guía de sideboard usa el plan general de su categoría">nuevo</span>`:""}`;
+}
 function metaHTML(fmt){
   const M = META[fmt];
   const arr = metaDecks(fmt).map(a=>({a, cov:metaCoverage(a)}));
-  return `<div class="pane"><div class="pane-head"><div><h2>Meta de ${FORMATS[fmt].name}</h2><div class="sub">${esc(M.src)} · foto del ${META_AT}</div></div>
-    <div class="actions"><a class="btn sm" href="${M.url}" target="_blank" rel="noopener">MTGTop8</a><a class="btn sm" href="${M.mtgdecks}" target="_blank" rel="noopener">MTGDecks</a></div></div>
+  return `<div class="pane"><div class="pane-head"><div><h2>Meta de ${FORMATS[fmt].name}</h2><div class="sub">${esc(M.src)} · ${typeof metaWhen==="function"?metaWhen(fmt):"foto del "+META_AT}</div></div>
+    <div class="actions"><a class="btn sm" href="${esc(M.url)}" target="_blank" rel="noopener">MTGTop8</a><a class="btn sm" href="${esc(M.mtgdecks)}" target="_blank" rel="noopener">MTGDecks</a></div></div>
     <div class="pane-body">
       <p class="muted" style="margin:0">Cada arquetipo con su parte del meta, una lista reciente de referencia y cuánto de ella ya tienes en tu colección. Úsalo para ver qué mazo competitivo te queda más cerca.</p>
       ${arr.some(x=>x.cov.miss.some(m=>m.p==null))?`<div class="banner"><span>Faltan precios de cartas del meta.</span><button class="btn sm primary" data-act="fetch-meta-all">Traer precios</button></div>`:""}
-      <div>${arr.map(({a,cov})=>`<div class="arch"><div><div class="an">${esc(a.name)} <span class="muted num" style="font-weight:400">${a.share}%</span></div>
-        <div class="as">${esc(a.sample)} · tienes ${Math.round(cov.p*100)}% · te falta ${money(cov.cost)}</div>
+      <div>${arr.map(({a,cov})=>`<div class="arch"><div><div class="an">${esc(a.name)} <span class="muted num" style="font-weight:400">${a.share}%</span>${metaTagsHTML(fmt, a)}</div>
+        <div class="as">${esc(a.sample)}${typeof listAgeHTML==="function"?listAgeHTML(a):""} · tienes ${Math.round(cov.p*100)}% · te falta ${money(cov.cost)}</div>
         <div class="meter" style="margin-top:6px;max-width:320px"><span class="fill ${cov.p===1?"good":cov.p>0.6?"warn":"bad"}" style="width:${cov.p*100}%"></span></div></div>
-        <div class="row"><button class="btn sm" data-act="meta-create" data-arch="${esc(a.name)}">Crear mazo</button><a class="btn sm ghost" href="${a.arch}" target="_blank" rel="noopener">Listas</a></div></div>`).join("")}</div>
+        <div class="row"><button class="btn sm" data-act="meta-create" data-arch="${esc(a.name)}">Crear mazo</button><a class="btn sm ghost" href="${esc(a.arch)}" target="_blank" rel="noopener">Listas</a></div></div>`).join("")}</div>
       ${fmt==="pauper"?pauperMatrixHTML():""}
-      <p class="foot">Los porcentajes y listas vienen de MTGTop8. Para el meta de hoy, abre los enlaces: esta foto no se actualiza sola porque MTGTop8 y MTGDecks no permiten conectarse desde otra página.</p>
+      <p class="foot">${typeof LIVE!=="undefined"&&LIVE?"Los porcentajes y listas vienen de MTGTop8 y se renuevan solos cada día; si el servidor no responde, se muestra la foto guardada. La lista de referencia es la más reciente de cada arquetipo.":"Los porcentajes y listas vienen de MTGTop8. Esta versión muestra la foto guardada; el meta al día está en la versión en vivo (boveda-edh.netlify.app)."}</p>
     </div></div>`;
 }
 function cedhMetaHTML(){
@@ -5804,6 +5865,12 @@ document.addEventListener("change", async e=>{
   if (id==="file-backup" && e.target.files[0]){
     try{
       const j = JSON.parse(await e.target.files[0].text());
+      if (j && j.kind==="precios"){
+        const nP = mergeCardData(j.cardData); S.settingsOpen=false; render(); e.target.value="";
+        toast(nP ? `Precios importados: datos de ${nP} cartas${typeof ACC!=="undefined"&&ACC.state==="on"?", guardados en tu cuenta para todos tus dispositivos":""}.` : "Ese archivo no trae precios más nuevos que los que ya tienes.");
+        if (nP && typeof accPushCards==="function") accPushCards();
+        return;
+      }
       const decks = Array.isArray(j.decks)?j.decks:[]; const items = (j.collection&&Array.isArray(j.collection.items))?j.collection.items:[];
       const ids = new Set(S.data.decks.map(x=>x.id)); let added=0;
       for (const dk of decks){ if (!dk || !Array.isArray(dk.cards)) continue; if (ids.has(dk.id)) continue;
@@ -5962,6 +6029,8 @@ const TOOLS = [
   {k:"constructor", i:"tool", t:"Constructor", d:"Crea un mazo desde cero: guiado con EDHREC y tu colección, o libre."},
   {k:"coleccion", i:"box", t:"Colección", d:"Guarda tus cartas y optimiza usando lo que ya tienes."},
   {k:"local", i:"people", t:"Meta local", d:"Compara la velocidad de tu mazo con los de tus amigos."},
+  {k:"chequeo", i:"scale", t:"Chequeo rápido de mesa", d:"Pega de 2 a 4 enlaces o listas y mira si la mesa está pareja, sin guardar los mazos."},
+  {k:"biblioteca", i:"box", t:"Biblioteca por bracket", d:"Tus mazos, los de tus amigos, el grupo y torneo, filtrados por bracket."},
   {k:"versiones", i:"scale", t:"Comparar versiones", d:"El antes y el después de cada cambio, con sus números."},
   {k:"compartir", i:"link", t:"Compartir", d:"Enlace o código de solo lectura, página del mazo y lista para copiar."},
   {k:"pdf", i:"file", t:"Exportar informe PDF", d:"Decklist y análisis listos para imprimir o guardar como PDF."},
@@ -5999,6 +6068,8 @@ function openTool(k){
   if (k==="constructor"){ S.view="commander"; S.editing={format:"commander", name:"", commanders:[], text:""}; S.showMeta.commander=false; render(); setTimeout(()=>{ const el=$("#bld-cmd"); if (el) el.focus(); },50); return; }
   if (k==="coleccion"){ S.view="coll"; render(); return; }
   if (k==="local"){ S.view="commander"; S.showMeta.commander="local"; S.editing=null; render(); return; }
+  if (k==="chequeo"){ S.view="commander"; S.showMeta.commander="local"; S.editing=null; render(); setTimeout(()=>{ const el=$("#qc-0"); if (el){ el.scrollIntoView({block:"center"}); el.focus(); } }, 60); return; }
+  if (k==="biblioteca"){ S.view="commander"; S.showMeta.commander="lib"; S.editing=null; render(); return; }
   if (k==="vigilancias"){ S.view="market"; S.marketTab="busqueda"; render(); return; }
   if (k==="novedades"){ S.view="news"; render(); return; }
   if (k==="semanal"){ S.view="weekly"; render(); return; }
@@ -6352,6 +6423,7 @@ function localMetaHTML(){
     <div class="pane-body">
       ${typeof grpHTML==="function"?grpHTML():""}
       ${typeof mesaHTML==="function"?mesaHTML():""}
+      ${S.qc?quickCheckHTML():""}
       ${typeof powerBoardHTML==="function"?powerBoardHTML():""}
       ${missing&&!S.busy?`<div class="banner"><span>Hay cartas de tus amigos sin datos.</span><button class="btn sm primary" data-t="local-fetch">Actualizar cartas</button></div>`:""}
       ${rows.length?`<div class="tbl-wrap"><table><thead><tr><th>#</th><th>Mazo</th><th>De</th><th class="n">Bracket</th><th class="n">Comandante en mesa</th><th class="n">Reloj de victoria</th><th class="n">Interacción</th><th class="n">Ramp</th><th class="n">Maná rápido</th><th class="n">Tutores</th><th class="n">CMC</th><th></th></tr></thead><tbody>
@@ -7565,6 +7637,7 @@ function homeHTML(){
   const alertRow = a => `<div class="alert"><span class="ic ${a.kind==="up"?"up":a.kind==="down"?"down":"tg"}" aria-hidden="true">${a.kind==="up"?"↑":a.kind==="down"?"↓":"★"}</span><div><div class="t">${cardName(a.n)} ${a.kind==="up"?`<span class="up">${pct(a.ch.pct)}</span>`:a.kind==="down"?`<span class="down">${pct(a.ch.pct)}</span>`:""}</div><div class="s">${esc(a.s||"")}</div></div></div>`;
   const week = W.delta || W.changes.length || W.sales.length || W.up.length || W.down.length;
   return `${S.sharedPreview && typeof sharedImportHTML==="function" ? sharedImportHTML(S.sharedPreview) : ""}
+  ${typeof priceBannerHTML==="function" ? priceBannerHTML() : ""}
   ${typeof installCardHTML==="function" && S.data.settings.onboarded ? installCardHTML(false) : ""}
   <div class="home">
     ${homeWelcomeHTML()}
@@ -7815,6 +7888,474 @@ document.addEventListener("click", async ev => {
   if (act==="del"){ const i = +b.dataset.i; S.data.judgeLog = (S.data.judgeLog||[]).filter((_,j)=>j!==i); saveData(); render(); return; }
 });
 document.addEventListener("input", e => { if (e.target.id==="jz-q") S.judge.q = e.target.value; if (e.target.id==="jz-cards") S.judge.cards = e.target.value; });
+
+/* =========================================================
+   Bóveda EDH — meta al día (versión en vivo)
+   El servidor arma cada día el meta de Pauper y Pioneer
+   (MTGTop8 + Pauper World). Si es más nuevo que la foto
+   guardada en la app, lo reemplaza: arquetipos, %, listas
+   más recientes y participación en MTGO.
+   ========================================================= */
+const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+function esDate(s){ const m = String(s||"").match(/(\d{1,2}) de (\w+) de (\d{4})/); if (!m) return 0; const i = MESES.indexOf(m[2].toLowerCase()); return i<0 ? 0 : Date.UTC(+m[3], i, +m[1], 12); }
+const fmtEs = t => { const d = new Date(t); return `${d.getUTCDate()} de ${MESES[d.getUTCMonth()]} de ${d.getUTCFullYear()}`; };
+// fecha que se muestra en la app: la del meta en vivo si se cargó, si no la foto guardada
+var META_LIVE = {pauper:null, pioneer:null, pw:null};
+function metaWhen(fmt){ const t = fmt && META_LIVE && META_LIVE[fmt]; return t ? `al día (${fmtEs(t)})` : `foto del ${META_AT}`; }
+
+// días desde la lista de referencia (sale de la fecha dd/mm/aa al final de "sample", o de a.date)
+function listAgeDays(a, now = Date.now()){
+  let t = a && a.date;
+  if (!t){ const m = String(a && a.sample || "").match(/(\d{2})\/(\d{2})\/(\d{2})\s*$/); if (m) t = Date.UTC(2000 + +m[3], +m[2]-1, +m[1], 12); }
+  return t ? Math.max(0, Math.floor((now - t) / 864e5)) : null;
+}
+function listAgeHTML(a){
+  const d = listAgeDays(a); if (d == null) return "";
+  return d > 30 ? ` <span class="pill warn" title="MTGTop8 no tiene una lista más nueva de este arquetipo">lista de hace ${d} días</span>` : ` <span class="muted">· hace ${d} día${d===1?"":"s"}</span>`;
+}
+
+// plan de sideboard por defecto para un arquetipo nuevo, según su categoría en MTGTop8
+const VS_DEFAULT = {aggro:{plan:"aggro", vs:["removal","wipe","life"]}, control:{plan:"control", vs:["counter","discard"]}, combo:{plan:"combo", vs:["grave","counter","discard"]}};
+// nombre en Pauper World de cada arquetipo de la matriz (si difiere)
+PAUPER_MU.pwAlias = Object.assign({"Spy Combo":"Balustrade Spy", "White Weenie":"Mono White Weenie", "Aura Aggro":"Bogles"}, PAUPER_MU.pwAlias||{});
+
+// orden del top: % de MTGTop8; si empatan, más mazos en Pauper World (Pauper) o más listas en las últimas 2 semanas
+function rankLive(fmt, arr, pw){
+  const pwOf = n => { if (!pw) return -1; const k = PAUPER_MU.alias[n] || n; const pn = PAUPER_MU.pwAlias[k] || k; const r = pw.rows.find(x=>x.name===pn || x.name===n); return r ? (r.decks ?? r.pct) : -1; };
+  return [...arr].sort((a,b)=> b.share - a.share || (fmt==="pauper" ? pwOf(b.name) - pwOf(a.name) : 0) || (b.recent||0) - (a.recent||0));
+}
+
+// lo que llega del servidor se limpia antes de usarlo: solo direcciones de MTGTop8, números como números y textos acotados
+const MT8_OK = /^https:\/\/mtgtop8\.com\/[\w?=&.\/-]+$/;
+function cleanLiveMeta(d){
+  const str = (v, n) => typeof v === "string" ? v.slice(0, n) : "";
+  const numOr = (v, alt) => { const x = typeof v === "number" ? v : parseFloat(v); return isFinite(x) ? x : alt; };
+  const out = {};
+  for (const fmt of ["pauper","pioneer"]){
+    const L = d[fmt]; if (!L || typeof L !== "object" || !Array.isArray(L.archetypes)) continue;
+    out[fmt] = {at: numOr(L.at, 0), total: numOr(L.total, 0), archetypes: L.archetypes.slice(0, 20).filter(a=>a && typeof a === "object" && str(a.name, 60).trim() && MT8_OK.test(a.arch || "") && isFinite(numOr(a.share, NaN)))
+      .map(a=>({name:str(a.name, 60).trim(), share:numOr(a.share, 0), arch:a.arch, deck:MT8_OK.test(a.deck || "") ? a.deck : undefined, sample:str(a.sample, 160) || undefined, date:numOr(a.date, null), list:str(a.list, 6000) || undefined, cat:Object.hasOwn(VS_DEFAULT, a.cat) ? a.cat : "aggro", recent:numOr(a.recent, 0)}))};
+  }
+  const W = d.pw;
+  if (W && typeof W === "object" && Array.isArray(W.rows)) out.pw = {at: numOr(W.at, 0), period: str(W.period, 60), total: numOr(W.total, 0),
+    rows: W.rows.slice(0, 60).filter(r=>r && str(r.name, 60) && isFinite(numOr(r.pct, NaN))).map(r=>({name:str(r.name, 60), pct:numOr(r.pct, 0), decks:numOr(r.decks, null)}))};
+  return out;
+}
+function applyLiveMeta(d){
+  if (!d || typeof d !== "object") return false;
+  d = cleanLiveMeta(d);
+  const baked = esDate(META_AT); let changed = false;
+  for (const fmt of ["pauper","pioneer"]){
+    const L = d[fmt]; if (!L || !Array.isArray(L.archetypes) || (L.at||0) <= baked) continue;
+    const N = fmt==="pauper" ? 9 : 8;
+    const old = new Map((META[fmt].archetypes||[]).map(a=>[a.name, a]));
+    const top = rankLive(fmt, L.archetypes, d.pw).filter(a=>a.list || old.has(a.name)).slice(0, N);
+    if (top.length < Math.min(N, 5)) continue;
+    META[fmt].archetypes = top.map(a=>({name:a.name, share:a.share, arch:a.arch, deck:a.deck||(old.get(a.name)||{}).deck, sample:a.sample||(old.get(a.name)||{}).sample, date:a.date||null, list:a.list||old.get(a.name).list, cat:a.cat}));
+    for (const a of top) if (!META_VS[fmt][a.name]) META_VS[fmt][a.name] = {...(VS_DEFAULT[a.cat]||VS_DEFAULT.aggro), auto:true};
+    META[fmt].src = `MTGTop8 · últimas 2 semanas${L.total?` · ${L.total} mazos`:""}`;
+    META_LIVE[fmt] = L.at; delete _metaParsed[fmt]; changed = true;
+  }
+  const W = d.pw;
+  if (W && Array.isArray(W.rows) && W.rows.length >= 8 && (W.at||0) > baked){
+    const pw = {}; const used = new Set();
+    for (const n of PAUPER_MU.arch){ const pn = PAUPER_MU.pwAlias[n] || n; const r = W.rows.find(x=>x.name===pn); if (r){ pw[n] = r.pct; used.add(r.name); } }
+    const top = Object.entries(pw).sort((a,b)=>b[1]-a[1]).slice(0, 8);
+    if (top.length >= 4){
+      PAUPER_MU.pw = Object.fromEntries(top);
+      const cut = top[top.length-1][1];
+      PAUPER_MU.pwOther = Object.fromEntries(W.rows.filter(r=>!used.has(r.name) && r.pct >= cut).slice(0, 3).map(r=>[r.name, r.pct]));
+      PAUPER_MU.pwAt = `${W.period || fmtEs(W.at)}${W.total?` · ${W.total.toLocaleString("es-CL")} mazos MTGO`:""}`;
+      META_LIVE.pw = W.at; changed = true;
+    }
+  }
+  if (changed){ if (typeof metaCardSet.reset === "function") metaCardSet.reset(); bumpAnalysis(); }
+  return changed;
+}
+
+async function loadLiveMeta(){
+  if (typeof LIVE === "undefined" || !LIVE) return;
+  try {
+    const r = await fetch("/api/meta"); if (!r.ok) throw new Error("meta " + r.status);
+    const d = await r.json(); try { idb.set("liveMeta", d); } catch {}
+    if (applyLiveMeta(d)) render();
+  } catch {
+    try { const d = await idb.get("liveMeta"); if (d && applyLiveMeta(d)) render(); } catch {}
+  }
+}
+if (typeof LIVE !== "undefined" && LIVE) S.boot.then(()=>setTimeout(loadLiveMeta, 300));
+
+/* =========================================================
+   Bóveda EDH — Chequeo rápido de mesa
+   Pegas 2 a 4 enlaces (Moxfield, Archidekt, ManaBox…) o listas
+   y la app dice si la mesa está pareja, sin guardar los mazos.
+   ========================================================= */
+S.qc = S.qc || {in:["","","",""], decks:null, errs:[], busy:false};
+const isUrl = s => /^(https?:\/\/)?[\w.-]+\.(com|app|gg|net|org|io|de)\/\S+$/i.test(String(s).trim());
+async function qcDeckFrom(raw, i){
+  raw = String(raw||"").trim(); if (!raw) return null;
+  let r;
+  if (isUrl(raw)){
+    if (isWebView()) throw new Error("en la versión web los enlaces no se pueden leer: pega la lista");
+    r = await importFromLink(raw, "commander");
+    if (!r.commanders.length) throw new Error("no encontré el comandante en ese enlace");
+    const toL = t => parseList(t).map(c=>({n:c.n, q:c.q}));
+    return {id:"qc-"+i, format:"commander", name:r.name || r.commanders.join(" + "), commanders:r.commanders, cards:toL(r.text), side:[], maybe:[], log:[], rival:{owner:`Mazo ${i+1} · ${r.src}`}, qc:true};
+  }
+  const nx = splitDeck(parseList(/^\s*(commanders?|comandantes?|deck|mainboard)\s*$/im.test(raw) ? raw : textToDeck(raw, "commander")), "commander", []);
+  if (!nx.cards.length) throw new Error("no encontré cartas");
+  if (!nx.commanders.length) throw new Error("marca el comandante (sección “Commander” o *CMDR*)");
+  return {id:"qc-"+i, format:"commander", name:nx.commanders.join(" + "), commanders:nx.commanders, cards:nx.cards, side:[], maybe:[], log:[], rival:{owner:`Mazo ${i+1}`}, qc:true};
+}
+async function qcRun(){
+  const Q = S.qc; if (Q.busy) return;
+  Q.in = [0,1,2,3].map(i=>(($("#qc-"+i)||{}).value||""));
+  if (Q.in.filter(x=>x.trim()).length < 2){ toast("Pega al menos dos mazos (enlace o lista)."); return; }
+  Q.busy = true; Q.errs = []; Q.decks = null; render();
+  const decks = [];
+  try {
+    for (let i=0;i<4;i++){ try { const d = await qcDeckFrom(Q.in[i], i); if (d) decks.push(d); } catch(e){ Q.errs.push(`Mazo ${i+1}: ${e.message||e}`); } }
+    if (decks.length) await fetchCards(decks.flatMap(allNames), {quiet:!isWebView(), label:"Trayendo las cartas de la mesa"});
+    bumpAnalysis(); Q.decks = decks.length >= 2 ? decks : null;
+    if (decks.length < 2) Q.errs.push("Hacen falta al menos dos mazos que se puedan leer.");
+  } finally { Q.busy = false; render(); }
+}
+function quickCheckHTML(){
+  const Q = S.qc; const M = Q.decks ? mesaEval(Q.decks) : null;
+  const field = i => `<label class="qc-f"><span class="sc muted">Mazo ${i+1}</span><textarea id="qc-${i}" rows="2" spellcheck="false" placeholder="${i<2?"Enlace de Moxfield, Archidekt o ManaBox, o la lista pegada":"Opcional"}">${esc(Q.in[i]||"")}</textarea></label>`;
+  return `<div class="sec qc"><h3>Chequeo rápido de mesa</h3><p class="lede">Pega los mazos de la mesa (enlace o lista, 2 a 4) y te digo si está pareja. No se guardan.${isWebView()?" En la versión web pega las listas: los enlaces se leen en la versión en vivo.":""}</p>
+    <div class="qc-grid">${[0,1,2,3].map(field).join("")}</div>
+    <div class="row"><button class="btn primary" data-qc="run" ${Q.busy?"disabled":""}>${Q.busy?"Revisando…":"Revisar la mesa"}</button>${Q.decks||Q.in.some(x=>x)?`<button class="btn ghost" data-qc="clear" ${Q.busy?"disabled":""}>Limpiar</button>`:""}</div>
+    ${Q.errs.length?`<div class="banner bad" style="display:grid;gap:2px">${Q.errs.map(e=>`<span>${esc(e)}</span>`).join("")}</div>`:""}
+    ${M?`<div class="banner ${M.verdict.k==="good"?"info":""} mesa-v mesa-${M.verdict.k}"><span><b>${M.verdict.es}.</b> ${esc(M.verdict.s)} <span class="muted">(diferencia de ${M.spread.toFixed(1).replace(".",",")} niveles)</span></span></div>
+      ${mesaTableHTML(M)}
+      ${M.tips.length?`<ul class="mesa-tips">${M.tips.map(t=>`<li>${esc(t)}</li>`).join("")}</ul>`:""}
+      <div class="row"><button class="btn" data-qc="share">Compartir resumen</button><button class="btn" data-qc="save">Guardar en mazos de mis amigos</button></div>`:""}
+  </div>`;
+}
+document.addEventListener("click", async ev => {
+  const b = ev.target.closest("[data-qc]"); if (!b) return;
+  const Q = S.qc, act = b.dataset.qc;
+  if (act==="run"){ await qcRun(); return; }
+  if (act==="clear"){ S.qc = {in:["","","",""], decks:null, errs:[], busy:false}; render(); return; }
+  const M = Q.decks && mesaEval(Q.decks); if (!M) return;
+  if (act==="share"){ const text = mesaText(M).replace("Mesa de hoy", "Chequeo de mesa"); if (navigator.share){ try { await navigator.share({title:"Chequeo de mesa", text}); return; } catch(e){ if (e && e.name==="AbortError") return; } } copyText(text); return; }
+  if (act==="save"){ let n = 0; for (const d of Q.decks){ const {qc, ...x} = d; S.data.decks.push({...x, id:uid(), commanders:[...(x.commanders||[])], cards:(x.cards||[]).map(c=>({...c})), side:[], maybe:[], log:[], rival:{owner:(d.rival.owner||"").replace(/^Mazo \d+( · )?/, "") || "Chequeo"}, created:Date.now(), updated:Date.now()}); n++; }
+    Q.decks = null; Q.errs = [];   // ya quedaron guardados: un segundo toque no los duplica
+    saveData(); toast(`${n} mazos agregados a “Mazos de mis amigos”.`); render(); return; }
+});
+document.addEventListener("input", e => { const m = /^qc-(\d)$/.exec(e.target.id||""); if (m) S.qc.in[+m[1]] = e.target.value; });
+
+/* =========================================================
+   Bóveda EDH — Biblioteca por bracket
+   Todos los mazos de Commander que conoces (tuyos, de amigos,
+   del grupo, de torneos y listas típicas de torneo) filtrados
+   por bracket, nivel, fuente y comandante.
+   ========================================================= */
+S.lib = S.lib || {q:"", br:0, src:"all", td:[], busy:false};
+function libSrc(d){ if (d.libTd) return "torneo"; if (!d.rival) return "tuyos"; if (d.rival.group) return "grupo"; if (/^torneo/i.test(d.rival.owner||"")) return "torneo"; return "amigos"; }
+const LIB_SRC = [["all","Todos"],["tuyos","Tuyos"],["grupo","Grupo"],["amigos","Amigos"],["torneo","Torneo"]];
+function libRows(){
+  const decks = [...S.data.decks.filter(d=>d.format==="commander"), ...(S.lib.td||[])];
+  const q = S.lib.q.trim().toLowerCase();
+  return decks.map(d=>{ const A = analyze(d); const P = powerOf(d, A); return {d, A, P, src:libSrc(d), rec: typeof gameRecord==="function" && !d.libTd ? gameRecord(d) : null}; })
+    .filter(r=>(!S.lib.br || r.P.real===S.lib.br) && (S.lib.src==="all" || r.src===S.lib.src) && (!q || r.d.name.toLowerCase().includes(q) || (r.d.commanders||[]).join(" ").toLowerCase().includes(q) || String(r.d.rival&&r.d.rival.owner||"").toLowerCase().includes(q)))
+    .sort((a,b)=>b.P.power-a.P.power);
+}
+async function libLoadTd(){
+  if (typeof LIVE==="undefined" || !LIVE){ toast("Las listas de torneo se traen en la versión en vivo: boveda-edh.netlify.app"); return; }
+  if (S.lib.busy) return; S.lib.busy = true; render();
+  try {
+    if (!S.td.data) await tdLoad(false);
+    const A = tdAgg(); if (!A){ toast("No se pudieron cargar los torneos."); return; }
+    const top = [...A.cmds].filter(c=>c.n>=8).sort((a,b)=>b.n-a.n).slice(0, 10); const out = [];
+    for (const c of top){
+      try { const r = await fetch("/api/cedh?q=cmd&name="+encodeURIComponent(c.name)); if (!r.ok) continue; const j = await r.json();
+        const cards = (j.cards||[]).filter(x=>x[1]>=25).slice(0, 99); if (cards.length < 70) continue;
+        out.push({id:"lt-"+slug(c.name), libTd:true, format:"commander", name:`${c.name} (lista típica)`, commanders:c.name.split(" / "), cards:cards.map(x=>({n:x[0], q:1})), side:[], maybe:[], log:[], rival:{owner:`Torneo · ${j.lists||c.n} listas, ${Math.round(c.conv*100)}% al top`}}); } catch {}
+    }
+    S.lib.td = out;
+    if (out.length) await fetchCards(out.flatMap(allNames), {quiet:true, label:"Trayendo cartas de las listas de torneo"});
+    bumpAnalysis(); toast(out.length ? `${out.length} listas típicas de torneo agregadas a la biblioteca (no se guardan).` : "No hubo listas suficientes.");
+  } finally { S.lib.busy = false; render(); }
+}
+function libraryHTML(){
+  const rows = libRows(); const L = S.lib;
+  const chip = (k, v, l, cur) => `<button class="chip" data-lib-${k}="${v}" aria-pressed="${cur===v}">${l}</button>`;
+  const srcEs = {tuyos:"tuyo", grupo:"grupo", amigos:"amigo", torneo:"torneo"};
+  return `<div class="pane"><div class="pane-head"><div><h2>Biblioteca por bracket</h2><div class="sub">Tus mazos, los de tus amigos y del grupo, y listas de torneo, con los mismos criterios.</div></div></div>
+    <div class="pane-body">
+      <div class="field"><label>Bracket realista</label><div class="chips">${[[0,"Todos"],[1,"1"],[2,"2"],[3,"3"],[4,"4"],[5,"5 · cEDH"]].map(([v,l])=>chip("br", v, l, L.br)).join("")}</div></div>
+      <div class="field"><label>Fuente</label><div class="chips">${LIB_SRC.map(([v,l])=>chip("src", v, l, L.src)).join("")}</div></div>
+      <div class="row"><input type="search" id="lib-q" placeholder="Buscar comandante, mazo o dueño…" value="${esc(L.q)}" style="flex:1;min-width:200px">
+        ${typeof LIVE!=="undefined" && LIVE ? `<button class="btn sm" data-lib="td" ${L.busy?"disabled":""}>${L.busy?"Trayendo…":L.td.length?"Actualizar listas de torneo":"Traer listas típicas de torneo"}</button>` : ""}</div>
+      ${rows.length ? `<div class="tbl-wrap"><table><thead><tr><th>Mazo</th><th class="n">Nivel</th><th class="n">Bracket</th><th class="n">Sal</th><th class="n">Récord</th><th></th></tr></thead><tbody>
+        ${rows.map(r=>`<tr${r.src==="tuyos"?' class="td-mine"':""}><td><b>${esc(r.d.name)}</b><br><span class="muted" style="font-size:.82rem">${esc((r.d.commanders||[]).join(" + "))} · ${esc(r.d.rival ? (r.d.rival.owner||"amigo") : "tú")} <span class="tag">${srcEs[r.src]}</span></span></td>
+          <td class="n">${r.P.power.toFixed(1)}</td><td class="n">${r.P.official.b}/${r.P.real}</td><td class="n">${r.P.salt}</td><td class="n">${r.rec?`${r.rec.w}-${r.rec.l}`:"—"}</td>
+          <td style="white-space:nowrap">${r.d.libTd?"":`<button class="btn sm ghost" data-open="${esc(r.d.id)}">Ver</button>`}${r.src!=="tuyos"?`<button class="btn sm ghost" data-lib-copy="${esc(r.d.id)}">Copiar como mío</button>`:""}${r.d.libTd?`<button class="btn sm ghost" data-lib-keep="${esc(r.d.id)}">Guardar en amigos</button>`:""}</td></tr>`).join("")}
+      </tbody></table></div><p class="foot">${rows.length} mazo${rows.length>1?"s":""}. Bracket: oficial / realista (se filtra por el realista). Las listas típicas de torneo usan las cartas que juega al menos el 25 % de las listas de ese comandante en TopDeck.gg.</p>`
+      : `<p class="muted">No hay mazos con ese filtro.</p>`}
+    </div></div>`;
+}
+document.addEventListener("click", async ev => {
+  const g = k => ev.target.closest(`[data-lib-${k}]`); let b;
+  if ((b = g("br"))){ S.lib.br = +b.dataset.libBr; render(); return; }
+  if ((b = g("src"))){ S.lib.src = b.dataset.libSrc; render(); return; }
+  if ((b = g("copy")) || (b = g("keep"))){ const id = b.dataset.libCopy || b.dataset.libKeep; const d = [...S.data.decks, ...S.lib.td].find(x=>x.id===id); if (!d) return;
+    const {rival, libTd, sim, pwHist, ...x} = d; const copy = !!b.dataset.libCopy;
+    const sameList = o => o.format===d.format && o.name===d.name && (o.commanders||[]).join("|")===(d.commanders||[]).join("|") && (o.cards||[]).length===(d.cards||[]).length;
+    if (!copy && S.data.decks.some(o=>o.rival && o.id!==d.id && sameList(o))){ toast("Esa lista ya está en “Mazos de mis amigos”."); return; }
+    const nd = {...x, commanders:[...(x.commanders||[])], cards:(x.cards||[]).map(c=>({...c})), side:(x.side||[]).map(c=>({...c})), maybe:(x.maybe||[]).map(c=>({...c})), id:uid(), name: copy ? `${d.name.replace(/ \(lista típica\)$/,"")} (copia)` : d.name, log:[], versions:[], created:Date.now(), updated:Date.now(), ...(copy ? {} : {rival:{owner:rival && rival.owner || "Torneo"}})};
+    S.data.decks.push(nd); saveData();
+    if (copy){ S.view="commander"; S.sel.commander=nd.id; S.showMeta.commander=false; S.deckTab="analisis"; toast("Copia creada en tus mazos."); } else toast("Lista guardada en “Mazos de mis amigos”.");
+    render(); return; }
+  if ((b = ev.target.closest("[data-lib]")) && b.dataset.lib==="td"){ await libLoadTd(); return; }
+  if ((b = ev.target.closest("[data-act='show-lib']"))){ S.view="commander"; S.showMeta.commander="lib"; S.editing=null; render(); window.scrollTo(0,0); }
+});
+document.addEventListener("input", e => { if (e.target.id==="lib-q"){ S.lib.q = e.target.value; const pos = e.target.selectionStart; clearTimeout(S._libT); S._libT = setTimeout(()=>{ render(); const el=$("#lib-q"); if (el){ el.focus(); el.setSelectionRange(pos,pos); } }, 200); } });
+
+/* =========================================================
+   Bóveda EDH — Almacenamiento: cuánto ocupan tus datos y cuántos
+   mazos más caben en cada lugar donde se guardan.
+   ========================================================= */
+const KB = n => n >= 1048576 ? (n/1048576).toFixed(1).replace(".",",")+" MB" : Math.max(1, Math.round(n/1024))+" KB";
+async function gzLen(text){
+  try { if (typeof CompressionStream==="undefined") return null; const s = new Blob([text]).stream().pipeThrough(new CompressionStream("gzip")); return (await new Response(s).arrayBuffer()).byteLength; } catch { return null; }
+}
+async function storageReport(){
+  const D = S.data, json = JSON.stringify(D), bytes = new Blob([json]).size, gz = await gzLen(json);
+  const mine = D.decks.filter(d=>!d.rival), all = D.decks;
+  const deckSizes = all.map(d=>new Blob([JSON.stringify(d)]).size);
+  // tamaño por mazo: el promedio de los tuyos, o el de un mazo de Commander con 10 cambios y 10 versiones (≈ 58 KB) si aún no hay
+  const avg = deckSizes.length ? deckSizes.reduce((a,x)=>a+x,0)/deckSizes.length : 58000;
+  const avgGz = gz && bytes ? Math.max(1500, avg * gz / bytes) : avg / 8;
+  const cache = new Blob([JSON.stringify(S.cards||{})]).size + new Blob([JSON.stringify(S.hist||{})]).size;
+  let est = null, persisted = null;
+  try { if (navigator.storage && navigator.storage.estimate) est = await navigator.storage.estimate(); } catch {}
+  try { if (navigator.storage && navigator.storage.persisted) persisted = await navigator.storage.persisted(); } catch {}
+  const rows = [];
+  // navegador (IndexedDB): el límite lo pone el navegador según el espacio libre del equipo
+  if (est && est.quota){ const free = Math.max(0, est.quota - (est.usage||0)); rows.push({where:"Este navegador (IndexedDB)", used:est.usage||0, cap:est.quota, more:Math.floor(free/avg), note:persisted ? "protegido: el navegador no lo borra por falta de espacio" : "puede borrarse si el equipo se queda sin espacio o (en iPhone) tras semanas sin abrir la Bóveda: protégelo o usa la sincronización"}); }
+  // copia rápida en localStorage (~5 MB): si se llena, todo sigue guardado en IndexedDB
+  rows.push({where:"Copia rápida (localStorage)", used:bytes, cap:5*1048576, more:Math.max(0, Math.floor((5*1048576 - bytes)/avg)), note:"si se llena no pasa nada: los datos siguen en IndexedDB"});
+  if (typeof LIVE!=="undefined" && LIVE) rows.push({where:"Sincronización con código", used:gz||bytes/8, cap:5*1048576, more:Math.max(0, Math.floor((5*1048576 - (gz||bytes/8))/avgGz)), note:"máximo 5 MB comprimido; los mazos se comprimen muy bien" + (typeof SY!=="undefined" && SY.state==="on" ? "" : " (no la estás usando)")});
+  if (typeof ACC!=="undefined" && ACC.state && ACC.state!=="file") rows.push({where:"Tu cuenta de claude.ai", used:null, cap:null, more:null, note:"un documento por mazo, de hasta 256 KB (un mazo muy grande pierde primero sus versiones antiguas); el número total de documentos lo limita la plataforma y la app avisa si se llega"});
+  rows.push({where:"Mesa compartida (grupo)", used:null, cap:null, more:Math.max(0, 25 - Math.min(25, mine.filter(d=>d.format==="commander").length)), note:"se publican tus 25 mazos de Commander más recientes; 16 personas y 3.000 partidas por grupo"});
+  return {bytes, gz, decks:all.length, mine:mine.length, avg, avgGz, cache, rows, persisted, canPersist: !!(navigator.storage && navigator.storage.persist) && !persisted, at:Date.now()};
+}
+function storageHTML(){
+  const R = S.storage;
+  if (!R) return `<div class="row"><button class="btn sm ghost" data-act="storage">Almacenamiento: ¿cuántos mazos caben?</button></div>`;
+  const pctBar = r => r.cap ? `<span class="rp-track sm" style="display:block;margin-top:3px"><i style="width:${Math.min(100, 100*r.used/r.cap).toFixed(1)}%"></i></span>` : "";
+  return `<div class="card-box" style="gap:8px;padding:12px"><b>Almacenamiento</b>
+    <span class="muted" style="font-size:.88rem">${R.decks} mazo${R.decks===1?"":"s"} (${R.mine} tuyo${R.mine===1?"":"s"}) · tus datos: ${KB(R.bytes)}${R.gz?` (${KB(R.gz)} comprimidos)`:""} · un mazo promedio ocupa ${KB(R.avg)} · datos de cartas y precios: ${KB(R.cache)}</span>
+    ${R.rows.map(r=>`<div style="font-size:.88rem"><b>${esc(r.where)}</b>${r.cap?` · ${KB(r.used)} de ${KB(r.cap)}`:""}${r.more!=null?` · <span class="num">caben ~${r.more.toLocaleString("es-CL")}</span> mazo${r.more===1?"":"s"} más`:""}${pctBar(r)}<div class="muted">${esc(r.note)}</div></div>`).join("")}
+    <div class="row">${R.canPersist?`<button class="btn sm primary" data-act="storage-persist">Proteger los datos de este navegador</button>`:""}<button class="btn sm ghost" data-act="storage">Volver a medir</button></div></div>`;
+}
+document.addEventListener("click", async ev => {
+  const b = ev.target.closest('[data-act="storage"],[data-act="storage-persist"]'); if (!b) return;
+  ev.stopPropagation();
+  if (b.dataset.act==="storage-persist"){ let ok = false; try { ok = await navigator.storage.persist(); } catch {} toast(ok ? "Listo: el navegador no borrará tus datos por falta de espacio." : "El navegador no lo permitió. Instala la app o usa la sincronización para no perder datos."); }
+  S.storage = await storageReport(); renderSettings();
+}, true);
+
+/* =========================================================
+   Bóveda EDH — Descargar cada sección del mazo como imagen
+   Copia la sección con sus estilos calculados dentro de un SVG
+   (foreignObject), lo dibuja en un canvas y entrega un PNG.
+   Sin librerías externas: funciona igual en la versión en vivo,
+   en el archivo descargado y en claude.ai.
+   ========================================================= */
+const SNAP_PX = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+const snapCache = new Map();   // imagen → data URL (o null si no se pudo leer)
+async function snapDataURL(url){
+  if (!url || url.startsWith("data:")) return url;
+  if (snapCache.has(url)) return snapCache.get(url);
+  let out = null;
+  try {
+    const ctl = new AbortController(); const t = setTimeout(()=>ctl.abort(), 6000);
+    const r = await fetch(url, {mode:"cors", signal:ctl.signal}); clearTimeout(t);
+    if (r.ok){ const b = await r.blob(); out = await new Promise(res=>{ const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsDataURL(b); }); }
+  } catch {}
+  snapCache.set(url, out); return out;
+}
+// fuentes de la app (Google Fonts) incrustadas, solo el subconjunto latino; si no se pueden traer, se usan las del sistema
+let snapFontsCSS = null;
+async function snapFonts(){
+  if (snapFontsCSS !== null) return snapFontsCSS;
+  snapFontsCSS = "";
+  try {
+    const link = document.querySelector('link[href*="fonts.googleapis.com/css"]'); if (!link) return "";
+    const css = await (await fetch(link.href)).text();
+    const blocks = css.split("@font-face").slice(1).filter(b=>/unicode-range:[^;]*U\+0000-00FF/i.test(b));
+    const out = [];
+    for (const b of blocks){ const m = b.match(/url\((https:[^)]+)\)/); if (!m) continue; const d = await snapDataURL(m[1]); if (d) out.push("@font-face" + b.replace(m[1], d)); }
+    snapFontsCSS = out.join("\n");
+  } catch {}
+  return snapFontsCSS;
+}
+// copia el árbol con los estilos calculados de cada elemento
+function snapClone(src){
+  const clone = src.cloneNode(true);
+  const S0 = [src, ...src.querySelectorAll("*")], C0 = [clone, ...clone.querySelectorAll("*")];
+  for (let i=0; i<S0.length; i++){
+    const s = S0[i], c = C0[i]; if (!c || c.nodeType !== 1) continue;
+    const cs = getComputedStyle(s);
+    let txt = ""; for (let k=0; k<cs.length; k++){ const p = cs[k]; txt += `${p}:${cs.getPropertyValue(p)};`; }
+    c.setAttribute("style", txt);
+    c.removeAttribute("class"); c.removeAttribute("id");
+    if (s.tagName === "TEXTAREA") c.textContent = s.value;
+    else if (s.tagName === "INPUT"){ if (/checkbox|radio/.test(s.type)){ if (s.checked) c.setAttribute("checked", ""); } else c.setAttribute("value", s.value); }
+    else if (s.tagName === "SELECT"){ const o = s.options[s.selectedIndex]; const span = document.createElement("span"); span.setAttribute("style", txt); span.textContent = o ? o.text : ""; c.replaceWith(span); C0[i] = span; }
+    else if (s.tagName === "CANVAS"){ try { const im = document.createElement("img"); im.src = s.toDataURL(); im.setAttribute("style", txt); c.replaceWith(im); C0[i] = im; } catch {} }
+  }
+  // lo que es solo para usar la pantalla (botones de acción, subir archivos) no va en la imagen
+  for (const el of [...clone.querySelectorAll("input[type=file], script")]) el.remove();
+  for (const [i, s] of S0.entries()){ if (s.matches && s.matches(".btn:not(.chip), .actions") && C0[i] && C0[i].parentNode) C0[i].remove(); }
+  return clone;
+}
+async function nodeToPng(node, {title="", sub=""} = {}){
+  const width = Math.ceil(Math.max(node.scrollWidth, node.getBoundingClientRect().width));
+  const body = snapClone(node);
+  for (const im of body.querySelectorAll("img")){ const d = await snapDataURL(im.currentSrc || im.getAttribute("src")); im.setAttribute("src", d || SNAP_PX); im.removeAttribute("srcset"); im.removeAttribute("loading"); }
+  const fonts = await snapFonts();
+  const css = getComputedStyle(document.body), bg = css.backgroundColor || "#fff", ink = css.color || "#111";
+  const wrap = document.createElement("div");
+  wrap.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+  const W = width + 44;   // la sección conserva su ancho y el margen va por fuera
+  wrap.setAttribute("style", `width:${W}px;box-sizing:border-box;background:${bg};color:${ink};font-family:${css.fontFamily};padding:20px 22px;`);
+  const head = document.createElement("div");
+  head.setAttribute("style", `display:flex;justify-content:space-between;gap:16px;align-items:baseline;border-bottom:2px solid ${getComputedStyle(document.documentElement).getPropertyValue("--accent")||"#1F5C4A"};padding-bottom:8px;margin-bottom:14px;font-family:Alegreya,Georgia,serif`);
+  head.innerHTML = `<div><div style="font-size:24px;font-weight:700">${esc(title)}</div><div style="font-size:14px;opacity:.75">${esc(sub)}</div></div><div style="font-size:13px;opacity:.7;white-space:nowrap">Bóveda EDH · ${new Date().toLocaleDateString("es-CL")}</div>`;
+  wrap.append(head, body);
+  // se mide la altura real con la copia puesta fuera de la pantalla
+  const probe = document.createElement("div"); probe.setAttribute("style", "position:fixed;left:-100000px;top:0;"); probe.append(wrap); document.body.append(probe);
+  const height = Math.ceil(wrap.getBoundingClientRect().height); probe.remove();
+  const scale = Math.max(1, Math.min(2, 15000 / Math.max(height, 1)));
+  const xhtml = new XMLSerializer().serializeToString(wrap);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${height}"><foreignObject x="0" y="0" width="100%" height="100%">${fonts?`<style xmlns="http://www.w3.org/1999/xhtml">${fonts}</style>`:""}${xhtml}</foreignObject></svg>`;
+  const img = new Image();
+  await new Promise((res, rej)=>{ img.onload = res; img.onerror = () => rej(new Error("no se pudo dibujar la sección")); img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg); });
+  const cv = document.createElement("canvas"); cv.width = Math.round(W*scale); cv.height = Math.round(height*scale);
+  const g = cv.getContext("2d"); g.fillStyle = bg; g.fillRect(0, 0, cv.width, cv.height); g.scale(scale, scale); g.drawImage(img, 0, 0);
+  const blob = await new Promise(res=>cv.toBlob(res, "image/png"));
+  if (!blob) throw new Error("el navegador no entregó la imagen");
+  return {blob, width:cv.width, height:cv.height};
+}
+// nombre de la sección abierta del mazo (la etiqueta de su pestaña)
+function snapSectionName(){
+  const chip = document.querySelector('#deck-pane .subchips .chip[aria-pressed="true"]');
+  const tab = document.querySelector('#deck-pane .subtabs .subtab[aria-selected="true"]');
+  return ((chip || tab || {}).textContent || "Sección").trim();
+}
+/* ---------- .zip sin compresión (las PNG ya vienen comprimidas) ---------- */
+const CRC_T = (()=>{ const t = new Uint32Array(256); for (let n=0;n<256;n++){ let c=n; for (let k=0;k<8;k++) c = c&1 ? 0xEDB88320 ^ (c>>>1) : c>>>1; t[n]=c>>>0; } return t; })();
+function crc32(u8){ let c = 0xFFFFFFFF; for (let i=0;i<u8.length;i++) c = CRC_T[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function zipStore(files){   // [{name, data:Uint8Array}]
+  const enc = new TextEncoder(), parts = [], cen = []; let off = 0;
+  const d = new Date(), dt = ((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1)) & 0xFFFF, dd = (((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate()) & 0xFFFF;
+  for (const f of files){
+    const name = enc.encode(f.name), crc = crc32(f.data), n = f.data.length;
+    const h = new DataView(new ArrayBuffer(30)); h.setUint32(0,0x04034b50,true); h.setUint16(4,20,true); h.setUint16(6,0x0800,true); h.setUint16(8,0,true); h.setUint16(10,dt,true); h.setUint16(12,dd,true); h.setUint32(14,crc,true); h.setUint32(18,n,true); h.setUint32(22,n,true); h.setUint16(26,name.length,true); h.setUint16(28,0,true);
+    parts.push(new Uint8Array(h.buffer), name, f.data);
+    const c = new DataView(new ArrayBuffer(46)); c.setUint32(0,0x02014b50,true); c.setUint16(4,20,true); c.setUint16(6,20,true); c.setUint16(8,0x0800,true); c.setUint16(10,0,true); c.setUint16(12,dt,true); c.setUint16(14,dd,true); c.setUint32(16,crc,true); c.setUint32(20,n,true); c.setUint32(24,n,true); c.setUint16(28,name.length,true); c.setUint32(42,off,true);
+    cen.push(new Uint8Array(c.buffer), name); off += 30 + name.length + n;
+  }
+  const cenSize = cen.reduce((a,x)=>a+x.length,0);
+  const e = new DataView(new ArrayBuffer(22)); e.setUint32(0,0x06054b50,true); e.setUint16(8,files.length,true); e.setUint16(10,files.length,true); e.setUint32(12,cenSize,true); e.setUint32(16,off,true);
+  return new Blob([...parts, ...cen, new Uint8Array(e.buffer)], {type:"application/zip"});
+}
+// secciones de cada mazo, en el orden de sus pestañas
+const SNAP_TABS = {
+  commander: [["analisis","Análisis"],["nivel","Ficha y nivel"],["mana","Base de maná"],["lista","Lista"],["sinergias","Sinergias"],["mejorar","Recomendaciones"],["brackets","Brackets"],["combos","Combos"],["partidas","Partidas"],["radiografia","Cómo se juega"],["precio","Valor"],["versiones","Versiones"]],
+  other: [["analisis","Análisis"],["mana","Base de maná"],["lista","Lista"],["sinergias","Sinergias"],["meta","Contra el meta"],["partidas","Partidas"],["radiografia","Cómo se juega"],["precio","Valor"],["versiones","Versiones"]],
+};
+async function snapDeckAll(btn){
+  const d = curDeck(); if (!d) return;
+  const tabs = SNAP_TABS[d.format==="commander" ? "commander" : "other"], back = S.deckTab;
+  if (btn){ btn.disabled = true; btn.dataset.t0 = btn.textContent; }
+  const files = [];
+  try {
+    for (const [i, [k, es]] of tabs.entries()){
+      if (btn) btn.textContent = `Creando ${i+1} de ${tabs.length}…`;
+      S.deckTab = k; render(); await new Promise(r=>setTimeout(r, 60));
+      const node = document.querySelector("#deck-pane .pane-body"); if (!node) continue;
+      try { const {blob} = await nodeToPng(node, {title:d.name, sub:`${es} · ${d.format==="commander" ? ((d.commanders||[]).join(" + ") || "Commander") : FORMATS[d.format].name}`});
+        files.push({name:`${String(i+1).padStart(2,"0")}-${slug(es)}.png`, data:new Uint8Array(await blob.arrayBuffer())}); } catch {}
+    }
+    S.deckTab = back; render();
+    if (!files.length){ toast("No se pudo crear ninguna imagen."); return; }
+    download(`${slug(d.name)||"mazo"}-secciones.zip`, zipStore(files), "application/zip");
+    if (!(typeof isWebView==="function" && isWebView())) toast(`${files.length} secciones descargadas en un .zip.`);
+  } finally { S.deckTab = back; if (btn){ btn.disabled = false; btn.textContent = btn.dataset.t0 || "Todas (.zip)"; } render(); }
+}
+const canShareImg = () => { try { return !!(navigator.canShare && typeof File==="function" && navigator.canShare({files:[new File([new Blob(["x"])], "x.png", {type:"image/png"})]}) && matchMedia("(hover: none)").matches); } catch { return false; } };
+async function snapDeckSection(btn, share=false){
+  const d = curDeck(); const node = document.querySelector("#deck-pane .pane-body"); if (!d || !node) return;
+  const sec = snapSectionName();
+  if (btn){ btn.disabled = true; btn.dataset.t0 = btn.textContent; btn.textContent = "Creando imagen…"; }
+  try {
+    const sub = `${sec} · ${d.format==="commander" ? ((d.commanders||[]).join(" + ") || "Commander") : FORMATS[d.format].name}`;
+    const {blob} = await nodeToPng(node, {title:d.name, sub});
+    const name = `${slug(d.name)||"mazo"}-${slug(sec)||"seccion"}.png`;
+    const file = typeof File==="function" ? new File([blob], name, {type:"image/png"}) : null;
+    if (share && file && navigator.canShare && navigator.canShare({files:[file]})){ try { await navigator.share({files:[file], title:`${d.name} · ${sec}`}); return; } catch(e){ if (e && e.name==="AbortError") return; } }
+    download(name, blob, "image/png"); if (!(typeof isWebView==="function" && isWebView())) toast(`Imagen de “${sec}” descargada.`);
+  } catch(e){ toast("No se pudo crear la imagen: " + ((e && e.message) || "error")); }
+  finally { if (btn){ btn.disabled = false; btn.textContent = btn.dataset.t0 || "Descargar imagen"; } }
+}
+// "Descargar imagen" baja el archivo directo; en el teléfono, "Compartir" abre el menú para mandarlo
+document.addEventListener("click", ev => { const b = ev.target.closest('[data-act="snap"],[data-act="snap-share"],[data-act="snap-all"]'); if (!b) return;
+  if (b.dataset.act==="snap-all") snapDeckAll(b); else snapDeckSection(b, b.dataset.act==="snap-share"); });
+
+/* =========================================================
+   Bóveda EDH — precios para la versión de claude.ai
+   La versión con cuenta no puede consultar Scryfall. La versión
+   en vivo descarga un archivo solo con los datos de las cartas
+   (precios incluidos); al importarlo en claude.ai quedan en la
+   cuenta para todos los dispositivos. La versión de claude.ai
+   avisa si no tiene precios o si tienen más de 7 días.
+   ========================================================= */
+const PRICE_OLD_DAYS = 7;
+// cartas que usas (mazos, colección, búsqueda, carpetas) y la fecha del precio más nuevo entre ellas
+function priceStatus(){
+  const names = new Set();
+  for (const d of S.data.decks || []){ for (const n of d.commanders || []) names.add(slug(n)); for (const b of ["cards","side","maybe"]) for (const c of d[b] || []) names.add(slug(c.n)); }
+  for (const it of (S.data.collection && S.data.collection.items) || []) names.add(slug(it.n));
+  for (const w of S.data.wishlist || []) names.add(slug(w.n));
+  for (const b of S.data.binders || []) for (const it of b.items || []) names.add(slug(it.n));
+  let used = 0, priced = 0, newest = 0;
+  for (const k of names){ if (BASICS.has(k)) continue; used++; const c = S.cards[k]; if (c && (c.usd != null || c.eur != null)){ priced++; if ((c.at||0) > newest) newest = c.at; } }
+  return {used, priced, newest, days: newest ? Math.floor((Date.now() - newest) / 864e5) : null};
+}
+// aviso en Inicio de la versión de claude.ai
+function priceBannerHTML(){
+  if (!isWebView() || S.busy || !S.pricesReady) return "";
+  const P = priceStatus(); if (!P.used) return "";
+  const how = `En la <a href="https://boveda-edh.netlify.app" target="_blank" rel="noopener">versión en vivo</a>: Ajustes y respaldo → “Descargar precios para claude.ai”. Aquí: Ajustes y respaldo → “Importar respaldo”.`;
+  if (!P.priced) return `<div class="banner" id="price-banner"><span><b>Esta versión no tiene precios.</b> No puede consultar Scryfall, así que los precios se traen con un archivo. ${how}</span></div>`;
+  if (P.days > PRICE_OLD_DAYS) return `<div class="banner" id="price-banner"><span><b>Tus precios son de hace ${P.days} días</b> (${new Date(P.newest).toLocaleDateString("es-CL")}). ${how}</span></div>`;
+  return "";
+}
+// fila en Ajustes y respaldo
+function pricesFileHTML(){
+  if (isWebView()){ const P = priceStatus(); return `<p class="muted" style="margin:0;font-size:.9rem">Precios: ${P.priced ? `los más nuevos son del ${new Date(P.newest).toLocaleDateString("es-CL")} (${P.priced} de ${P.used} cartas).` : "esta versión aún no tiene."} Para actualizarlos, descarga el archivo de precios en la versión en vivo e impórtalo aquí con “Importar respaldo”.</p>`; }
+  return `<div class="row"><button class="btn sm ghost" data-act="prices-file">Descargar precios para claude.ai</button></div>
+    <p class="muted" style="margin:0;font-size:.85rem">Solo datos de cartas y precios, sin tus mazos ni tu colección. Impórtalo en la versión de claude.ai y quedan en tu cuenta.</p>`;
+}
+function pricesFile(){
+  const cards = {}; let n = 0;
+  for (const [k, c] of Object.entries(S.cards || {})) if (c && c.n && !c.est && (c.usd != null || c.eur != null)){ cards[k] = c; n++; }
+  if (!n){ toast("Aún no hay precios guardados: actualiza los precios primero."); return; }
+  download(`boveda-edh-precios-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify({app:"boveda-edh", kind:"precios", version:4, at:Date.now(), cardData:{cards, gc:[...(S.gc||[])], gcAt:S.gcAt||null}}), "application/json");
+  toast(`Archivo de precios listo: ${n.toLocaleString("es-CL")} cartas. Impórtalo en la versión de claude.ai.`);
+}
+// las cartas guardadas (navegador y cuenta) llegan después del primer dibujo: el aviso espera unos segundos
+S.boot.then(()=>setTimeout(()=>{ S.pricesReady = true; if (isWebView() && S.view==="home" && !S.editing && !S.modal && !S.settingsOpen) render(); }, 5000));
+document.addEventListener("click", ev => {
+  const b = ev.target.closest("[data-act='prices-file']"); if (!b) return;
+  ev.stopPropagation(); pricesFile();
+}, true);
 
 </script>
 </body>

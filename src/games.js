@@ -67,6 +67,30 @@ function gamesHTML(d, A){
 // récord de todos los mazos (para la tabla de poder y sal)
 function gameRecord(d){ const st = gameStats(gamesOf(d)); return st.n ? st : null; }
 
+// Turno de victoria: el del simulador corregido con las victorias reales anotadas (propias y del grupo).
+// El simulador pesa como 10 partidas: con 10 victorias reales, estas pesan la mitad; con 30, el 75 %.
+const WIN_SIM_W = 10;
+function winTurns(d){ return d && d.id && S.data ? gamesOf(d).filter(g=>!g.dup && g.res==="win" && g.turn>0).map(g=>g.turn) : []; }
+function winKey(d){ const ts = winTurns(d); return ts.length ? ts.length+":"+ts.reduce((a,x)=>a+x,0) : 0; }
+function winTurnOf(d, sim){
+  const s = sim && sim.winAvg ? sim.winAvg : null;
+  const ts = winTurns(d), n = ts.length;
+  if (!n) return {t:s, sim:s, real:null, n:0, w:0};
+  const sum = ts.reduce((a,x)=>a+x,0), real = sum/n;
+  if (s == null) return n >= 3 ? {t:real, sim:null, real, n, w:1} : {t:null, sim:null, real, n, w:0};
+  return {t:(WIN_SIM_W*s + sum)/(WIN_SIM_W + n), sim:s, real, n, w:n/(WIN_SIM_W + n)};
+}
+function winTurnHTML(d, A){
+  if (!A.isC) return "";
+  const W = winTurnOf(d, simulate(d, A)); if (W.t == null && !W.n) return "";
+  const f = x => x == null ? "—" : "T" + x.toFixed(1).replace(".",",");
+  return `<div class="sec"><h3>Turno de victoria</h3><p class="lede">El simulador estima cuándo tienes un remate lanzable; tus victorias anotadas (aquí y en el grupo) lo corrigen. El simulador pesa como 10 partidas.</p>
+    <div class="sim-grid"><div class="sim-card"><div class="k">Simulador</div><div class="v">${f(W.sim)}</div></div>
+      <div class="sim-card"><div class="k">Tus victorias con turno anotado${W.n?` (${W.n})`:""}</div><div class="v">${f(W.real)}</div></div>
+      <div class="sim-card"><div class="k">Ajustado${W.n?` · las reales pesan ${Math.round(W.w*100)}%`:""}</div><div class="v">${f(W.t)}</div></div></div>
+    <p class="foot">${W.n ? "Este turno ajustado es el que usan el bracket por velocidad y la Mesa de hoy." : "Anota en qué turno ganas para que el bracket por velocidad y la Mesa de hoy usen tus partidas reales."}${W.n && W.n < 10 ? ` Con ${10 - W.n} victoria${10-W.n>1?"s":""} más, las reales pesarán la mitad.` : ""}</p></div>`;
+}
+
 document.addEventListener("click", ev => {
   const g = k => ev.target.closest(`[data-gm-${k}]`); const F = S.gm; let b;
   const keepInputs = () => { const o = $("#gm-opp"), n = $("#gm-note"); if (o) F.oppTxt = o.value; if (n) F.note = n.value; };

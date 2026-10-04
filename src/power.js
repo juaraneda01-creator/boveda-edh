@@ -71,7 +71,7 @@ const _pwMemo = new WeakMap();
 function powerOf(d, A){
   A = A || analyze(d);
   const st = (S.data && S.data.settings) || {};
-  const key = [S.noCal?1:0, S.noFit?1:0, st.cedhCal ? st.cedhCal.at+":"+st.cedhCal.k : 0, st.csFit && st.csFit.on ? st.csFit.a+":"+st.csFit.b : 0, S.salt ? S.salt.at||1 : 0, d.combos ? (d.combos.at||1)+":"+(d.combos.inc||[]).length : 0, S.td && S.td.data ? S.td.data.at : 0].join("|");
+  const key = [S.noCal?1:0, S.noFit?1:0, st.cedhCal ? st.cedhCal.at+":"+st.cedhCal.k : 0, st.csFit && st.csFit.on ? st.csFit.a+":"+st.csFit.b : 0, S.salt ? S.salt.at||1 : 0, d.combos ? (d.combos.at||1)+":"+(d.combos.inc||[]).length : 0, S.td && S.td.data ? S.td.data.at : 0, typeof winKey==="function" ? winKey(d) : 0].join("|");
   const hit = _pwMemo.get(A); if (hit && hit.key === key && hit.d === d) return hit.P;
   const P = powerOfRaw(d, A); _pwMemo.set(A, {key, d, P}); return P;
 }
@@ -87,8 +87,9 @@ function stapleSet(){
 const SPEED_TURNS = [[10,1],[8,2],[6,3],[4,4]];
 function axesOf(d, A, x){
   const {sim, c2, fast, stax, free, cedh} = x;
-  let t = sim && sim.winAvg ? sim.winAvg : null; const why = [];
-  if (t != null) why.push(`remate lanzable en el turno ${t.toFixed(1).replace(".",",")}`);
+  const W = typeof winTurnOf==="function" ? winTurnOf(d, sim) : {t: sim && sim.winAvg ? sim.winAvg : null, n:0};
+  let t = W.t; const why = [];
+  if (t != null) why.push(W.n ? `gana hacia el turno ${t.toFixed(1).replace(".",",")} (simulador corregido con ${W.n} victoria${W.n>1?"s":""} real${W.n>1?"es":""})` : `remate lanzable en el turno ${t.toFixed(1).replace(".",",")}`);
   // un combo de 2 cartas con tutores adelanta la amenaza aunque el remate normal llegue tarde
   if ((c2||0) >= 1 && A.tutors.length >= 3){ const ct = Math.max(3, 7 - A.tutors.length*0.35 - fast*0.3); if (t == null || ct < t){ t = ct; why.push(`combo de 2 cartas con ${A.tutors.length} tutores (≈ turno ${ct.toFixed(1).replace(".",",")})`); } }
   let speed = t == null ? 2 : (SPEED_TURNS.find(([lim])=>t >= lim) || [0, 4])[1];

@@ -1,16 +1,45 @@
 /* =========================================================
-   Datos de referencia del meta (foto al 27-sep-2026)
-   Fuentes: MTGTop8 (últimas 2 semanas), EDHTop16 (3 meses),
+   Datos de referencia del meta (foto al 1-oct-2026)
+   Fuentes: MTGTop8 (últimas 2 semanas, lista más reciente por fecha), EDHTop16 (3 meses),
    guía oficial de brackets (actualización 9-feb-2026).
    ========================================================= */
-const META_AT = "27 de septiembre de 2026";
+const META_AT = "1 de octubre de 2026";
 const META = {
   pauper: {
-    src: "MTGTop8 · últimas 2 semanas · 786 mazos",
+    src: "MTGTop8 · últimas 2 semanas · 843 mazos",
     url: "https://mtgtop8.com/format?f=PAU",
     mtgdecks: "https://mtgdecks.net/Pauper",
     archetypes: [
-      {name:"Burn", share:13, arch:"https://mtgtop8.com/archetype?a=536&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=91302&d=893393&f=PAU", sample:"Madness Burn · MTGO Challenge 16 · 26/09/26",
+      {name:"Affinity", share:13, arch:"https://mtgtop8.com/archetype?a=512&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=91446&d=894514&f=PAU", sample:"Grixis Affinity · MTGO League (1º) · 30/09/26",
+       list:`3 Great Furnace
+4 Reckoner's Bargain
+4 Myr Enforcer
+4 Galvanic Blast
+2 Blood Fountain
+4 Drossforge Bridge
+3 Vault of Whispers
+4 Ichor Wellspring
+2 Nihil Spellbomb
+3 Fanatical Offering
+4 Mistvault Bridge
+2 Seat of the Synod
+2 Silverbluff Bridge
+4 Thoughtcast
+3 Krark-Clan Shaman
+4 Refurbished Familiar
+1 Makeshift Munitions
+2 Toxin Analysis
+1 Swamp
+2 Black Mage's Rod
+2 Sewer-veillance Cam
+Sideboard
+2 Cast into the Fire
+3 Hydroblast
+4 Red Elemental Blast
+1 Blue Elemental Blast
+3 Stone Rain
+2 Extract a Confession`},
+      {name:"Burn", share:12, arch:"https://mtgtop8.com/archetype?a=536&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=91302&d=893393&f=PAU", sample:"Madness Burn · MTGO Challenge 16 · 26/09/26",
        list:`20 Mountain
 4 Guttersnipe
 4 Fireblast
@@ -29,33 +58,6 @@ Sideboard
 3 Searing Blaze
 3 Relic of Progenitus
 3 Smash to Smithereens`},
-      {name:"Affinity", share:11, arch:"https://mtgtop8.com/archetype?a=512&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=90109&d=883952&f=PAU", sample:"Grixis Affinity · MTGO Challenge 32 · 26/08/26",
-       list:`2 Blood Fountain
-4 Drossforge Bridge
-4 Vault of Whispers
-4 Thoughtcast
-3 Seat of the Synod
-3 Krark-Clan Shaman
-1 Makeshift Munitions
-4 Mistvault Bridge
-3 Nihil Spellbomb
-4 Myr Enforcer
-4 Reckoner's Bargain
-4 Refurbished Familiar
-4 Ichor Wellspring
-1 Sewer-veillance Cam
-2 Silverbluff Bridge
-3 Great Furnace
-2 Toxin Analysis
-4 Utrom Monitor
-4 Galvanic Blast
-Sideboard
-1 Krark-Clan Shaman
-4 Hydroblast
-2 Extract a Confession
-2 Blue Elemental Blast
-4 Pyroblast
-2 Red Elemental Blast`},
       {name:"Urzatron", share:8, arch:"https://mtgtop8.com/archetype?a=515&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=91121&d=892043&f=PAU", sample:"Trono Monster · LPA S1 T3 · 21/09/26",
        list:`1 Haunted Fengraf
 2 Forest
@@ -107,54 +109,7 @@ Sideboard
 3 Steel Sabotage
 2 Annul
 2 Relic of Progenitus`},
-      {name:"Weenie White", share:6, arch:"https://mtgtop8.com/archetype?a=551&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=88606&d=872554&f=PAU", sample:"Weenie White · Mont Weekly Event · 22/07/26",
-       list:`1 Rally the Peasants
-4 Springleaf Drum
-4 Galvanic Blast
-2 Martyr's Soul
-3 Ardent Recruit
-4 Phyrexian Walker
-4 Ornithopter
-4 Novice Inspector
-4 Mardu Devotee
-4 Salt Road Packbeast
-4 Spider-Man, Web-Slinger
-4 Thraben Inspector
-4 Leonardo, Big Brother
-1 Survivors' Encampment
-4 Ancient Den
-9 Plains
-Sideboard
-2 Ultimate Alliance
-4 Thraben Charm
-4 Festival of Trokin
-4 Dust to Dust
-1 Rally the Peasants`},
-      {name:"Elves", share:5, arch:"https://mtgtop8.com/archetype?a=620&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=91302&d=893392&f=PAU", sample:"Elves · MTGO Challenge 16 · 26/09/26",
-       list:`4 Llanowar Elves
-10 Forest
-2 Elvish Mystic
-4 Lead the Stampede
-4 Winding Way
-1 Gingerbread Cabin
-4 Masked Vandal
-4 Quirion Ranger
-4 Generous Ent
-4 Nyxborn Hydra
-4 Priest of Titania
-1 Sagu Wildling
-4 Avenging Hunter
-4 Timberwatch Elf
-4 Fyndhorn Elves
-2 Land Grant
-Sideboard
-3 Mwonvuli Acid-Moss
-2 Faerie Macabre
-4 Scattershot Archer
-3 Nylea's Disciple
-2 Vitu-Ghazi Inspector
-1 Rooftop Percher`},
-      {name:"Dimir Control", share:5, arch:"https://mtgtop8.com/archetype?a=517&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=90543&d=887270&f=PAU", sample:"Dimir Control · Liga · 06/09/26",
+      {name:"Dimir Control", share:6, arch:"https://mtgtop8.com/archetype?a=517&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=90543&d=887270&f=PAU", sample:"Dimir Control · Liga · 06/09/26",
        list:`10 Island
 4 Contaminated Aquifer
 2 Bojuka Bog
@@ -187,141 +142,153 @@ Sideboard
 1 Arms of Hadar
 2 Annul
 1 Steel Sabotage`},
-      {name:"Ephemerate", share:4, arch:"https://mtgtop8.com/archetype?a=537&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=90066&d=883664&f=PAU", sample:"Snow Jeskai Ephemerate · 25/08/26",
-       list:`7 Snow-Covered Island
-2 Snow-Covered Mountain
-1 Murmuring Mystic
-4 Counterspell
-3 Bender's Waterskin
-4 Ephemerate
-1 Ride's End
-4 Preordain
+      {name:"Ephemerate", share:6, arch:"https://mtgtop8.com/archetype?a=537&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=91390&d=894100&f=PAU", sample:"Esper Ephemerate · Bugbugan sa Endstep #1 (3-4) · 28/09/26",
+       list:`1 Dispel
 1 Union of the Third Path
-2 Dispel
-4 Skred
+2 Cast Down
+2 Cut Down
+3 Bender's Waterskin
+3 Dispatch
+3 Ephemerate
+4 Counterspell
 4 Lorien Revealed
-4 Mulldrifter
-1 Suplex
-1 Fanged Flames
+4 Preordain
+2 Refurbished Familiar
+2 Murmuring Mystic
+3 Mulldrifter
 3 Archaeomancer
-4 Perilous Landscape
-2 Volatile Fjord
-4 Augur of Bolas
-2 Glacial Floodplain
-2 Snow-Covered Plains
+4 Baleful Strix
+1 Ancient Den
+1 Glacial Floodplain
+1 Ice Tunnel
+1 Plains
+1 Swamp
+2 Vault of Whispers
+2 Island
+3 Seat of the Synod
+3 Razortide Bridge
+4 Mistvault Bridge
 Sideboard
-2 Steel Sabotage
-1 Breath Weapon
-4 Pyroblast
-1 Destroy Evil
-2 Cleansing Wildfire
-1 Thraben Charm
-4 Hydroblast`},
-      {name:"Balustrade Spy", share:4, arch:"https://mtgtop8.com/archetype?a=2596&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=89882&d=882095&f=PAU", sample:"Balustrade Spy · FNM · 22/08/26",
-       list:`4 Balustrade Spy
-4 Generous Ent
+1 Return to Dust
+2 Annul
+2 Arms of Hadar
+4 Blue Elemental Blast
+2 Duress
+1 Hydroblast
+2 Nihil Spellbomb
+1 Cut Down`},
+      {name:"Weenie White", share:5, arch:"https://mtgtop8.com/archetype?a=551&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=88606&d=872554&f=PAU", sample:"Weenie White · Mont Weekly Event · 22/07/26",
+       list:`1 Rally the Peasants
+4 Springleaf Drum
+4 Galvanic Blast
+2 Martyr's Soul
+3 Ardent Recruit
+4 Phyrexian Walker
+4 Ornithopter
+4 Novice Inspector
+4 Mardu Devotee
+4 Salt Road Packbeast
+4 Spider-Man, Web-Slinger
+4 Thraben Inspector
+4 Leonardo, Big Brother
+1 Survivors' Encampment
+4 Ancient Den
+9 Plains
+Sideboard
+2 Ultimate Alliance
+4 Thraben Charm
+4 Festival of Trokin
+4 Dust to Dust
+1 Rally the Peasants`},
+      {name:"Elves", share:5, arch:"https://mtgtop8.com/archetype?a=620&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=91379&d=893996&f=PAU", sample:"Elves · LPA S1 T4 (2º) · 28/09/26",
+       list:`4 Llanowar Elves
+4 Fyndhorn Elves
+4 Priest of Titania
+4 Quirion Ranger
+4 Timberwatch Elf
 4 Masked Vandal
-4 Overgrown Battlement
-4 Sagu Wildling
-4 Saruli Caretaker
-3 Mesmeric Fiend
-3 Wall of Roots
-2 Elves of Deep Shadow
-2 Gatecreeper Vine
-2 Lotleth Giant
-2 Quirion Ranger
-1 Jaspera Sentinel
-1 Nyxborn Hydra
-1 Troll of Khazad-dum
-2 Lotus Petal
+4 Avenging Hunter
+4 Nyxborn Hydra
+4 Generous Ent
 4 Land Grant
 4 Lead the Stampede
 4 Winding Way
-2 Dread Return
-3 Forest
-1 Swamp
+1 Gingerbread Cabin
+8 Forest
+3 Sagu Wildling
 Sideboard
-1 Mesmeric Fiend
-3 Faerie Macabre
-3 Fang Dragon
-3 Healer of the Glade
-3 Writhing Chrysalis
-1 Flaring Pain
-1 Mountain`},
+4 Vitu-Ghazi Inspector
+4 Monstrous Emergence
+4 Faerie Macabre
+3 Lignify`},
+      {name:"Aura Aggro", share:4, arch:"https://mtgtop8.com/archetype?a=539&meta=299&f=PAU", deck:"https://mtgtop8.com/event?e=89487&d=879226&f=PAU", sample:"Aura Hexproof · Mont Weekly Event (5-8) · 12/08/26",
+       list:`4 Gladecover Scout
+4 Silhana Ledgewalker
+4 Slippery Bogle
+4 Malevolent Rumble
+4 Abundant Growth
+4 Ancestral Mask
+4 Armadillo Cloak
+4 Ethereal Armor
+4 Rancor
+3 Utopia Sprawl
+2 Lifelink
+2 Sentinel's Eyes
+13 Forest
+2 Ash Barrens
+2 Plains
+Sideboard
+3 Mask of Law and Grace
+2 Flaring Pain
+2 Ram Through
+2 Scattershot Archer
+2 Standard Bearer
+2 Tamiyo's Safekeeping
+2 Thraben Charm`},
     ],
   },
   pioneer: {
-    src: "MTGTop8 · últimas 2 semanas · 105 mazos",
+    src: "MTGTop8 · últimas 2 semanas · 110 mazos",
     url: "https://mtgtop8.com/format?f=PI",
     mtgdecks: "https://mtgdecks.net/Pioneer",
     archetypes: [
-      {name:"UR Aggro", share:19, arch:"https://mtgtop8.com/archetype?a=875&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=89866&d=881985&f=PI", sample:"UR Aggro · MTGO Challenge 32 · 20/08/26",
-       list:`4 Flow State
-2 Mountain
-3 Burst Lightning
-1 Riverglide Pathway
-4 Stormchaser's Talent
-4 Academic Dispute
-4 Sleight of Hand
-3 Reckless Rage
-1 Island
-3 Emberheart Challenger
-4 Riverpyre Verge
-4 Soul-Scar Mage
+      {name:"UR Aggro", share:20, arch:"https://mtgtop8.com/archetype?a=875&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=91333&d=893653&f=PI", sample:"UR Aggro (Vivi) · MTGO Challenge 32 (3-4) · 26/09/26",
+       list:`1 This Town Ain't Big Enough
+1 Wild Ride
+2 Torch the Tower
 3 Boomerang Basics
-4 Shivan Reef
-4 Spirebluff Canal
-4 Monastery Swiftspear
+4 Proft's Eidetic Memory
+4 Stormchaser's Talent
+4 Agatha's Soul Cauldron
+4 Winternight Stories
+4 Academic Dispute
+1 Jadzi, Steward of Fate
+1 Voldaren Thrillseeker
+2 Quantum Riddler
+4 Fear of Missing Out
+4 Vivi Ornitier
+1 Mountain
+1 Otawara, Soaring City
+3 Island
 4 Steam Vents
-2 Monstrous Rage
-2 Experimental Synthesizer
+4 Spirebluff Canal
+4 Riverglide Pathway
+4 Riverpyre Verge
 Sideboard
-1 Boomerang Basics
-1 Iroh's Demonstration
+1 Ral, Crackling Wit
+1 Ashiok, Dream Render
+2 Change the Equation
+1 Combustion Technique
 1 Firebending Lesson
-1 Octopus Form
-1 Soul-Guide Lantern
-2 Scorching Shot
-2 Redcap Melee
-1 Quantum Riddler
+1 Improvisation Capstone
+1 Iroh's Demonstration
 1 It'll Quench Ya!
-2 Pyroclasm
-2 Spell Pierce`},
-      {name:"The Rock", share:13, arch:"https://mtgtop8.com/archetype?a=2898&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=90887&d=890278&f=PI", sample:"The Rock · MTGO Challenge 32 · 14/09/26",
-       list:`3 Professor Dellian Fel
-4 Badgermole Cub
-2 Bitter Triumph
-4 Overgrown Tomb
-1 Boseiju, Who Endures
-1 Culling Ritual
-4 Darkbore Pathway
-4 Mutavault
-3 Fatal Push
-1 Go for the Throat
-4 Graveyard Trespasser
-2 Llanowar Wastes
-2 Duress
-1 Restless Cottage
-3 Sheoldred, the Apocalypse
-2 Swamp
-1 Takenuma, Abandoned Mire
-4 Blooming Marsh
-4 Unholy Annex // Ritual Chamber
-4 Abrupt Decay
-1 Wastewood Verge
-4 Thoughtseize
-1 Urborg, Tomb of Yawgmoth
-Sideboard
-1 Professor Dellian Fel
-2 Culling Ritual
-1 Fatal Push
-1 Duress
-3 Go Blank
-2 Invoke Despair
-1 Nowhere to Run
-2 Cruelclaw's Heist
-2 Unlicensed Hearse`},
-      {name:"Greasefang Parhelion", share:10, arch:"https://mtgtop8.com/archetype?a=1317&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=87868&d=866722&f=PI", sample:"Greasefang · MTGO League · 07/07/26",
+1 Octopus Form
+1 Price of Freedom
+2 Spell Pierce
+1 Boomerang Basics
+1 Quantum Riddler`},
+      {name:"Greasefang Parhelion", share:12, arch:"https://mtgtop8.com/archetype?a=1317&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=87868&d=866722&f=PI", sample:"Greasefang · MTGO League · 07/07/26",
        list:`1 Boseiju, Who Endures
 3 Darkbore Pathway
 4 Concealed Courtyard
@@ -359,7 +326,7 @@ Sideboard
 1 Origin of Metalbending
 1 Loran of the Third Path
 2 Duress`},
-      {name:"Red Deck Wins", share:8, arch:"https://mtgtop8.com/archetype?a=862&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=89327&d=877896&f=PI", sample:"Red Deck Wins · 07/08/26",
+      {name:"Red Deck Wins", share:10, arch:"https://mtgtop8.com/archetype?a=862&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=89327&d=877896&f=PI", sample:"Red Deck Wins · 07/08/26",
        list:`4 Monastery Swiftspear
 4 Soul-Scar Mage
 4 Emberheart Challenger
@@ -383,92 +350,41 @@ Sideboard
 2 Rending Volley
 2 Redcap Melee
 3 Scorching Shot`},
-      {name:"Boros Control", share:8, arch:"https://mtgtop8.com/archetype?a=2319&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=91140&d=892194&f=PI", sample:"Boros Control · MTGO Challenge 32 · 21/09/26",
-       list:`1 Elspeth, Storm Slayer
-2 High Noon
-4 Erode
-4 Cleansing Wildfire
-4 Emergency Eject
-4 The Legend of Roku
-4 Get Lost
-4 Price of Freedom
-4 Avengers Disassembled
-3 Beza, the Bounding Spring
-2 Mountain
-4 Field of Ruin
-4 Demolition Field
-4 Cori Mountain Monastery
-4 Sacred Foundry
-4 Sunken Citadel
-4 Plains
-Sideboard
-3 Temporary Lockdown
-2 Farewell
-2 Hexing Squelcher
-2 Chandra, Awakened Inferno
-4 Rest in Peace
-1 Elspeth, Storm Slayer
-1 Beza, the Bounding Spring`},
-      {name:"Dimir Aggro", share:5, arch:"https://mtgtop8.com/archetype?a=1549&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=87446&d=863612&f=PI", sample:"Dimir Aggro · MTGO Challenge 32 · 28/06/26",
-       list:`3 Go for the Throat
-3 Unholy Annex // Ritual Chamber
-4 Kaito, Bane of Nightmares
-4 Fatal Push
-4 Thoughtseize
-2 Sheoldred, the Apocalypse
-4 Floodpits Drowner
-4 Mockingbird
-4 Moon-Circuit Hacker
-4 Faerie Miscreant
-1 Takenuma, Abandoned Mire
-1 Otawara, Soaring City
-1 Urborg, Tomb of Yawgmoth
-2 Island
-3 Multiversal Passage
-4 Mutavault
-4 Gloomlake Verge
-4 Darkslick Shores
-4 Watery Grave
-Sideboard
-4 Leyline of the Void
-1 Gix's Command
-2 Duress
-2 Disdainful Stroke
+      {name:"The Rock", share:10, arch:"https://mtgtop8.com/archetype?a=2898&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=90887&d=890278&f=PI", sample:"The Rock · MTGO Challenge 32 · 14/09/26",
+       list:`3 Professor Dellian Fel
+4 Badgermole Cub
 2 Bitter Triumph
-2 Path of Peril
-1 Languish
-1 Liliana, the Last Hope`},
-      {name:"Rakdos Sacrifice", share:4, arch:"https://mtgtop8.com/archetype?a=1543&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=91140&d=892198&f=PI", sample:"Rakdos Sacrifice · MTGO Challenge 32 · 21/09/26",
-       list:`1 Takenuma, Abandoned Mire
-1 Sokenzan, Crucible of Defiance
-4 Fatal Push
-4 Bloodtithe Harvester
-4 Cauldron Familiar
-3 Claim the Firstborn
-4 Deadly Dispute
-2 Den of the Bugbear
-4 Eyetwitch
-4 Fable of the Mirror-Breaker
-4 Blood Crypt
-4 Mayhem Devil
-1 Scavenger's Talent
-3 Blightstep Pathway
-4 Blazemire Verge
-3 Swamp
-4 Blackcleave Cliffs
-2 The Sackville-Bagginses
-4 Witch's Oven
-Sideboard
-1 Abandon Attachments
-1 Decorum Dissertation
-1 Firebending Lesson
+4 Overgrown Tomb
+1 Boseiju, Who Endures
+1 Culling Ritual
+4 Darkbore Pathway
+4 Mutavault
+3 Fatal Push
+1 Go for the Throat
+4 Graveyard Trespasser
+2 Llanowar Wastes
+2 Duress
+1 Restless Cottage
+3 Sheoldred, the Apocalypse
+2 Swamp
+1 Takenuma, Abandoned Mire
+4 Blooming Marsh
+4 Unholy Annex // Ritual Chamber
+4 Abrupt Decay
+1 Wastewood Verge
 4 Thoughtseize
-1 Go Blank
-1 Ozai's Cruelty
-3 The Legend of Roku
-2 Ghost Vacuum
-1 Ruinous Waterbending`},
-      {name:"Devotion to Green", share:4, arch:"https://mtgtop8.com/archetype?a=864&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=91108&d=891940&f=PI", sample:"Devotion to Green · 21/09/26",
+1 Urborg, Tomb of Yawgmoth
+Sideboard
+1 Professor Dellian Fel
+2 Culling Ritual
+1 Fatal Push
+1 Duress
+3 Go Blank
+2 Invoke Despair
+1 Nowhere to Run
+2 Cruelclaw's Heist
+2 Unlicensed Hearse`},
+      {name:"Devotion to Green", share:5, arch:"https://mtgtop8.com/archetype?a=864&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=91380&d=894003&f=PI", sample:"Devotion to Green · MTGO League · 28/09/26",
        list:`4 Vibrance
 1 Ba Sing Se
 12 Forest
@@ -497,20 +413,113 @@ Sideboard
 1 Emrakul, the Promised End
 2 Prowling Serpopard
 1 Ghost Vacuum`},
+      {name:"Boros Control", share:5, arch:"https://mtgtop8.com/archetype?a=2319&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=91140&d=892194&f=PI", sample:"Boros Control · MTGO Challenge 32 · 21/09/26",
+       list:`1 Elspeth, Storm Slayer
+2 High Noon
+4 Erode
+4 Cleansing Wildfire
+4 Emergency Eject
+4 The Legend of Roku
+4 Get Lost
+4 Price of Freedom
+4 Avengers Disassembled
+3 Beza, the Bounding Spring
+2 Mountain
+4 Field of Ruin
+4 Demolition Field
+4 Cori Mountain Monastery
+4 Sacred Foundry
+4 Sunken Citadel
+4 Plains
+Sideboard
+3 Temporary Lockdown
+2 Farewell
+2 Hexing Squelcher
+2 Chandra, Awakened Inferno
+4 Rest in Peace
+1 Elspeth, Storm Slayer
+1 Beza, the Bounding Spring`},
+      {name:"Izzet Control", share:5, arch:"https://mtgtop8.com/archetype?a=859&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=89239&d=877264&f=PI", sample:"Izzet Control (Lessons) · MTGO Challenge 32 · 03/08/26",
+       list:`1 Iroh's Demonstration
+2 Pop Quiz
+3 Combustion Technique
+3 Accumulate Wisdom
+4 Divide by Zero
+4 Firebending Lesson
+4 It'll Quench Ya!
+4 Tablet of Discovery
+4 Abandon Attachments
+2 Thor, God of Thunder
+3 Questing Druid
+4 Gran-Gran
+1 Mountain
+2 Island
+3 Spirebluff Canal
+4 Riverglide Pathway
+4 Riverpyre Verge
+4 Steam Vents
+4 Willowrush Verge
+Sideboard
+1 True Ancestry
+1 Boomerang Basics
+1 Environmental Sciences
+2 Ghost Vacuum
+2 Improvisation Capstone
+1 Mascot Exhibition
+1 Origin of Metalbending
+1 Price of Freedom
+2 Sokka's Haiku
+1 Iroh's Demonstration
+1 Combustion Technique
+1 Accumulate Wisdom`},
+      {name:"UW Control", share:5, arch:"https://mtgtop8.com/archetype?a=877&meta=194&f=PI", deck:"https://mtgtop8.com/event?e=87670&d=865225&f=PI", sample:"UW Control (Yorion, 80 cartas) · MTGO Challenge 32 · 03/07/26",
+       list:`2 The Wandering Emperor
+4 Hallowed Fountain
+4 Dovin's Veto
+3 Teferi, Hero of Dominaria
+4 Seachrome Coast
+2 Hall of Storm Giants
+2 Plains
+4 Meticulous Archive
+4 No More Lies
+4 March of Otherworldly Light
+2 Get Lost
+4 Memory Deluge
+2 Island
+4 Glacial Fortress
+4 Spell Snare
+4 Deserted Beach
+2 Castle Ardenvale
+2 Farewell
+4 Consult the Star Charts
+4 Supreme Verdict
+2 Erode
+2 Petrified Hamlet
+2 Restless Anchorage
+4 Hengegate Pathway
+4 Get Out
+1 Beza, the Bounding Spring
+Sideboard
+1 Get Lost
+3 Beza, the Bounding Spring
+1 Yorion, Sky Nomad
+3 Emeritus of Ideation
+3 Surge of Salvation
+4 Change the Equation`},
     ],
   },
   cedh: {
     src: "EDHTop16 · últimos 3 meses",
     url: "https://edhtop16.com/?timePeriod=THREE_MONTHS",
     top: [
-      ["Kraum, Ludevic's Opus / Tymna the Weaver",7.04,637],["Kinnan, Bonder Prodigy",6.81,616],["Rograkh, Son of Rohgahh / Thrasios, Triton Hero",4.76,431],
-      ["Rograkh, Son of Rohgahh / Silas Renn, Seeker Adept",4.43,401],["Sisay, Weatherlight Captain",3.67,332],["Thrasios, Triton Hero / Tymna the Weaver",3.01,272],
-      ["Dargo, the Shipwrecker / Tymna the Weaver",1.99,180],["Ral, Monsoon Mage",1.96,177],["Vivi Ornitier",1.78,161],["Nick Fury, Agent of S.H.I.E.L.D.",1.73,157],
-      ["Crystal, Inhuman Princess",1.69,153],["Magda, Brazen Outlaw",1.66,150],["Ishai, Ojutai Dragonspeaker / Rograkh, Son of Rohgahh",1.65,149],
-      ["Etali, Primal Conqueror",1.59,144],["Thrasios, Triton Hero / Yoshimaru, Ever Faithful",1.56,141],["Tayam, Luminous Enigma",1.40,127],
-      ["Ob Nixilis, Captive Kingpin",1.29,117],["Kefka, Court Mage",1.04,94],["Tivit, Seller of Secrets",0.92,83],["Arcum Dagsson",0.81,73],
-      ["Winota, Joiner of Forces",0.77,70],["The Cabbage Merchant",0.76,69],["Rowan, Scion of War",0.76,69],["Lumra, Bellow of the Woods",0.74,67],
-      ["Brigid, Clachan's Heart",0.72,65],
+      ["Kraum, Ludevic's Opus / Tymna the Weaver",6.82,590],["Kinnan, Bonder Prodigy",6.59,570],["Rograkh, Son of Rohgahh / Thrasios, Triton Hero",4.68,405],
+      ["Rograkh, Son of Rohgahh / Silas Renn, Seeker Adept",4.18,361],["Sisay, Weatherlight Captain",3.72,322],["Thrasios, Triton Hero / Tymna the Weaver",3.04,263],
+      ["Ral, Monsoon Mage",1.92,166],["Nick Fury, Agent of S.H.I.E.L.D.",1.85,160],["Dargo, the Shipwrecker / Tymna the Weaver",1.85,160],["Crystal, Inhuman Princess",1.80,156],
+      ["Vivi Ornitier",1.78,154],["Magda, Brazen Outlaw",1.67,144],["Etali, Primal Conqueror",1.64,142],
+      ["Ishai, Ojutai Dragonspeaker / Rograkh, Son of Rohgahh",1.61,139],["Thrasios, Triton Hero / Yoshimaru, Ever Faithful",1.58,137],["Tayam, Luminous Enigma",1.33,115],
+      ["Ob Nixilis, Captive Kingpin",1.20,104],["Kefka, Court Mage",1.02,88],["Tivit, Seller of Secrets",0.87,75],["Arcum Dagsson",0.80,69],
+      ["Winota, Joiner of Forces",0.75,65],["Lumra, Bellow of the Woods",0.74,64],["K'rrik, Son of Yawgmoth",0.74,64],["The Cabbage Merchant",0.72,62],
+      ["Malcolm, Keen-Eyed Navigator / Vial Smasher the Fierce",0.72,62],
     ],
   },
 };
@@ -539,17 +548,19 @@ const BRACKETS = [
 const META_VS = {
   pauper: {"Burn":{plan:"aggro",vs:["life","counter","antiRed","removal"]},"Affinity":{plan:"aggro",vs:["artifact","wipe","antiBlue"]},"Urzatron":{plan:"control",vs:["counter","lands","discard"]},
     "Mono Blue Aggro":{plan:"aggro",vs:["antiBlue","wipe","removal"]},"Weenie White":{plan:"aggro",vs:["wipe","removal","artifact"]},"Elves":{plan:"aggro",vs:["wipe","removal"]},
-    "Dimir Control":{plan:"control",vs:["antiBlue","discard","counter"]},"Ephemerate":{plan:"control",vs:["antiBlue","grave","counter"]},"Balustrade Spy":{plan:"combo",vs:["grave","counter","discard"]}},
+    "Dimir Control":{plan:"control",vs:["antiBlue","discard","counter"]},"Ephemerate":{plan:"control",vs:["antiBlue","grave","counter"]},"Balustrade Spy":{plan:"combo",vs:["grave","counter","discard"]},
+    "Aura Aggro":{plan:"aggro",vs:["wipe","removal"]}},
   pioneer: {"UR Aggro":{plan:"aggro",vs:["removal","wipe","life","antiRed","antiBlue"]},"The Rock":{plan:"control",vs:["counter","discard"]},"Greasefang Parhelion":{plan:"combo",vs:["grave","artifact","removal"]},
     "Red Deck Wins":{plan:"aggro",vs:["life","removal","antiRed"]},"Boros Control":{plan:"control",vs:["counter","discard"]},"Dimir Aggro":{plan:"aggro",vs:["removal","wipe","antiBlue"]},
-    "Rakdos Sacrifice":{plan:"aggro",vs:["grave","wipe","removal"]},"Devotion to Green":{plan:"combo",vs:["removal","counter","wipe"]}},
+    "Rakdos Sacrifice":{plan:"aggro",vs:["grave","wipe","removal"]},"Devotion to Green":{plan:"combo",vs:["removal","counter","wipe"]},
+    "Izzet Control":{plan:"control",vs:["counter","discard","antiBlue"]},"UW Control":{plan:"control",vs:["counter","discard","antiBlue"]}},
 };
 const SB_ES = {artifact:"contra artefactos", grave:"contra el cementerio", antiBlue:"contra azul", antiRed:"contra rojo", life:"ganar vida", counter:"contrahechizo", discard:"descarte", lands:"contra tierras", removal:"removal", wipe:"barrido"};
 
 /* ---------- Pauper: matchups y referencias de torneos ----------
    Paupergeddon Summer 2026 (Lucca, 11-12 jul 2026, 1.086 jugadores en el Main Event).
    Matriz agregada Main Event + Top Pauper Player + Rebound: 5.626 partidas.
-   Pauper World: meta MTGO de la semana 13-26 sep 2026 (1.011 mazos, 30 eventos). */
+   Pauper World: meta MTGO del 17-30 sep 2026 (1.095 mazos, 32 eventos). */
 const PAUPER_MU = {
   at: "27 de septiembre de 2026",
   src: "Paupergeddon Summer 2026 · matriz agregada (Main Event + TPP + Rebound, 5.626 partidas)",
@@ -572,12 +583,16 @@ const PAUPER_MU = {
     "White Weenie|Dimir Terror":[6,3],
   },
   // participación en el meta: Pauper World (MTGO, 1 semana) y Paupergeddon día 2
-  pw: {"Mono Red Madness":15.2,"Mono Blue Terror":8.3,"Elves":5.2,"Dimir Faeries":4.2,"Grixis Affinity":4.1,"Mono Red Rally":4.1,"Spy Combo":3.3,"Jund Wildfire":3.3},
-  pwOther: {"Bogles":4.2,"Esper Affinity":4.1},
-  pwUrl: "https://pauperworld.com/meta", pwAt: "13-26 sep 2026 · 1.011 mazos MTGO",
+  pw: {"Mono Red Madness":14.4,"Mono Blue Terror":7.4,"Elves":6.7,"Dimir Faeries":4.6,"Mono Red Rally":3.8,"Grixis Affinity":3.6,"Spy Combo":3.2,"Jund Wildfire":2.7},
+  pwOther: {"Esper Affinity":4.5,"Bogles":4.1},
+  pwUrl: "https://pauperworld.com/meta", pwAt: "17-30 sep 2026 · 1.095 mazos MTGO",
   day2: {"Grixis Affinity":13.33,"Mono Red Madness":8,"Mono Blue Terror":8,"Spy Combo":6,"Jund Wildfire":5.33,"Naya Gates":5.33},
   pwSlug: n => "https://pauperworld.com/archetype/"+n.toLowerCase().replace(/[^a-z0-9]+/g,"-"),
   // equivalencias con los nombres de MTGTop8
+  // arquetipos de MTGTop8 sin datos en Paupergeddon (no salen en la matriz)
+  noMu: ["Aura Aggro"],
+  // nombre en Pauper World cuando difiere del de la matriz o de MTGTop8 (sirve para desempatar el top)
+  pwAlias: {"Spy Combo":"Balustrade Spy", "White Weenie":"Mono White Weenie", "Aura Aggro":"Bogles"},
   alias: {"Burn":"Mono Red Madness","Affinity":"Grixis Affinity","Urzatron":"Monster Tron","Weenie White":"White Weenie","Elves":"Elves","Dimir Control":"Dimir Faeries","Ephemerate":"Jeskai Ephemerate","Balustrade Spy":"Spy Combo"},
 };
 // Lista mejor ubicada de cada arquetipo en el Main Event de Paupergeddon Summer 2026 (Top 64)

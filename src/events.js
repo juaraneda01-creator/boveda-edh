@@ -267,6 +267,12 @@ document.addEventListener("change", async e=>{
   if (id==="file-backup" && e.target.files[0]){
     try{
       const j = JSON.parse(await e.target.files[0].text());
+      if (j && j.kind==="precios"){
+        const nP = mergeCardData(j.cardData); S.settingsOpen=false; render(); e.target.value="";
+        toast(nP ? `Precios importados: datos de ${nP} cartas${typeof ACC!=="undefined"&&ACC.state==="on"?", guardados en tu cuenta para todos tus dispositivos":""}.` : "Ese archivo no trae precios más nuevos que los que ya tienes.");
+        if (nP && typeof accPushCards==="function") accPushCards();
+        return;
+      }
       const decks = Array.isArray(j.decks)?j.decks:[]; const items = (j.collection&&Array.isArray(j.collection.items))?j.collection.items:[];
       const ids = new Set(S.data.decks.map(x=>x.id)); let added=0;
       for (const dk of decks){ if (!dk || !Array.isArray(dk.cards)) continue; if (ids.has(dk.id)) continue;
