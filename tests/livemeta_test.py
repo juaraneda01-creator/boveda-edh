@@ -36,7 +36,13 @@ with sync_playwright() as p:
     rows = [{"name":B["pwAlias"].get(n, n), "pct":12 - i, "decks":120 - 10*i} for i, n in enumerate(B["arch"][:9])] + [{"name":"Otro Mazo", "pct":9.5, "decks":95}]
     state["payload"] = {"v":1, "at":NOW, "errors":[], "pauper":{"at":NOW, "total":777, "archetypes":pau}, "pioneer":{"at":NOW, "total":555, "archetypes":pio}, "pw":{"at":NOW, "rows":rows, "period":"Sep 24 - Oct 7, 2026", "total":1234, "events":40}}
     state["mode"] = "ok"
-    pg.goto("https://boveda-edh.netlify.app/"); pg.wait_for_function("typeof META_LIVE!=='undefined' && META_LIVE && META_LIVE.pauper", timeout=15000)
+    pg.goto("https://boveda-edh.netlify.app/")
+    try: pg.wait_for_function("typeof META_LIVE!=='undefined' && META_LIVE && META_LIVE.pauper", timeout=15000)
+    except Exception as e:
+        info = pg.evaluate("({ml: typeof META_LIVE, live: typeof LIVE!=='undefined' ? LIVE : 'sin LIVE', s: typeof S, boot: typeof S!=='undefined' && !!S.boot, apply: typeof applyLiveMeta, url: location.href})")
+        try: info["probe"] = pg.evaluate("(async()=>{ try { const r=await fetch('/api/meta'); const d=await r.json(); const c=cleanLiveMeta(d); return {ok:r.ok, n:c.pauper&&c.pauper.archetypes.length, at:c.pauper&&c.pauper.at, baked:esDate(META_AT), applied:applyLiveMeta(d)}; } catch(e){ return String(e); } })()")
+        except Exception as e2: info["probe"] = str(e2)[:200]
+        print("FALLA meta en vivo: no llegó el meta. Estado: %s · errores: %s · consultas: %s" % (json.dumps(info), errs[:3], state["hits"])); sys.exit(1)
     pg.evaluate("S.data.settings.onboarded=true; S.view='pauper'; S.showMeta.pauper=true; render()"); pg.wait_for_timeout(300)
     L = pg.evaluate("""({names:META.pauper.archetypes.map(a=>a.name), src:META.pauper.src, when:metaWhen('pauper'), vs:META_VS.pauper['Mazo Recien Llegado'], decks:metaDecks('pauper').map(a=>a.main.reduce((s,c)=>s+c.q,0)),
       text:document.querySelector('#deck-pane').innerText, pw:PAUPER_MU.pw, pwAt:PAUPER_MU.pwAt, other:PAUPER_MU.pwOther, age:listAgeDays(META.pauper.archetypes[0]), pio:META.pioneer.archetypes.length, overflow:document.documentElement.scrollWidth})""")
