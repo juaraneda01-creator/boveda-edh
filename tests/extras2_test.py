@@ -72,6 +72,7 @@ def flow(pg):
       r.stillOpen=S.settingsOpen;
       // versión de claude.ai: sin precios, con precios viejos y al día
       const iw=window.claude; window.claude={use(){}}; const keep=JSON.stringify(S.cards);
+      S.pricesReady=false; for (const c of Object.values(S.cards)){ c.usd=null; c.eur=null; } r.early=priceBannerHTML(); S.cards=JSON.parse(keep); S.pricesReady=true;
       for (const c of Object.values(S.cards)){ c.usd=null; c.eur=null; } r.none=priceBannerHTML();
       S.cards=JSON.parse(keep); for (const c of Object.values(S.cards)) c.at=Date.now()-9*864e5; r.old=priceBannerHTML();
       for (const c of Object.values(S.cards)) c.at=Date.now()-2*864e5; r.fresh=priceBannerHTML(); r.webRow=pricesFileHTML();
@@ -134,6 +135,7 @@ P = X["pr"]
 chk(P["btn"] and P["file"]["kind"] == "precios" and P["file"]["app"] == "boveda-edh" and P["file"]["cards"] > 50, "archivo de precios: %s" % P["file"])
 chk(not P["file"]["decks"] and not P["file"]["coll"], "el archivo de precios lleva mazos o colección")
 chk(P["stillOpen"], "descargar precios cerró Ajustes")
+chk(P["early"] == "", "el aviso de precios aparece antes de que carguen las cartas")
 chk("no tiene precios" in P["none"] and "hace 9 días" in P["old"] and P["fresh"] == "" and P["liveBanner"] == "", "avisos de precios: %s" % [P["none"][:60], P["old"][:80], P["fresh"], P["liveBanner"]])
 chk("Importar respaldo" in P["webRow"] and "data-act" not in P["webRow"], "fila de Ajustes en claude.ai: %s" % P["webRow"][:120])
 chk(P["merged"] > 50 and P["price"] == 7.5 and P["sameDecks"], "importar precios: %s" % [P["merged"], P["price"], P["sameDecks"]])

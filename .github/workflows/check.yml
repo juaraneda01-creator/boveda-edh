@@ -23,4 +23,7 @@ jobs:
       - name: Instalar navegador de prueba
         run: pip install playwright && python -m playwright install --with-deps chromium
       - name: Recorrer la página
-        run: python3 tests/smoke.py && python3 tests/report_test.py && python3 tests/fetch_test.py && python3 tests/games_test.py && python3 tests/sim_test.py && python3 tests/livecards_test.py && python3 tests/mesa_test.py && python3 tests/group_e2e_test.py && python3 tests/cal_test.py && python3 tests/extras_test.py && python3 tests/livemeta_test.py && python3 tests/extras2_test.py
+        run: |
+          for t in smoke report_test fetch_test games_test sim_test livecards_test mesa_test group_e2e_test cal_test extras_test livemeta_test extras2_test; do
+            if python3 tests/$t.py > salida.txt 2>&1; then cat salida.txt; else cat salida.txt; echo "::error title=Falló $t::$(tail -c 1800 salida.txt | tr '\n' ' ')"; exit 1; fi
+          done
