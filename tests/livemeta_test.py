@@ -19,7 +19,7 @@ fails = []
 def chk(ok, msg):
     if not ok: fails.append(msg)
 with sync_playwright() as p:
-    b = p.chromium.launch(); ctx = b.new_context(viewport={"width":390, "height":900}); pg = ctx.new_page(); errs = []
+    b = p.chromium.launch(); ctx = b.new_context(viewport={"width":390, "height":900}, service_workers="block"); pg = ctx.new_page(); errs = []   # sin service worker: la prueba recarga la página y no debe recibir la versión publicada
     pg.on("pageerror", lambda e: errs.append(str(e))); pg.route("**/*", route)
     # 1) el servidor aún no tiene datos: la app sigue con la foto guardada
     pg.goto("https://boveda-edh.netlify.app/"); pg.wait_for_function("typeof META_LIVE!=='undefined' && typeof S!=='undefined'"); pg.wait_for_timeout(2000)
