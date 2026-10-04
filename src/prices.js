@@ -37,7 +37,7 @@ function pricesFile(){
   const cards = {}; let n = 0;
   for (const [k, c] of Object.entries(S.cards || {})) if (c && c.n && !c.est && (c.usd != null || c.eur != null)){ cards[k] = c; n++; }
   if (!n){ toast("Aún no hay precios guardados: actualiza los precios primero."); return; }
-  download(`boveda-edh-precios-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify({app:"boveda-edh", kind:"precios", version:4, at:Date.now(), cardData:{cards, gc:[...(S.gc||[])], gcAt:S.gcAt||null}}), "application/json");
+  download(`boveda-edh-precios-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify({app:"boveda-edh", kind:"precios", version:4, at:Date.now(), settings:{lastRefresh:S.data.settings.lastRefresh||Date.now()}, cardData:{cards, hist:S.hist||{}, gc:[...(S.gc||[])], gcAt:S.gcAt||null}}), "application/json");
   toast(`Archivo de precios listo: ${n.toLocaleString("es-CL")} cartas. Impórtalo en la versión de claude.ai.`);
 }
 // las cartas guardadas (navegador y cuenta) llegan después del primer dibujo: el aviso espera unos segundos

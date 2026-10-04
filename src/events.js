@@ -268,7 +268,10 @@ document.addEventListener("change", async e=>{
     try{
       const j = JSON.parse(await e.target.files[0].text());
       if (j && j.kind==="precios"){
-        const nP = mergeCardData(j.cardData); S.settingsOpen=false; render(); e.target.value="";
+        const nP = mergeCardData(j.cardData);
+        const lr = j.settings ? +j.settings.lastRefresh : 0;   // de los ajustes del archivo solo se toma la fecha de los precios
+        if (nP && lr > (S.data.settings.lastRefresh||0) && lr <= Date.now() + 864e5){ S.data.settings.lastRefresh = lr; saveData(); }
+        S.settingsOpen=false; render(); e.target.value="";
         toast(nP ? `Precios importados: datos de ${nP} cartas${typeof ACC!=="undefined"&&ACC.state==="on"?", guardados en tu cuenta para todos tus dispositivos":""}.` : "Ese archivo no trae precios más nuevos que los que ya tienes.");
         if (nP && typeof accPushCards==="function") accPushCards();
         return;

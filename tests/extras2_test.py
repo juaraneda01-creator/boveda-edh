@@ -68,7 +68,7 @@ def flow(pg):
     out["pr"] = pg.evaluate("""()=>{ const r={}; r.btn=!!document.querySelector('#settings [data-act="prices-file"]'); r.status=priceStatus();
       let got=null; const dl=window.download; window.download=(n,t,ty)=>{ got={n,t,ty}; };
       document.querySelector('#settings [data-act="prices-file"]').click(); window.download=dl;
-      const j=JSON.parse(got.t); r.file={name:got.n, kind:j.kind, app:j.app, cards:Object.keys(j.cardData.cards).length, decks:'decks' in j, coll:'collection' in j};
+      const j=JSON.parse(got.t); r.file={name:got.n, kind:j.kind, app:j.app, cards:Object.keys(j.cardData.cards).length, decks:'decks' in j, coll:'collection' in j, keys:Object.keys(j.settings||{}).join(',')};
       r.stillOpen=S.settingsOpen;
       // versión de claude.ai: sin precios, con precios viejos y al día
       const iw=window.claude; window.claude={use(){}}; const keep=JSON.stringify(S.cards);
@@ -134,6 +134,7 @@ chk(any("localStorage" in r for r in S_["rows"]) and any("grupo" in r.lower() fo
 P = X["pr"]
 chk(P["btn"] and P["file"]["kind"] == "precios" and P["file"]["app"] == "boveda-edh" and P["file"]["cards"] > 50, "archivo de precios: %s" % P["file"])
 chk(not P["file"]["decks"] and not P["file"]["coll"], "el archivo de precios lleva mazos o colección")
+chk(P["file"]["keys"] == "lastRefresh", "el archivo de precios debe llevar solo la fecha de los precios en ajustes: %s" % P["file"]["keys"])
 chk(P["stillOpen"], "descargar precios cerró Ajustes")
 chk(P["early"] == "", "el aviso de precios aparece antes de que carguen las cartas")
 chk("no tiene precios" in P["none"] and "hace 9 días" in P["old"] and P["fresh"] == "" and P["liveBanner"] == "", "avisos de precios: %s" % [P["none"][:60], P["old"][:80], P["fresh"], P["liveBanner"]])
