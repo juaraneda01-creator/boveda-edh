@@ -22,7 +22,7 @@ with sync_playwright() as p:
     b = p.chromium.launch(); ctx = b.new_context(viewport={"width":390, "height":900}); pg = ctx.new_page(); errs = []
     pg.on("pageerror", lambda e: errs.append(str(e))); pg.route("**/*", route)
     # 1) el servidor aún no tiene datos: la app sigue con la foto guardada
-    pg.goto("https://boveda-edh.netlify.app/"); pg.wait_for_timeout(1200)
+    pg.goto("https://boveda-edh.netlify.app/"); pg.wait_for_function("typeof META_LIVE!=='undefined' && typeof S!=='undefined'"); pg.wait_for_timeout(2000)
     B = pg.evaluate("({live:LIVE, at:META_AT, when:metaWhen('pauper'), pau:META.pauper.archetypes.map(a=>a.name), pio:META.pioneer.archetypes.map(a=>a.name), arch:PAUPER_MU.arch, pwAlias:PAUPER_MU.pwAlias, liveP:META_LIVE.pauper})")
     chk(B["live"] and state["hits"] >= 1, "la versión en vivo no pidió /api/meta")
     chk(B["liveP"] is None and B["when"] == "foto del " + B["at"], "sin datos del servidor debe mostrar la foto: %s" % B["when"])
@@ -36,7 +36,7 @@ with sync_playwright() as p:
     rows = [{"name":B["pwAlias"].get(n, n), "pct":12 - i, "decks":120 - 10*i} for i, n in enumerate(B["arch"][:9])] + [{"name":"Otro Mazo", "pct":9.5, "decks":95}]
     state["payload"] = {"v":1, "at":NOW, "errors":[], "pauper":{"at":NOW, "total":777, "archetypes":pau}, "pioneer":{"at":NOW, "total":555, "archetypes":pio}, "pw":{"at":NOW, "rows":rows, "period":"Sep 24 - Oct 7, 2026", "total":1234, "events":40}}
     state["mode"] = "ok"
-    pg.goto("https://boveda-edh.netlify.app/"); pg.wait_for_function("META_LIVE.pauper", timeout=8000)
+    pg.goto("https://boveda-edh.netlify.app/"); pg.wait_for_function("typeof META_LIVE!=='undefined' && META_LIVE && META_LIVE.pauper", timeout=15000)
     pg.evaluate("S.data.settings.onboarded=true; S.view='pauper'; S.showMeta.pauper=true; render()"); pg.wait_for_timeout(300)
     L = pg.evaluate("""({names:META.pauper.archetypes.map(a=>a.name), src:META.pauper.src, when:metaWhen('pauper'), vs:META_VS.pauper['Mazo Recien Llegado'], decks:metaDecks('pauper').map(a=>a.main.reduce((s,c)=>s+c.q,0)),
       text:document.querySelector('#deck-pane').innerText, pw:PAUPER_MU.pw, pwAt:PAUPER_MU.pwAt, other:PAUPER_MU.pwOther, age:listAgeDays(META.pauper.archetypes[0]), pio:META.pioneer.archetypes.length, overflow:document.documentElement.scrollWidth})""")
@@ -68,12 +68,12 @@ with sync_playwright() as p:
     chk(U["date"] == [True, 0], "fecha en español: %s" % U["date"])
     # 4) sin conexión con el servidor: usa el último meta en vivo que quedó guardado
     state["mode"] = "down"
-    pg.goto("https://boveda-edh.netlify.app/"); pg.wait_for_timeout(1500)
+    pg.goto("https://boveda-edh.netlify.app/"); pg.wait_for_function("typeof META_LIVE!=='undefined' && typeof S!=='undefined'"); pg.wait_for_timeout(2500)
     D = pg.evaluate("({live:META_LIVE.pauper, names:META.pauper.archetypes.map(a=>a.name)})")
     chk(D["live"] == NOW and "Mazo Recien Llegado" in D["names"], "sin servidor no usó el meta guardado: %s" % D)
     # 5) el servidor responde con error: también usa el meta guardado
     state["mode"] = "error"
-    pg.goto("https://boveda-edh.netlify.app/"); pg.wait_for_timeout(1500)
+    pg.goto("https://boveda-edh.netlify.app/"); pg.wait_for_function("typeof META_LIVE!=='undefined' && typeof S!=='undefined'"); pg.wait_for_timeout(2500)
     E = pg.evaluate("({live:META_LIVE.pauper, when:metaWhen('pauper')})")
     chk(E["live"] == NOW and E["when"].startswith("al día"), "con error del servidor no usó el meta guardado: %s" % E)
     b.close()
