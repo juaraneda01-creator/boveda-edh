@@ -102,7 +102,12 @@ export async function runAll(tests) {
     if (only.length && !only.some(o => name.includes(o))) continue;
     const t0 = Date.now();
     try { const note = await fn(); console.log(`ok  ${name}${note ? ` (${note})` : ""} · ${Date.now() - t0} ms`); }
-    catch (e) { failed++; console.log(`FALLA  ${name}\n   ${String(e && e.stack || e).split("\n").slice(0, 6).join("\n   ")}`); }
+    catch (e) {
+      failed++; const detail = String(e && e.stack || e).split("\n").slice(0, 6).join("\n   ");
+      console.log(`FALLA  ${name}\n   ${detail}`);
+      // en GitHub el fallo queda como anotación del trabajo, legible sin descargar el registro
+      if (process.env.GITHUB_ACTIONS) console.log(`::error title=Falló: ${name.slice(0, 80)}::${detail.replace(/\s+/g, " ").slice(0, 900)}`);
+    }
   }
   console.log(failed ? `\n${failed} prueba(s) con fallas.` : `\nPruebas de navegador: todas pasan (${((Date.now() - t00) / 1000).toFixed(1)} s).`);
   return failed;
