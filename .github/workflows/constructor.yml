@@ -1,9 +1,9 @@
 name: Revisar el Constructor
 on:
   push:
-    paths: ["app/**", "constructor/**", "src/**", ".github/workflows/constructor.yml"]
+    paths: ["app/**", "constructor/**", "artifact/**", "src/**", ".github/workflows/constructor.yml"]
   pull_request:
-    paths: ["app/**", "constructor/**", "src/**"]
+    paths: ["app/**", "constructor/**", "artifact/**", "src/**"]
 jobs:
   revisar:
     runs-on: ubuntu-latest
@@ -22,7 +22,11 @@ jobs:
         run: node --test tests/*.test.ts
       - name: constructor/ está al día con app/src
         run: node build.mjs --check
+      - name: artifact/ (versión dentro de claude.ai) está al día
+        run: node build.mjs --artifact --check
       - name: Instalar navegador de prueba
         run: npx playwright install --with-deps chromium
       - name: Pruebas de navegador
         run: node tests/e2e.mjs
+      - name: Pruebas de la versión dentro de claude.ai
+        run: node tests/artifact.mjs

@@ -1,7 +1,8 @@
 // Piezas comunes de las pantallas.
 import type { ComponentChildren, JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { S, subscribe, touch } from "../data/store.ts";
+import { S, subscribe, toast, touch } from "../data/store.ts";
+import { IN_CLAUDE } from "../data/relay.ts";
 import { autocomplete } from "../data/net.ts";
 import { WUBRG, COLOR_ES, type Card } from "../engine/index.ts";
 
@@ -113,7 +114,9 @@ export function CardSearch({ onPick, placeholder, action = "Agregar", id }: { on
   useEffect(() => {
     if (q.trim().length < 2) { setOpts([]); return; }
     const my = ++seq.current;
-    const t = setTimeout(async () => { const r = await autocomplete(q); if (my === seq.current) { setOpts(r.slice(0, 8)); setSel(-1); } }, 220);
+    // dentro de claude.ai cada consulta gasta créditos de Firecrawl: se espera a que la persona deje de escribir
+    if (IN_CLAUDE && q.trim().length < 3) { setOpts([]); return; }
+    const t = setTimeout(async () => { const r = await autocomplete(q); if (my === seq.current) { setOpts(r.slice(0, 8)); setSel(-1); } }, IN_CLAUDE ? 800 : 220);
     return () => clearTimeout(t);
   }, [q]);
   const pick = async (name: string) => { const n = name.trim(); if (!n || busy) return; setBusy(true); seq.current++; setOpts([]); try { await onPick(n); setQ(""); } finally { setBusy(false); } };
@@ -142,9 +145,18 @@ export function Confirm({ label, sure, onYes, class: cls }: { label: string; sur
   return <button type="button" class={(cls || "btn ghost") + (armed ? " danger" : "")} onClick={() => { if (armed) { setArmed(false); onYes(); } else setArmed(true); }}>{armed ? sure : label}</button>;
 }
 
-export function download(filename: string, text: string, type = "application/json"): void {
+/** Ofrece un archivo. Dentro de claude.ai pasa por la capacidad de descargas (la persona confirma). Devuelve si se entregó. */
+export async function download(filename: string, text: string, type = "application/json"): Promise<boolean> {
+  if (IN_CLAUDE) {
+    const c = (window as unknown as { claude?: { use?(n: string): Promise<unknown> } }).claude;
+    const dl = c && c.use ? await (c.use("downloads") as Promise<{ save(r: { filename: string; data: string }): Promise<unknown> } | null>).catch(() => null) : null;
+    if (!dl) { toast("Esta vista no permite descargar archivos. Ábrela dentro de claude.ai.", "warn"); return false; }
+    try { await dl.save({ filename, data: text }); return true; }
+    catch (e) { const code = (e as { code?: string }).code; if (code !== "declined") toast(code === "rate_limited" ? "Ya hay una descarga esperando confirmación." : "No se pudo descargar el archivo.", "warn"); return false; }
+  }
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = filename;
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  return true;
 }
 export async function copyText(t: string): Promise<boolean> {
   try { await navigator.clipboard.writeText(t); return true; }

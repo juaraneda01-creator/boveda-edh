@@ -36,7 +36,7 @@ class Boundary extends Component<{ deckId?: string; children: ComponentChildren 
         <p>Algo en los datos guardados la hizo fallar. Tus mazos siguen en el navegador: descarga un respaldo antes de hacer cualquier otra cosa.</p>
         <p class="muted small">Detalle técnico: {this.state.err}</p>
         <div class="row" style={{ justifyContent: "center" }}>
-          <button class="btn primary" onClick={() => download(`boveda-constructor-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(makeBackup()))}>Descargar respaldo</button>
+          <button class="btn primary" onClick={() => void download(`boveda-constructor-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(makeBackup()))}>Descargar respaldo</button>
           <button class="btn" onClick={() => { this.setState({ err: "" }); go("#/"); }}>Volver a tus mazos</button>
           {id ? <Confirm label="Eliminar este mazo" sure="Toca de nuevo para eliminarlo" onYes={() => { void deleteDeck(id); this.setState({ err: "" }); go("#/"); }} /> : null}
         </div>

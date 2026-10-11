@@ -6,6 +6,7 @@ import {
 } from "../engine/index.ts";
 import * as idb from "./idb.ts";
 import * as net from "./net.ts";
+import { relayProblem } from "./relay.ts";
 
 export interface Settings { welcomed: boolean; lastBackup: number }
 export interface Busy { label: string; done: number; total: number }
@@ -151,9 +152,19 @@ const needsFetch = (name: string): boolean => { const k = slug(name); const c = 
 const isBasic = (n: string): boolean => !!S.db.get(n)?.basic;
 
 /** Trae de Scryfall las cartas que falten (o todas, con `force`). Devuelve cuántas no se reconocieron. */
+// cartas que ya se están pidiendo: una segunda pantalla que las necesita espera esa misma consulta en vez de repetirla
+const inflight = new Map<string, Promise<unknown>>();
 export async function ensureCards(names: string[], opts: { force?: boolean; label?: string; quiet?: boolean } = {}): Promise<{ missing: string[]; offline: boolean }> {
-  const todo = [...new Set(names.filter(Boolean))].filter(n => !isBasic(n) && (opts.force || needsFetch(n)));
-  if (!todo.length) return { missing: [], offline: false };
+  const want = [...new Set(names.filter(Boolean))].filter(n => !isBasic(n) && (opts.force || needsFetch(n)));
+  const waits = [...new Set(want.map(n => inflight.get(slug(n))).filter((p): p is Promise<unknown> => !!p))];
+  const todo = want.filter(n => !inflight.has(slug(n)));
+  if (!todo.length) { await Promise.all(waits); return { missing: [], offline: false }; }
+  const run = fetchAndStore(todo, opts);
+  for (const n of todo) inflight.set(slug(n), run);
+  try { const [r] = await Promise.all([run, ...waits]); return r; }
+  finally { for (const n of todo) if (inflight.get(slug(n)) === run) inflight.delete(slug(n)); }
+}
+async function fetchAndStore(todo: string[], opts: { label?: string; quiet?: boolean }): Promise<{ missing: string[]; offline: boolean }> {
   const b = S.busy ? null : setBusy(opts.label || "Buscando cartas en Scryfall", todo.length);
   try {
     const r = await net.fetchCards(todo, (done) => { if (b) { b.done = done; touch(); } });
@@ -167,7 +178,7 @@ export async function ensureCards(names: string[], opts: { force?: boolean; labe
     if (recs.length) { S.epoch++; await save("cards", ...recs); }
     const missing = r.notFound.filter(n => !S.db.cards.has(slug(n)));
     if (!opts.quiet) {
-      if (r.offline) toast("No se pudo conectar con Scryfall. Revisa tu conexión y vuelve a intentar.", "warn");
+      if (r.offline) toast(relayProblem() || "No se pudo conectar con Scryfall. Revisa tu conexión y vuelve a intentar.", "warn");
       else if (r.down) toast("Scryfall no está respondiendo. Las cartas que faltan se traerán cuando vuelva; inténtalo en unos minutos.", "warn");
       else if (missing.length) toast(`Scryfall no reconoció ${missing.length} carta${missing.length > 1 ? "s" : ""}: ${missing.slice(0, 5).join(", ")}${missing.length > 5 ? "…" : ""}. Revisa que el nombre esté en inglés.`, "warn");
     }

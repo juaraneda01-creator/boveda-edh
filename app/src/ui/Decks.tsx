@@ -3,6 +3,7 @@ import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { S, insight, newDeck, ensureCards, toast } from "../data/store.ts";
 import { importLink, searchCommanders, NetError, LINK_SITES } from "../data/net.ts";
+import { IN_CLAUDE, relayProblem } from "../data/relay.ts";
 import { bracketOf, buildSlots, nextStep, parseList, splitParsed, textToDeck, type Deck, type ScryCard } from "../engine/index.ts";
 import { Pill, Pips, Sheet, go, plural, ui } from "./kit.tsx";
 import { touch } from "../data/store.ts";
@@ -73,13 +74,13 @@ export function CommanderPicker({ picked, onChange }: { picked: string[]; onChan
   const [q, setQ] = useState(""); const [res, setRes] = useState<ScryCard[] | null>(null); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   const seq = useRef(0);
   useEffect(() => {
-    if (q.trim().length < 2) { setRes(null); setErr(""); return; }
+    if (q.trim().length < (IN_CLAUDE ? 3 : 2)) { setRes(null); setErr(""); return; }
     const my = ++seq.current; setBusy(true);
     const t = setTimeout(async () => {
       try { const r = await searchCommanders(q); if (my !== seq.current) return; setRes(r); setErr(""); }
-      catch (e) { if (my === seq.current) { setRes([]); setErr(e instanceof NetError ? "No se pudo buscar en Scryfall. Revisa tu conexión." : "Error al buscar."); } }
+      catch (e) { if (my === seq.current) { setRes([]); setErr(e instanceof NetError ? (relayProblem() || "No se pudo buscar en Scryfall. Revisa tu conexión.") : "Error al buscar."); } }
       finally { if (my === seq.current) setBusy(false); }
-    }, 300);
+    }, IN_CLAUDE ? 800 : 300);
     return () => clearTimeout(t);
   }, [q]);
   const toggle = (n: string) => onChange(picked.includes(n) ? picked.filter(x => x !== n) : [...picked, n].slice(-2));

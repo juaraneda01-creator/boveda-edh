@@ -18,14 +18,14 @@ const byName = new Map(); for (const c of CARDS) { byName.set(c.name.toLowerCase
 const slug = s => String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/['’,.!?"():]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json", ".webmanifest": "application/manifest+json", ".png": "image/png" };
 
-export function serve() {
+export function serve(dir = "constructor") {
   const server = http.createServer((req, res) => {
     let p = decodeURIComponent(new URL(req.url, "http://x").pathname); if (p.endsWith("/")) p += "index.html";
     const file = path.join(ROOT, p);
     if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end("no"); return; }
     res.writeHead(200, { "content-type": TYPES[path.extname(file)] || "application/octet-stream", "cache-control": "no-store" }); res.end(fs.readFileSync(file));
   });
-  return new Promise(ok => server.listen(0, "127.0.0.1", () => ok({ url: `http://127.0.0.1:${server.address().port}/constructor/`, close: () => server.close() })));
+  return new Promise(ok => server.listen(0, "127.0.0.1", () => ok({ url: `http://127.0.0.1:${server.address().port}/${dir}/`, close: () => server.close() })));
 }
 
 /** Lo que se pidió a cada sitio, para comprobar que la app no consulta de más. */
@@ -58,6 +58,12 @@ export async function mock(page) {
       if (u.pathname === "/cards/autocomplete") { const q = (u.searchParams.get("q") || "").toLowerCase(); return json(route, { data: CARDS.filter(c => c.name.toLowerCase().includes(q)).map(c => c.name).slice(0, 20) }); }
       if (u.pathname === "/cards/search") {
         const q = u.searchParams.get("q") || "";
+        // búsqueda exacta por nombres (la usa la versión dentro de claude.ai en vez del lote)
+        if (/!"/.test(q)) {
+          calls.exact = (calls.exact || 0) + 1;
+          const data = [...new Set([...q.matchAll(/!"([^"]+)"/g)].map(m => byName.get(m[1].toLowerCase())).filter(Boolean))];
+          return data.length ? json(route, { object: "list", has_more: false, data }) : json(route, { object: "error" }, 404);
+        }
         if (/is:gamechanger/.test(q)) return json(route, { data: CARDS.filter(c => c.game_changer), has_more: false });
         const term = q.replace(/\s*is:commander.*$/, "").toLowerCase();
         const data = CARDS.filter(c => /Legendary Creature/.test(c.type_line) && c.name.toLowerCase().includes(term));

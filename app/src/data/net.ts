@@ -4,6 +4,7 @@
 import type { Combo, Combos, EdhData, EdhPoolCard, Entry } from "../engine/types.ts";
 import type { ScryCard } from "../engine/cards.ts";
 import { edhSlug, sleep, slug } from "../engine/util.ts";
+import { IN_CLAUDE, NOT_HERE, relayGet } from "./relay.ts";
 
 /** Sitios que no dejan consultarse desde otra página: en el sitio publicado pasan por el puente propio (/api/proxy). */
 const PROXY_HOSTS = new Set(["json.edhrec.com", "backend.commanderspellbook.com", "edhtop16.com", "api2.moxfield.com", "archidekt.com"]);
@@ -16,6 +17,7 @@ export class NetError extends Error {
 }
 
 async function bridge(url: string, init?: RequestInit): Promise<Response> {
+  if (IN_CLAUDE) return relayGet(url);
   const u = new URL(url);
   if (onSite() && !proxyDown && PROXY_HOSTS.has(u.hostname)) {
     try {
@@ -33,7 +35,7 @@ const JSON_POST = (body: unknown): RequestInit => ({ method: "POST", headers: { 
 let lastCall = 0;
 async function sf(url: string, body?: unknown, tries = 0): Promise<Response> {
   const wait = Math.max(0, lastCall + 120 - Date.now()); if (wait) await sleep(wait); lastCall = Date.now();
-  const r = await fetch(url, body ? JSON_POST(body) : { headers: { Accept: "application/json" } });
+  const r = IN_CLAUDE ? await relayGet(url) : await fetch(url, body ? JSON_POST(body) : { headers: { Accept: "application/json" } });
   if (r.status === 429 && tries < 3) { await sleep(1500); return sf(url, body, tries + 1); }
   return r;
 }
@@ -48,8 +50,14 @@ export async function fetchCards(names: string[], onStep?: (done: number, total:
   // un lote rechazado se divide: una carta con nombre raro no deja sin datos a las otras 74
   const batch = async (chunk: string[]): Promise<void> => {
     let r: Response;
-    try { r = await sf("https://api.scryfall.com/cards/collection", { identifiers: chunk.map(n => ({ name: cleanCardName(n).split(" // ")[0] })) }); }
+    try {
+      r = IN_CLAUDE
+        // dentro de claude.ai solo hay lecturas: una búsqueda exacta por nombre reemplaza al lote
+        ? await sf("https://api.scryfall.com/cards/search?unique=cards&q=" + encodeURIComponent(chunk.map(n => `!"${cleanCardName(n).replace(/"/g, "")}"`).join(" or ")))
+        : await sf("https://api.scryfall.com/cards/collection", { identifiers: chunk.map(n => ({ name: cleanCardName(n).split(" // ")[0] })) });
+    }
     catch { out.offline = true; pending.push(...chunk); return; }
+    if (IN_CLAUDE && r.status === 404) { out.notFound.push(...chunk); return; }
     // 429 o 5xx: Scryfall no está respondiendo. No tiene sentido dividir el lote ni culpar a los nombres.
     if (r.status === 429 || r.status >= 500) { out.down = true; pending.push(...chunk); return; }
     if (!r.ok) {
@@ -57,17 +65,21 @@ export async function fetchCards(names: string[], onStep?: (done: number, total:
       else out.notFound.push(chunk[0]);
       return;
     }
-    const j = await r.json() as { data?: ScryCard[]; not_found?: { name?: string }[] };
+    let j: { data?: ScryCard[]; not_found?: { name?: string }[] };
+    try { j = await r.json(); } catch { out.down = true; pending.push(...chunk); return; }
     const byClean = new Map(chunk.map(n => [slug(cleanCardName(n).split(" // ")[0]), n]));
-    for (const c of j.data || []) out.found.push({ card: c, asked: byClean.get(slug(c.name.split(" // ")[0])) || c.name });
+    const seen = new Set<string>();
+    for (const c of j.data || []) { const k = slug(c.name.split(" // ")[0]); const asked = byClean.get(k); if (IN_CLAUDE && !asked) continue; seen.add(k); out.found.push({ card: c, asked: asked || c.name }); }
     for (const nf of j.not_found || []) if (nf.name) out.notFound.push(byClean.get(slug(nf.name)) || nf.name);
+    if (IN_CLAUDE) for (const [k, n] of byClean) if (!seen.has(k)) out.notFound.push(n);
   };
   let done = 0;
-  for (let i = 0; i < todo.length && !out.offline && !out.down; i += 75) {
-    const chunk = todo.slice(i, i + 75); await batch(chunk); done += chunk.length; if (onStep) onStep(done, todo.length);
+  const size = IN_CLAUDE ? 20 : 75;
+  for (let i = 0; i < todo.length && !out.offline && !out.down; i += size) {
+    const chunk = todo.slice(i, i + size); await batch(chunk); done += chunk.length; if (onStep) onStep(done, todo.length);
   }
   // segunda oportunidad para las que no calzaron exacto: búsqueda aproximada, una por una
-  const retry = out.notFound.splice(0, 40); const still: string[] = [...out.notFound];
+  const retry = out.notFound.splice(0, IN_CLAUDE ? 12 : 40); const still: string[] = [...out.notFound];
   for (const n of retry) {
     if (out.offline || out.down) { pending.push(n); continue; }
     try {
@@ -148,6 +160,7 @@ export async function edhrecTheme(E: EdhData, theme: string): Promise<EdhData | 
 /* ---------- Commander Spellbook ---------- */
 interface SbVariant { id: string; uses?: { card?: { name?: string } | string }[]; produces?: { feature?: { name?: string }; name?: string }[]; description?: string; bracketTag?: string }
 export async function findCombos(commanders: string[], cards: Entry[]): Promise<Combos> {
+  if (IN_CLAUDE) throw new NetError("Commander Spellbook", `La búsqueda de combos de Commander Spellbook ${NOT_HERE}: ese sitio pide enviarle la lista y desde aquí solo se puede leer. Los combos que ya tenías guardados siguen visibles.`);
   let r: Response;
   try { r = await bridge("https://backend.commanderspellbook.com/find-my-combos", JSON_POST({ commanders: commanders.map(n => ({ card: n, quantity: 1 })), main: cards.map(c => ({ card: c.n, quantity: c.q })) })); }
   catch { throw new NetError("Commander Spellbook"); }
@@ -164,6 +177,7 @@ export async function findCombos(commanders: string[], cards: Entry[]): Promise<
 /* ---------- EDHTop16 (torneos cEDH) ---------- */
 export interface CedhRow { name: string; share: number | null; count: number | null; conv: number | null; tops: number | null; colors: string }
 export async function cedhTop(): Promise<CedhRow[]> {
+  if (IN_CLAUDE) throw new NetError("EDHTop16", `EDHTop16 en vivo ${NOT_HERE}.`);
   const q = `query { commanders(first: 40, sortBy: POPULARITY, timePeriod: THREE_MONTHS) { edges { node { name colorId stats(filters: {timePeriod: THREE_MONTHS}) { count metaShare conversionRate topCuts } } } } }`;
   let j: { data?: { commanders?: { edges?: { node: { name: string; colorId?: string; stats?: { count?: number; metaShare?: number; conversionRate?: number; topCuts?: number } } }[] } }; errors?: { message?: string }[] };
   try { const r = await bridge("https://edhtop16.com/api/graphql", JSON_POST({ query: q })); j = await r.json(); }
@@ -177,6 +191,7 @@ export async function cedhTop(): Promise<CedhRow[]> {
 /** Cartas más jugadas con un comandante en torneos. El esquema de EDHTop16 ha cambiado varias veces: se prueban tres formas. */
 export async function cedhStaples(commanders: string[]): Promise<string[]> {
   const name = commanders.join(" / "); if (!name) return [];
+  if (IN_CLAUDE) throw new NetError("EDHTop16", `Las cartas de torneo de EDHTop16 ${NOT_HERE}. Usa la comparación con EDHREC.`);
   const queries = [
     `query($name:String!){ commander(name:$name){ name staples(first:60){ edges{ node{ name } } } } }`,
     `query($name:String!){ commander(name:$name){ name staples{ name } } }`,

@@ -3,6 +3,7 @@ import type { JSX } from "preact";
 import { useEffect } from "preact/hooks";
 import { S, loadCedh, refreshGC, insight, newDeck, ensureCards } from "../data/store.ts";
 import { BRACKETS, CEDH_SNAPSHOT, CEDH_SNAPSHOT_AT, slug } from "../engine/index.ts";
+import { IN_CLAUDE } from "../data/relay.ts";
 import { CardName, Note, Section, agoTxt, dateTxt, go, pct } from "./kit.tsx";
 
 const key = (name: string) => name.split(" / ").map(slug).sort().join("|");
@@ -18,8 +19,9 @@ export function MetaScreen(): JSX.Element {
   return (
     <div>
       <div class="page-h"><h1>Meta de Commander</h1></div>
-      <Section title="Torneos cEDH, últimos 3 meses" aside={<button class="btn ghost" disabled={busy} onClick={() => void loadCedh(true)}>Actualizar</button>}>
+      <Section title="Torneos cEDH, últimos 3 meses" aside={IN_CLAUDE ? undefined : <button class="btn ghost" disabled={busy} onClick={() => void loadCedh(true)}>Actualizar</button>}>
         {live ? <p class="muted small">EDHTop16, consultado {agoTxt(live.at)} ({dateTxt(live.at)}).</p>
+          : IN_CLAUDE ? <p class="muted small">Foto guardada de EDHTop16 del {CEDH_SNAPSHOT_AT}. Los datos en vivo no están disponibles en la versión dentro de claude.ai.</p>
           : <Note tone="warn">No se pudo consultar EDHTop16 desde aquí. Se muestra la foto guardada del {CEDH_SNAPSHOT_AT}.</Note>}
         <div class="tbl-wrap"><table class="tbl"><thead><tr><th class="n">#</th><th>Comandante</th><th class="n">Del meta</th><th class="n">Listas</th>{live ? <th class="n">Llega al corte</th> : null}<th></th></tr></thead>
           <tbody>{rows.slice(0, 30).map((r, i) => { const own = myKeys.get(key(r.name)); return (

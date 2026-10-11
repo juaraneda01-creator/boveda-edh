@@ -10,14 +10,24 @@
   --font: "Archivo", "Helvetica Neue", Arial, sans-serif;
   color-scheme: light dark;
 }
+/* claro, oscuro según el sistema, o el que elija quien ve la página (data-theme, dentro de claude.ai) */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #121A1F; --surface: #1B262D; --sunk: #17212A; --line: #36474F; --line-soft: #2A3840;
     --ink: #E8EEF0; --muted: #9FB0B7; --tapete: #0C1317; --on-tapete: #E9F0F1;
     --accent: #A29DF7; --accent-soft: #2B2A52; --on-accent: #14122E;
     --good: #62C79A; --good-soft: #17352A; --warn: #E4AC52; --warn-soft: #3A2C12; --bad: #F18F7E; --bad-soft: #40201B;
+    color-scheme: dark;
   }
 }
+:root[data-theme="dark"] {
+    --bg: #121A1F; --surface: #1B262D; --sunk: #17212A; --line: #36474F; --line-soft: #2A3840;
+    --ink: #E8EEF0; --muted: #9FB0B7; --tapete: #0C1317; --on-tapete: #E9F0F1;
+    --accent: #A29DF7; --accent-soft: #2B2A52; --on-accent: #14122E;
+    --good: #62C79A; --good-soft: #17352A; --warn: #E4AC52; --warn-soft: #3A2C12; --bad: #F18F7E; --bad-soft: #40201B;
+    color-scheme: dark;
+}
+:root[data-theme="light"] { color-scheme: light; }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.5 var(--font); font-stretch: 100%; }

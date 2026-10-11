@@ -5,6 +5,7 @@ import { S, makeBackup, saveSettings, ensureCards, toast, type ImportReport } fr
 import { importBackupText } from "../data/backup.ts";
 import { usage, isMemoryOnly } from "../data/idb.ts";
 import { allNames } from "../engine/index.ts";
+import { IN_CLAUDE } from "../data/relay.ts";
 import { Note, Section, agoTxt, dateTime, download, plural } from "./kit.tsx";
 
 declare const __BUILD__: { v: string };
@@ -12,7 +13,7 @@ declare const __BUILD__: { v: string };
 export function SettingsScreen(): JSX.Element {
   const file = useRef<HTMLInputElement>(null); const [rep, setRep] = useState<ImportReport | null>(null); const [err, setErr] = useState(""); const [use, setUse] = useState<{ used: number; quota: number } | null>(null);
   useEffect(() => { void usage().then(setUse); }, []);
-  const backup = () => { download(`boveda-constructor-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(makeBackup())); void saveSettings({ lastBackup: Date.now() }); toast("Respaldo descargado."); };
+  const backup = async () => { if (!await download(`boveda-constructor-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(makeBackup()))) return; void saveSettings({ lastBackup: Date.now() }); toast("Respaldo descargado."); };
   const onFile = async (f: File | undefined) => {
     if (!f) return; setErr(""); setRep(null);
     try {
@@ -26,6 +27,12 @@ export function SettingsScreen(): JSX.Element {
   return (
     <div>
       <div class="page-h"><h1>Ajustes</h1></div>
+      {IN_CLAUDE ? <Section title="Esta versión, dentro de claude.ai">
+        <p>Aquí la página no puede conectarse sola con otros sitios. Las cartas (Scryfall), lo que se juega con cada comandante (EDHREC) y los mazos de Archidekt o Moxfield se leen a través de tu conector Firecrawl: <b>cada consulta gasta créditos de Firecrawl</b>. Las cartas quedan guardadas, así que solo se pagan la primera vez.</p>
+        <p class="muted">No disponibles en esta versión: la búsqueda de combos de Commander Spellbook y los datos en vivo de EDHTop16 (el meta usa la foto guardada). Armar, probar, simular, comparar versiones y anotar partidas funcionan igual.</p>
+        <p class="muted">Tus mazos se guardan en el navegador de este equipo, no en tu cuenta: para usarlos en otro equipo, descarga un respaldo e impórtalo allá.</p>
+      </Section> : null}
+
       <Section title="Respaldo">
         <p>Tus mazos viven en este navegador. Un respaldo es un archivo con tus mazos, versiones y partidas, para pasarlos a otro equipo o guardarlos por seguridad. Al importar, un mazo del archivo reemplaza al que ya tengas con el mismo origen; los demás no se tocan.</p>
         {stale ? <Note tone="warn">{S.settings.lastBackup ? `Tu último respaldo es de ${agoTxt(S.settings.lastBackup)}.` : "Todavía no has descargado un respaldo."} Si borras los datos del navegador, los mazos se pierden.</Note> : S.settings.lastBackup ? <p class="muted small">Último respaldo: {dateTime(S.settings.lastBackup)}.</p> : null}
@@ -40,7 +47,7 @@ export function SettingsScreen(): JSX.Element {
       </Section>
 
       <Section title="Datos de cartas">
-        <p class="muted">Los datos vienen de Scryfall y se guardan en el navegador por 90 días. {S.db.cards.size.toLocaleString("es-CL")} cartas guardadas.</p>
+        <p class="muted">Los datos vienen de Scryfall y se guardan en el navegador por 90 días. {S.db.cards.size.toLocaleString("es-CL")} cartas guardadas.{IN_CLAUDE ? " Actualizarlas todas vuelve a gastar créditos de Firecrawl (unas 5 consultas por mazo)." : ""}</p>
         <button class="btn" disabled={!!S.busy || !S.decks.length} onClick={async () => { const r = await ensureCards(S.decks.flatMap(allNames), { force: true, label: "Actualizando todas las cartas" }); if (!r.offline && !r.missing.length) toast("Cartas actualizadas."); }}>Actualizar las cartas de mis mazos</button>
       </Section>
 
