@@ -1,0 +1,54 @@
+name: Publicar en Netlify
+# Publica el sitio desde GitHub en cada cambio de main y comprueba que quedó la versión correcta.
+# Necesita el secreto NETLIFY_AUTH_TOKEN (un token personal de Netlify). Sin él, avisa y no hace nada.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: publicar
+  cancel-in-progress: false
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    env:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      NETLIFY_SITE_ID: e5eadc88-687f-477d-8273-6e6edcf56ecc
+    steps:
+      - uses: actions/checkout@v4
+      - name: Revisar que exista la clave de Netlify
+        id: key
+        run: |
+          if [ -z "$NETLIFY_AUTH_TOKEN" ]; then
+            echo "::warning title=Sin publicar::Falta el secreto NETLIFY_AUTH_TOKEN en GitHub (Settings, Secrets and variables, Actions)."
+            echo "ok=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=si" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.key.outputs.ok == 'si'
+        with: { node-version: "22" }
+      - name: Instalar lo que usan las funciones del servidor
+        if: steps.key.outputs.ok == 'si'
+        run: npm install --no-audit --no-fund
+      - name: Armar la carpeta publicada
+        if: steps.key.outputs.ok == 'si'
+        # solo lo que se sirve: la Bóveda en la raíz y el Constructor en /constructor/ (el código fuente no se publica)
+        run: |
+          mkdir -p _site
+          cp -r index.html sw.js manifest.webmanifest icons constructor _site/
+      - name: Publicar
+        if: steps.key.outputs.ok == 'si'
+        run: npx -y netlify-cli@17 deploy --prod --dir _site --functions netlify/functions --site "$NETLIFY_SITE_ID" --message "main ${GITHUB_SHA::7}"
+      - name: Comprobar la versión publicada
+        if: steps.key.outputs.ok == 'si'
+        run: |
+          want=$(node -p "require('./constructor/version.json').version")
+          got=""
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            got=$(curl -fsS "https://boveda-edh.netlify.app/constructor/version.json?t=$(date +%s)" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version" 2>/dev/null || true)
+            if [ "$got" = "$want" ]; then echo "Publicado: Constructor versión $got"; exit 0; fi
+            sleep 10
+          done
+          echo "::error title=La versión publicada no coincide::Se esperaba $want y el sitio entrega '$got'."
+          exit 1
