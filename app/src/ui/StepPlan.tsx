@@ -1,8 +1,8 @@
 // Paso 1: el plan. Comandante, bracket buscado, estrategia e interacción definen las metas de cada casilla.
 import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { S, saveDeck, deleteDeck, draft, edhOf, loadEdh, insight, ensureCards } from "../data/store.ts";
-import { BRACKETS, bracketOf, bracketRule, slotGoals, type Deck, type Interaction, type Plan } from "../engine/index.ts";
+import { S, saveDeck, deleteDeck, draft, edhOf, loadEdh, edhForPlan, needsTheme, insight, ensureCards } from "../data/store.ts";
+import { BRACKETS, bracketOf, bracketRule, buildSlots, type Deck, type Interaction, type Plan } from "../engine/index.ts";
 import { Chips, Confirm, Note, Section, Sheet, go } from "./kit.tsx";
 import { CommanderPicker } from "./Decks.tsx";
 
@@ -12,7 +12,9 @@ export function StepPlan({ d }: { d: Deck }): JSX.Element {
   const [pick, setPick] = useState(false); const [cmds, setCmds] = useState<string[]>(d.commanders); const [excl, setExcl] = useState("");
   useEffect(() => { setName(d.name); setTheme(d.plan.theme); setNotes(d.notes || ""); setCmds(d.commanders); }, [d.id]);
   const setPlan = (p: Partial<Plan>) => void saveDeck({ ...d, plan: { ...d.plan, ...p } });
-  const goals = slotGoals(d.plan, d.commanders.length);
+  const goals = buildSlots(A, Y, d.plan, d.commanders.length);
+  // al elegir un tema se trae su página de EDHREC, para que las sugerencias lo usen de inmediato
+  useEffect(() => { if (needsTheme(d) && !S.busy) void edhForPlan(d); }, [d.id, d.plan.theme]);
   const B = A.main ? bracketOf(d, A) : null; const size = 100 - d.commanders.length;
   const detected = Y.themes.filter(t => t.state === "fuerte" || t.state === "a medias").slice(0, 4);
   const busy = !!S.busy;
@@ -57,7 +59,7 @@ export function StepPlan({ d }: { d: Deck }): JSX.Element {
         <Section title="Metas de cada casilla">
           <p class="muted">Salen del bracket y la interacción que elegiste. En Armar verás cuánto llevas de cada una.</p>
           <table class="tbl"><thead><tr><th>Casilla</th><th class="n">Meta</th><th class="n">Llevas</th></tr></thead>
-            <tbody>{goals.filter(g => g.k !== "other").map(g => { const have = g.k === "plan" ? null : g.k === "tutor" ? A.tutors.length : A.roles[g.k as keyof typeof A.roles]; return <tr key={g.k}><td>{g.n}</td><td class="n">{g.lo === g.hi ? g.lo : `${g.lo} a ${g.hi}`}</td><td class="n">{have == null ? "" : have}</td></tr>; })}</tbody></table>
+            <tbody>{goals.filter(g => g.k !== "other").map(g => <tr key={g.k}><td>{g.n}</td><td class="n">{g.lo === g.hi ? g.lo : `${g.lo} a ${g.hi}`}</td><td class="n">{g.count}</td></tr>)}</tbody></table>
         </Section>
 
         <Section title={A.main ? "Completar el mazo" : "Armar un borrador"}>

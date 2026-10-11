@@ -1,7 +1,7 @@
 // Paso 4: ajustar. Qué cambiar primero, cómo llegar al bracket buscado, sinergias, combos y comparación con el meta.
 import type { JSX } from "preact";
-import { useState } from "preact/hooks";
-import { S, insight, edhOf, edhForPlan, loadCombos, loadStaples, staplesOf, swapCard, removeCard, gamesOf, toast } from "../data/store.ts";
+import { useEffect, useState } from "preact/hooks";
+import { S, insight, edhOf, edhForPlan, needsTheme, loadCombos, loadStaples, staplesOf, swapCard, removeCard, gamesOf, toast } from "../data/store.ts";
 import {
   swaps, bracketPlan, bracketOf, metaCompare, synergyAdds, combos2, playBracket, gameStats, deckText, slug, TAG_ES, BRACKETS,
   type Deck, type ThemeResult,
@@ -17,6 +17,7 @@ export function StepTune({ d }: { d: Deck }): JSX.Element {
   const [target, setTarget] = useState<number>(d.plan.bracket || Math.max(2, A.main ? bracketOf(d, A).b : 3));
   const [openTheme, setOpenTheme] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("cambios");
+  useEffect(() => { if (needsTheme(d) && !S.busy) void edhForPlan(d); }, [d.id, d.plan.theme]);
   if (!A.main) return <div class="empty"><h2>Aún no hay nada que ajustar</h2><p>Primero arma el mazo o pide un borrador.</p><a class="btn primary" href={`#/mazo/${d.id}/plan`}>Ir al plan</a></div>;
   const needE = <button class="btn" disabled={busy || !d.commanders.length} onClick={() => void edhForPlan(d)}>Consultar qué se juega con tu comandante</button>;
   const SW = E ? swaps(d, A, E, S.db, d.plan, 10) : [];

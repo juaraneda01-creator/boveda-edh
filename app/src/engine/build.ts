@@ -2,7 +2,7 @@
 // respetando identidad de color, legalidad, el bracket buscado y lo que ya está en el mazo.
 import type { Card, CardDb, EdhData, EdhPoolCard, Entry, Plan } from "./types.ts";
 import { BASIC_NAME, WUBRG, slug } from "./util.ts";
-import { slotGoals } from "./slots.ts";
+import { isCounter, slotGoals } from "./slots.ts";
 
 export interface BuildInput {
   commanders: string[];
@@ -18,7 +18,7 @@ export interface BuildResult {
 }
 
 export const inIdentity = (m: Card, ci: string): boolean => !(m.ci || "").split("").some(c => (WUBRG as readonly string[]).includes(c) && !ci.includes(c));
-export const isCounter = (m: Card): boolean => (m.rf || []).includes("counter") || (m.sb || []).includes("counter");
+export { isCounter };
 const isInteraction = (m: Card): boolean => (m.r as string[]).includes("removal") || (m.r as string[]).includes("wipe") || isCounter(m);
 
 /** ¿El bracket buscado permite esta carta? Los Game Changers del bracket 3 se cuentan aparte (máximo 3). */

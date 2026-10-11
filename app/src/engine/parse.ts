@@ -38,13 +38,16 @@ export function looksCSV(text: string): boolean {
   return /[,;\t]/.test(first) && /(^|[,;\t"])\s*"?(name|card name|nombre)"?\s*([,;\t]|$)/.test(first);
 }
 
+/** Topes: ninguna lista real pasa de esto, y sin ellos un número absurdo deja la app colgada. */
+export const MAX_QTY = 99, MAX_ENTRIES = 600;
 function mergeParsed(list: Parsed[]): Parsed[] {
   const map = new Map<string, Parsed>();
-  for (const c of list) {
+  for (const c0 of list.slice(0, MAX_ENTRIES * 2)) {
+    const c = { ...c0, n: c0.n.slice(0, 150), q: Math.max(1, Math.min(MAX_QTY, Math.round(c0.q) || 1)) };
     const key = slug(c.n) + (c.c ? "#c" : "") + (c.side ? "#s" : "") + (c.maybe ? "#m" : "");
-    const p = map.get(key); if (p) p.q += c.q; else map.set(key, { ...c });
+    const p = map.get(key); if (p) p.q = Math.min(MAX_QTY, p.q + c.q); else map.set(key, c);
   }
-  return [...map.values()];
+  return [...map.values()].slice(0, MAX_ENTRIES);
 }
 
 export function parseList(input: string, { keepSide = false } = {}): Parsed[] {
@@ -57,7 +60,7 @@ export function parseList(input: string, { keepSide = false } = {}): Parsed[] {
       .replace(/\s+\([A-Za-z0-9]{2,6}\)(\s+[\w★\-]+)?\s*$/, "").replace(/\s+#.*$/, "").replace(/\s+\/\s+/, " // ").trim();
     return { n: name, q, c: isC && sec !== "maybe", side: sec === "side" || sec === "side-blank", maybe: sec === "maybe" };
   };
-  for (const raw of text.split(/\r?\n/)) {
+  for (const raw of text.split(/\r?\n/).slice(0, 4000)) {
     let l = raw.trim();
     if (!l) { if (keepSide && section === "main" && out.reduce((a, c) => a + (c.q || 0), 0) >= 40) section = "side-blank"; continue; }
     l = l.replace(/^\/\/\s*/, "");

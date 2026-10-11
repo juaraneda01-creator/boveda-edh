@@ -1,6 +1,6 @@
 // Leer respaldos: los propios y los de la Bóveda original (de la que solo se traen los mazos de Commander,
 // sus versiones y sus partidas; la colección, las carpetas de venta y los precios no se usan aquí).
-import { RF_V, slug, uid, type Card, type Deck, type Entry, type Game, type Version } from "../engine/index.ts";
+import { RF_V, slug, type Card, type Deck, type Entry, type Game, type Version } from "../engine/index.ts";
 import { importData, type Backup, type ImportReport } from "./store.ts";
 
 interface OldEntry { n: string; q: number }
@@ -19,18 +19,19 @@ const fold = (...lists: (OldEntry[] | undefined)[]): Entry[] => {
   return [...m.values()];
 };
 
-function fromOld(j: OldBackup): Parameters<typeof importData>[0] & { skipped: number } {
+function fromOld(j: OldBackup): { decks: Partial<Deck>[]; versions: Version[]; games: Game[]; cards: { k: string; card: Card }[]; skipped: number } {
   const all = Array.isArray(j.decks) ? j.decks : [];
-  const edh = all.filter(d => d && d.id && (d.format || "commander") === "commander");
+  const edh = all.filter(d => d && typeof d === "object" && d.id && (d.format || "commander") === "commander");
   const decks: Partial<Deck>[] = [], versions: Version[] = [];
   for (const d of edh) {
     decks.push({ id: d.id, name: d.name, commanders: d.commanders || [], cards: fold(d.cards), maybe: fold(d.side, d.maybe), kind: d.rival ? "ref" : "mine", owner: d.rival ? d.rival.owner || "Amigo" : undefined, combos: d.combos, created: d.created, updated: d.updated });
     for (const v of d.versions || []) {
-      versions.push({ id: uid() + versions.length, deckId: d.id, at: v.savedAt || v.at || Date.now(), label: `Antes de: ${v.src || "un cambio"}`, src: v.src || "manual", commanders: v.commanders || d.commanders || [], cards: fold(v.cards), maybe: fold(v.side, v.maybe) });
+      // el id sale del mazo y de la fecha: importar dos veces el mismo respaldo no duplica versiones
+      versions.push({ id: `${d.id}-v${v.savedAt || v.at || versions.length}`, deckId: d.id, at: v.savedAt || v.at || Date.now(), label: `Antes de: ${v.src || "un cambio"}`, src: v.src || "manual", commanders: v.commanders || d.commanders || [], cards: fold(v.cards), maybe: fold(v.side, v.maybe) });
     }
   }
   const ids = new Set(edh.map(d => d.id));
-  const games: Game[] = (Array.isArray(j.games) ? j.games : []).filter(g => g && ids.has(g.deck)).map(g => ({ id: String(g.id), deckId: g.deck, at: g.at, res: g.res, turn: g.turn || 0, how: g.how || null, seat: g.seat || null, opp: g.opp || [], note: g.note || "" }));
+  const games: Game[] = (Array.isArray(j.games) ? j.games : []).filter(g => g && typeof g === "object" && ids.has(g.deck)).map(g => ({ id: String(g.id), deckId: g.deck, at: g.at, res: g.res, turn: g.turn || 0, how: g.how || null, seat: g.seat || null, opp: g.opp || [], note: g.note || "" }));
   // las cartas del respaldo sirven si se calcularon con las mismas reglas; si no, se vuelven a traer de Scryfall
   const cards: { k: string; card: Card }[] = [];
   for (const [k, c] of Object.entries((j.cardData && j.cardData.cards) || {})) {
@@ -48,7 +49,7 @@ export async function importBackupText(text: string): Promise<ImportReport> {
   const o = j as Partial<Backup> & OldBackup;
   if (o.app === "boveda-constructor") {
     if (!Array.isArray(o.decks)) throw new Error("El respaldo no trae mazos.");
-    return importData({ decks: o.decks, versions: Array.isArray(o.versions) ? o.versions : [], games: Array.isArray(o.games) ? o.games as Game[] : [], cards: Array.isArray(o.cards) ? o.cards : [] });
+    return importData({ decks: o.decks, versions: Array.isArray(o.versions) ? o.versions : [], games: Array.isArray(o.games) ? o.games : [], cards: Array.isArray(o.cards) ? o.cards : [] });
   }
   if (o.app === "boveda-edh" || (Array.isArray(o.decks) && "collection" in (o as object))) {
     const d = fromOld(o as OldBackup);

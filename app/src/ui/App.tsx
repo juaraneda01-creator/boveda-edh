@@ -1,8 +1,8 @@
 // Armazón: barra superior, navegación, avisos y la pantalla que corresponde a la dirección.
-import type { JSX } from "preact";
-import { S, deckById } from "../data/store.ts";
-import { useHash, useStore, go, ui } from "./kit.tsx";
-import { touch } from "../data/store.ts";
+import { Component, type ComponentChildren, type JSX } from "preact";
+import { S, deckById, deleteDeck, makeBackup, touch } from "../data/store.ts";
+import { isMemoryOnly } from "../data/idb.ts";
+import { useHash, useStore, go, ui, download, Confirm } from "./kit.tsx";
 import { DecksScreen, NewDeckSheet } from "./Decks.tsx";
 import { DeckScreen } from "./Deck.tsx";
 import { MetaScreen } from "./Meta.tsx";
@@ -20,6 +20,31 @@ export function parseRoute(hash: string): { view: "decks" | "deck" | "meta" | "s
   return { view: "decks" };
 }
 
+/**
+ * Si una pantalla falla al dibujarse, la app no queda en blanco: explica qué pasó y deja
+ * salvar los datos o eliminar el mazo que la rompe.
+ */
+class Boundary extends Component<{ deckId?: string; children: ComponentChildren }, { err: string }> {
+  state = { err: "" };
+  static getDerivedStateFromError(e: unknown): { err: string } { return { err: e instanceof Error ? e.message : String(e) }; }
+  render(): ComponentChildren {
+    if (!this.state.err) return this.props.children;
+    const id = this.props.deckId;
+    return (
+      <div class="empty" role="alert">
+        <h2>Esta pantalla no se pudo mostrar</h2>
+        <p>Algo en los datos guardados la hizo fallar. Tus mazos siguen en el navegador: descarga un respaldo antes de hacer cualquier otra cosa.</p>
+        <p class="muted small">Detalle técnico: {this.state.err}</p>
+        <div class="row" style={{ justifyContent: "center" }}>
+          <button class="btn primary" onClick={() => download(`boveda-constructor-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(makeBackup()))}>Descargar respaldo</button>
+          <button class="btn" onClick={() => { this.setState({ err: "" }); go("#/"); }}>Volver a tus mazos</button>
+          {id ? <Confirm label="Eliminar este mazo" sure="Toca de nuevo para eliminarlo" onYes={() => { void deleteDeck(id); this.setState({ err: "" }); go("#/"); }} /> : null}
+        </div>
+      </div>
+    );
+  }
+}
+
 export function App(): JSX.Element {
   useStore(); const route = parseRoute(useHash());
   if (!S.ready) return <div class="boot"><p>Abriendo tus mazos…</p></div>;
@@ -33,11 +58,14 @@ export function App(): JSX.Element {
       </header>
       {S.busy ? <div class="busy" role="status"><span>{S.busy.label}{S.busy.total > 1 ? ` (${S.busy.done} de ${S.busy.total})` : ""}</span><div class="busy-bar"><i style={{ width: `${S.busy.total > 1 ? Math.round(100 * S.busy.done / S.busy.total) : 100}%` }} class={S.busy.total > 1 ? "" : "loop"} /></div></div> : null}
       {S.storageError ? <div class="note bad wrap-note" role="alert">{S.storageError}</div> : null}
+      {isMemoryOnly() ? <div class="note bad wrap-note" role="alert">Este navegador no deja guardar datos (puede ser una ventana privada). Lo que hagas se pierde al cerrar la pestaña: descarga un respaldo desde Ajustes antes de salir.</div> : null}
       <main class="wrap" id="main">
-        {route.view === "deck" ? (deck ? <DeckScreen deck={deck} step={route.step || "armar"} /> : <div class="empty"><h2>Ese mazo ya no existe</h2><p>Puede que lo hayas eliminado en otra pestaña.</p><button class="btn primary" onClick={() => go("#/")}>Ver tus mazos</button></div>)
+        <Boundary key={route.view + (route.id || "")} deckId={route.view === "deck" ? route.id : undefined}>
+        {route.view === "deck" ? (deck ? <DeckScreen deck={deck} step={route.step || "armar"} key={deck.id} /> : <div class="empty"><h2>Ese mazo ya no existe</h2><p>Puede que lo hayas eliminado en otra pestaña.</p><button class="btn primary" onClick={() => go("#/")}>Ver tus mazos</button></div>)
           : route.view === "meta" ? <MetaScreen />
           : route.view === "settings" ? <SettingsScreen />
           : <DecksScreen />}
+        </Boundary>
       </main>
       {ui.newDeck ? <NewDeckSheet mode={ui.newDeck} onClose={() => { ui.newDeck = null; touch(); }} /> : null}
       {ui.card ? <CardSheet name={ui.card.name} deckId={ui.card.deckId} onClose={() => { ui.card = null; touch(); }} /> : null}

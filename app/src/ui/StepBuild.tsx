@@ -1,7 +1,7 @@
 // Paso 2: armar por casillas. Cada casilla muestra cuántas cartas lleva, su meta y qué se podría agregar.
 import type { JSX } from "preact";
-import { useState } from "preact/hooks";
-import { S, addCard, removeCard, moveCard, saveDeck, insight, edhOf, edhForPlan, ensureCards, toast, draft } from "../data/store.ts";
+import { useEffect, useState } from "preact/hooks";
+import { S, addCard, removeCard, moveCard, saveDeck, insight, edhOf, edhForPlan, needsTheme, ensureCards, toast, draft } from "../data/store.ts";
 import {
   buildSlots, nextStep, slotSuggestions, deckText, parseList, splitParsed, textToDeck, allNames, bracketOf, TYPE_ES, TYPE_ORDER, slug,
   type Deck, type EdhData, type Row, type Slot, type SlotKey,
@@ -57,6 +57,7 @@ export function StepBuild({ d }: { d: Deck }): JSX.Element {
   const E = edhOf(d);
   const slots = buildSlots(A, Y, d.plan, d.commanders.length);
   const [open, setOpen] = useState<SlotKey | null>(null); const [toMaybe, setToMaybe] = useState(false); const [edit, setEdit] = useState(false); const [view, setView] = useState<"slots" | "types">("slots");
+  useEffect(() => { if (needsTheme(d) && !S.busy) void edhForPlan(d); }, [d.id, d.plan.theme]);
   const toggle = (k: SlotKey) => { setOpen(open === k ? null : k); if (open !== k && !E && d.commanders.length && !S.busy) void edhForPlan(d); };
   const B = A.main ? bracketOf(d, A) : null;
   const types = TYPE_ORDER.map(t => ({ t, rows: A.rows.filter(r => (r.m ? r.m.t : "Unknown") === t) })).filter(g => g.rows.length);

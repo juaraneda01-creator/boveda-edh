@@ -139,7 +139,7 @@ function Real({ d }: { d: Deck }): JSX.Element {
     if (!res) return;
     const extra = oppTxt.split(",").map(x => x.trim()).filter(Boolean);
     await addGame({ deckId: d.id, res, turn, how, seat, opp: [...new Set([...opp, ...extra])], note });
-    setRes(null); setHow(null); setSeat(null); setOppTxt(""); setNote("");   // los rivales suelen repetirse en la siguiente
+    setRes(null); setTurn(0); setHow(null); setSeat(null); setOppTxt(""); setNote("");   // los rivales suelen repetirse en la siguiente
   };
   const W = winTurnOf(list, H); const P = playBracket(d, A, H, list); const official = bracketOf(d, A);
   const expect = st.pct == null ? "" : st.n < 5 ? `Con ${plural(st.n, "partida", "partidas")} todavía es pronto para sacar conclusiones.`
@@ -226,7 +226,7 @@ function AB({ d }: { d: Deck }): JSX.Element {
   return (
     <div>
       <Section title="Una versión contra otra">
-        <p class="muted">Las dos listas juegan las mismas manos y las mismas partidas simuladas, con la misma suerte. Así la diferencia viene de las cartas.{d.combos ? " Los combos son los de tu última búsqueda que cada lista tiene completos." : " Sin buscar combos en Ajustar, ninguna de las dos los usa."}</p>
+        <p class="muted">Las dos listas corren la misma cantidad de manos y de partidas simuladas, con la misma semilla. El veredicto solo declara un ganador cuando la diferencia supera el margen de azar.{d.combos ? " Los combos son los de tu última búsqueda que cada lista tiene completos." : " Sin buscar combos en Ajustar, ninguna de las dos los usa."}</p>
         <div class="form">
           <label class="field"><span>A</span><select value={a} onChange={e => setA((e.target as HTMLSelectElement).value)}>{opts.map(o => <option value={o.id} key={o.id}>{o.label}</option>)}</select></label>
           <label class="field"><span>B</span><select value={b} onChange={e => setB((e.target as HTMLSelectElement).value)}>{opts.map(o => <option value={o.id} key={o.id}>{o.label}</option>)}</select></label>
@@ -240,7 +240,7 @@ function AB({ d }: { d: Deck }): JSX.Element {
         <Note tone={C.verdict === "tie" ? "info" : undefined}>{C.text}</Note>
         <div class="tbl-wrap"><table class="tbl"><thead><tr><th></th><th class="n">A</th><th class="n">B</th></tr></thead>
           <tbody>{C.deltas.map(x => <tr key={x.k}><td>{x.k}</td><td class={"n" + (x.better === "a" ? " best" : "")}>{fmt(x.a, x.fmt)}</td><td class={"n" + (x.better === "b" ? " best" : "")}>{fmt(x.b, x.fmt)}</td></tr>)}</tbody></table></div>
-        <p class="muted small">{C.n} partidas por versión{C.mirror ? " en mesa de espejo" : ` contra ${C.rivals.join(", ")}`}. Margen de azar de la diferencia: ±{p100(C.margin)} puntos{C.verdict === "tie" && C.n < 800 ? "; con más partidas el margen baja y se ven diferencias más chicas" : ""}. En negrita, el mejor valor cuando la diferencia importa.</p>
+        <p class="muted small">{C.n} partidas por versión{C.mirror ? " en mesa de espejo" : ` contra ${C.rivals.join(", ")}`}. Margen de azar de la diferencia: ±{p100(C.margin)} puntos{C.verdict === "tie" && C.n < 800 ? "; con más partidas el margen baja y se ven diferencias más chicas" : ""}. En negrita, el mejor valor cuando la diferencia supera el ruido de la prueba.</p>
         <div class="cols">
           <div><h4>Entran en B ({C.add.reduce((s, c) => s + c.q, 0)})</h4>{C.add.length ? <ul class="cards">{C.add.map(c => <li key={c.n}><CardName name={c.n} deckId={d.id} m={S.db.get(c.n)} />{c.q > 1 ? ` ×${c.q}` : ""}</li>)}</ul> : <p class="muted">Ninguna.</p>}</div>
           <div><h4>Salen de A ({C.rem.reduce((s, c) => s + c.q, 0)})</h4>{C.rem.length ? <ul class="cards">{C.rem.map(c => <li key={c.n}><CardName name={c.n} deckId={d.id} m={S.db.get(c.n)} />{c.q > 1 ? ` ×${c.q}` : ""}</li>)}</ul> : <p class="muted">Ninguna.</p>}</div>

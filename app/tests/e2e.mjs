@@ -211,12 +211,21 @@ const tests = [
     const { ctx, page } = await open(); await draftDeck(page, "Hakbal", 3);
     const id = (await deckState(page)).id; const before = await page.evaluate(() => window.__boveda.S.decks[0].cards.map(c => c.n).sort().join("|"));
     for (const n of ["Rhystic Study", "Worldly Tutor"]) { await page.evaluate(([i, n]) => window.__boveda.store.addCard(i, n), [id, n]); }
-    await page.evaluate(i => window.__boveda.store.removeCard(i, "Rhystic Study"), id);
+    await page.evaluate(i => { const { S, store } = window.__boveda; return store.removeCard(i, S.decks[0].cards.find(c => c.q === 1 && c.n !== "Rhystic Study").n); }, id);
     let st = await deckState(page); check(st.versions === 1, `tres cambios seguidos dejan una sola versión, hay ${st.versions}`);
     await page.goto(site.url + `#/mazo/${id}/versiones`); await page.waitForSelector(".versions li");
     await page.getByRole("button", { name: "Volver a esta" }).click(); await page.getByRole("button", { name: "Toca de nuevo para restaurarla" }).click();
     await page.waitForFunction(b => window.__boveda.S.decks[0].cards.map(c => c.n).sort().join("|") === b, before);
     st = await deckState(page); check(st.main === 99, "lista restaurada con 99");
+    check(st.versions === 2, `la lista que había antes de restaurar quedó como versión (hay ${st.versions})`);
+    check(/quedó guardada en Versiones/.test(await page.locator(".toast").innerText()), "el aviso dice la verdad");
+    // dos cambios sin esperar entre ellos: ninguno se pierde
+    const two = await page.evaluate(() => { const { S, store } = window.__boveda; const d = S.decks[0]; const [a, b] = d.cards.filter(c => c.q === 1).slice(0, 2).map(c => c.n); store.removeCard(d.id, a); store.removeCard(d.id, b); const now = S.decks[0].cards.map(c => c.n); return !now.includes(a) && !now.includes(b); });
+    check(two, "dos toques seguidos quitan las dos cartas");
+    // un cambio grande siempre deja versión, aunque haya una reciente
+    const v0 = (await deckState(page)).versions;
+    await page.evaluate(() => { const { S, store } = window.__boveda; const d = S.decks[0]; return store.saveDeck({ ...d, cards: d.cards.slice(0, 50) }, "editar la lista"); });
+    check((await deckState(page)).versions === v0 + 1, "reemplazar la lista deja versión");
     await ctx.close();
   }],
 
@@ -266,6 +275,81 @@ const tests = [
     await p2.locator('input[type="file"]').setInputFiles({ name: "x.json", mimeType: "application/json", buffer: Buffer.from("{\"hola\":1}") });
     await p2.waitForSelector(".note.bad"); check((await p2.evaluate(() => window.__boveda.S.decks.length)) === 2, "nada cambió");
     await s2.ctx.close();
+  }],
+
+  ["importar sobre datos existentes deja versión, y un respaldo mal formado no rompe la app", async () => {
+    const { ctx, page } = await open(); await draftDeck(page, "Hakbal", 3);
+    const id = (await deckState(page)).id;
+    const backup = await page.evaluate(() => JSON.stringify(window.__boveda.store.makeBackup()));
+    await page.evaluate(() => { const { S, store } = window.__boveda; const d = S.decks[0]; return store.saveDeck({ ...d, name: "Cambiado", cards: d.cards.slice(0, 40) }, "editar la lista"); });
+    const v0 = (await deckState(page)).versions;
+    await page.goto(site.url + "#/ajustes");
+    const up = (name, text) => page.locator('input[type="file"]').setInputFiles({ name, mimeType: "application/json", buffer: Buffer.from(text) });
+    await up("r.json", backup); await page.waitForSelector(".note.info");
+    check(/1 mazo que ya tenías se reemplazó/.test(await page.locator(".note.info").innerText()), "avisa que reemplazó: " + await page.locator(".note.info").innerText());
+    let st = await deckState(page); check(st.main === 99 && st.versions === v0 + 1, "la lista de 40 quedó como versión antes de reemplazarla");
+    // respaldo de la Bóveda dos veces: las versiones no se duplican
+    const old = JSON.stringify({ app: "boveda-edh", collection: { items: [] }, decks: [{ id: "v1", format: "commander", name: "Viejo", commanders: ["Hapatra, Vizier of Poisons"], cards: [{ n: "Swamp", q: 30 }], versions: [{ at: 5, savedAt: 6, src: "manual", cards: [{ n: "Swamp", q: 9 }] }] }], games: [] });
+    await up("a.json", old); await page.waitForFunction(() => window.__boveda.S.decks.some(d => d.id === "v1")); await up("b.json", old); await page.waitForTimeout(300);
+    check((await page.evaluate(() => window.__boveda.S.versions.filter(v => v.deckId === "v1").length)) === 1, "importar dos veces no duplica versiones");
+    // respaldo mal formado: combos rotos, partida rota, id con barra, cantidad absurda, dirección peligrosa
+    const bad = JSON.stringify({ app: "boveda-constructor", version: 1, decks: [
+        { id: "a/b<c>", name: "Roto", commanders: ["Hakbal of the Surging Soul"], cards: [{ n: "Forest", q: 30000000 }, { n: "Sol Ring", q: "x" }, null, 7], combos: { inc: 5 }, plan: { bracket: 99, inter: "zzz", theme: 5 } },
+        { id: "malo2", name: "Combos raros", commanders: ["Hakbal of the Surging Soul"], cards: Array.from({ length: 70 }, (_, i) => ({ n: "Island", q: 1 })), combos: { at: 1, inc: [{ id: 1, cards: null }, { id: 2, cards: ["Sol Ring", 5] }, "x"], almost: null } }],
+      games: [{ id: "g9", deckId: "malo2", res: "win", opp: 7, turn: "abc", seat: 9 }, { id: "g10", deckId: "malo2", res: "nope" }],
+      versions: [{ id: "v9", deckId: "malo2", cards: "no", label: {} }],
+      cards: [{ k: "sol-ring", card: { n: "Sol Ring", rv: 6, uri: "javascript:alert(1)", img: "https://evil.example/x.png", at: 9e15, t: "Artifact", r: "x", tg: null } }, { k: "test-evil", card: { n: "Test Evil", rv: 6, uri: "javascript:alert(1)", img: "https://evil.example/x.png", at: 9e15, t: "Artifact", tg: [], rf: [], r: [] } }] });
+    await up("malo.json", bad); await page.waitForFunction(() => window.__boveda.S.decks.some(d => d.name === "Roto"));
+    const r = await page.evaluate(() => { const { S } = window.__boveda; const d = S.decks.find(x => x.name === "Roto"), e = S.decks.find(x => x.id === "malo2"); const c = S.db.cards.get("test-evil"); return { id: d.id, q: d.cards.map(c => c.q), combos: d.combos, plan: d.plan, inc: e.combos.inc, games: S.games.filter(g => g.deckId === "malo2"), v: S.versions.filter(v => v.deckId === "malo2"), uri: c && c.uri, img: c && c.img, at: c && c.at <= Date.now() }; });
+    check(/^[\w-]+$/.test(r.id), "id saneado: " + r.id); check(r.q.every(q => q >= 1 && q <= 99), "cantidades acotadas: " + r.q);
+    check(r.combos === undefined && r.plan.bracket === null && r.plan.inter === "mid" && typeof r.plan.theme === "string", "combos y plan inválidos descartados");
+    check(r.inc.length === 1 && r.inc[0].cards.join() === "Sol Ring", "solo queda el combo bien formado");
+    check(r.games.length === 1 && Array.isArray(r.games[0].opp) && r.games[0].turn === 0 && r.games[0].seat === null, "partida saneada: " + JSON.stringify(r.games));
+    check(r.v.length === 1 && Array.isArray(r.v[0].cards) && typeof r.v[0].label === "string", "versión saneada");
+    check(r.uri === "" && r.img === "" && r.at, "direcciones ajenas a Scryfall descartadas");
+    for (const path of ["#/", `#/mazo/${r.id}/armar`, "#/mazo/malo2/probar", "#/mazo/malo2/ajustar", "#/mazo/malo2/versiones"]) {
+      await page.goto(site.url + path); await page.waitForTimeout(150);
+      check(await page.locator(".deck-row, .steps").count() > 0, `${path} se muestra`); check(!(await page.locator("text=no se pudo mostrar").count()), `${path} sin error`);
+    }
+    await page.goto(site.url + "#/mazo/malo2/probar"); await page.getByRole("tab", { name: "Reales" }).click(); await page.waitForSelector(".games li");
+    await page.goto(site.url + "#/mazo/malo2/ajustar"); await page.getByRole("tab", { name: "Combos" }).click(); await page.waitForSelector(".combos li");
+    await ctx.close(); return `${id.length ? "ok" : ""}`;
+  }],
+
+  ["Scryfall caído: pocas consultas y un mensaje que no culpa a los nombres", async () => {
+    const { ctx, page } = await open(); const before = calls.scryfall; net.scry500 = true;
+    try {
+      await page.getByRole("button", { name: "Traer una lista que ya tengo" }).click();
+      await page.locator(".sheet textarea").fill(fixture("hakbal.txt")); await page.getByRole("button", { name: "Crear mazo" }).click();
+      await page.waitForSelector(".toast.warn", { timeout: 20000 });
+      check(/Scryfall no está respondiendo/.test(await page.locator(".toast").innerText()), "mensaje: " + await page.locator(".toast").innerText());
+      await idle(page); check(calls.scryfall - before <= 6, `consultas a Scryfall con el servicio caído: ${calls.scryfall - before}`);
+    } finally { net.scry500 = false; }
+    // cuando vuelve, las cartas se traen al pedirlo
+    await toastGone(page); await page.getByRole("button", { name: "Actualizar cartas" }).click(); await idle(page);
+    check((await deckState(page)).missing === 0, "al volver Scryfall, las cartas llegan");
+    await ctx.close();
+  }],
+
+  ["el tema del plan cambia las sugerencias, y sin almacenamiento la app avisa", async () => {
+    const { ctx, page } = await open(); await draftDeck(page, "Hakbal", 3); const id = (await deckState(page)).id;
+    await page.goto(site.url + `#/mazo/${id}/plan`); await page.getByRole("button", { name: "Merfolk", exact: true }).click();
+    await page.waitForFunction(() => { const { S, store } = window.__boveda; const E = store.edhOf(S.decks[0]); return E && E.theme === "Merfolk"; }, null, { timeout: 15000 });
+    await page.goto(site.url + `#/mazo/${id}/ajustar`); await page.waitForSelector(".sec-aside");
+    check(/tema Merfolk/.test(await page.locator(".sec-aside").first().innerText()), "Ajustar usa el tema");
+    await ctx.close();
+    // navegador que no deja usar IndexedDB
+    const c2 = await browser.newContext({ viewport: { width: 390, height: 844 } }); const p2 = await c2.newPage();
+    await p2.addInitScript(() => { Object.defineProperty(window, "indexedDB", { get() { throw new Error("bloqueado"); } }); });
+    await mock(p2); await p2.goto(site.url); await p2.waitForSelector(".hero");
+    await p2.waitForSelector(".note.bad"); check(/no deja guardar datos/.test(await p2.locator(".note.bad").first().innerText()), "aviso en la portada");
+    await c2.close();
+  }],
+
+  ["el arranque nunca queda pegado en “Abriendo tus mazos”", async () => {
+    const { ctx, page } = await open(); await draftDeck(page, "Hakbal", 3);
+    for (let i = 0; i < 25; i++) { await page.reload(); await page.waitForSelector(".slots", { timeout: 5000 }); }
+    await ctx.close(); return "25 recargas";
   }],
 
   ["meta: torneos, Game Changers y reglas de brackets", async () => {

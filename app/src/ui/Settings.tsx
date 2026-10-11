@@ -3,7 +3,7 @@ import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { S, makeBackup, saveSettings, ensureCards, toast, type ImportReport } from "../data/store.ts";
 import { importBackupText } from "../data/backup.ts";
-import { usage, memoryOnly } from "../data/idb.ts";
+import { usage, isMemoryOnly } from "../data/idb.ts";
 import { allNames } from "../engine/index.ts";
 import { Note, Section, agoTxt, dateTime, download, plural } from "./kit.tsx";
 
@@ -27,12 +27,12 @@ export function SettingsScreen(): JSX.Element {
     <div>
       <div class="page-h"><h1>Ajustes</h1></div>
       <Section title="Respaldo">
-        <p>Tus mazos viven en este navegador. Un respaldo es un archivo con tus mazos, versiones y partidas, para pasarlos a otro equipo o guardarlos por seguridad.</p>
+        <p>Tus mazos viven en este navegador. Un respaldo es un archivo con tus mazos, versiones y partidas, para pasarlos a otro equipo o guardarlos por seguridad. Al importar, un mazo del archivo reemplaza al que ya tengas con el mismo origen; los demás no se tocan.</p>
         {stale ? <Note tone="warn">{S.settings.lastBackup ? `Tu último respaldo es de ${agoTxt(S.settings.lastBackup)}.` : "Todavía no has descargado un respaldo."} Si borras los datos del navegador, los mazos se pierden.</Note> : S.settings.lastBackup ? <p class="muted small">Último respaldo: {dateTime(S.settings.lastBackup)}.</p> : null}
         <div class="row"><button class="btn primary" disabled={!S.decks.length} onClick={backup}>Descargar respaldo</button><button class="btn" onClick={() => file.current && file.current.click()}>Importar respaldo</button></div>
         <input ref={file} type="file" accept=".json,application/json" hidden aria-label="Archivo de respaldo" onChange={e => void onFile((e.target as HTMLInputElement).files?.[0])} />
         {err ? <Note tone="bad">{err}</Note> : null}
-        {rep ? <Note tone="info">Se importaron {plural(rep.decks, "mazo", "mazos")}, {plural(rep.versions, "versión", "versiones")} y {plural(rep.games, "partida", "partidas")}.{rep.note === "bóveda" ? ` Venían de la Bóveda${rep.skipped ? `: ${plural(rep.skipped, "mazo de otro formato se dejó", "mazos de otros formatos se dejaron")} fuera, igual que la colección y los precios` : ""}.` : ""} Lo que ya tenías sigue ahí.</Note> : null}
+        {rep ? <Note tone="info">Se importaron {plural(rep.decks, "mazo", "mazos")}, {plural(rep.versions, "versión", "versiones")} y {plural(rep.games, "partida", "partidas")}.{rep.note === "bóveda" ? ` Venían de la Bóveda${rep.skipped ? `: ${plural(rep.skipped, "mazo de otro formato se dejó", "mazos de otros formatos se dejaron")} fuera, igual que la colección y los precios` : ""}.` : ""} {rep.replaced ? `${plural(rep.replaced, "mazo que ya tenías se reemplazó por el del archivo; su lista anterior quedó", "mazos que ya tenías se reemplazaron por los del archivo; sus listas anteriores quedaron")} en Versiones.` : "Los mazos que no venían en el archivo siguen como estaban."}</Note> : null}
       </Section>
 
       <Section title="Traer mis mazos desde la Bóveda">
@@ -45,7 +45,7 @@ export function SettingsScreen(): JSX.Element {
       </Section>
 
       <Section title="Almacenamiento">
-        {memoryOnly ? <Note tone="bad">Este navegador no deja guardar datos (puede ser una ventana privada). Lo que hagas se pierde al cerrar la pestaña: descarga un respaldo antes de salir.</Note> : null}
+        {isMemoryOnly() ? <Note tone="bad">Este navegador no deja guardar datos (puede ser una ventana privada). Lo que hagas se pierde al cerrar la pestaña: descarga un respaldo antes de salir.</Note> : null}
         <p class="muted">{plural(S.decks.length, "mazo", "mazos")}, {plural(S.versions.length, "versión", "versiones")} y {plural(S.games.length, "partida", "partidas")}.{use && use.quota ? ` La app ocupa ${mb(use.used)} de ${mb(use.quota)} disponibles.` : ""}</p>
       </Section>
 

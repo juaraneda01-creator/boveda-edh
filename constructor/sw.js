@@ -1,6 +1,6 @@
 // Archivo de servicio del Constructor. Regla única: primero la red; lo guardado solo se usa sin conexión.
 // Así una versión nueva se ve apenas se publica y la app igual abre sin internet.
-const CACHE = "constructor-cf09a00";
+const CACHE = "constructor-f31cd60";
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => e.waitUntil((async () => {
   for (const k of await caches.keys()) if (k.startsWith("constructor-") && k !== CACHE) await caches.delete(k);

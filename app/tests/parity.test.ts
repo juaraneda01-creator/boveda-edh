@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { hasLegacy, loadLegacy } from "./legacy.ts";
 import {
   MemoryDb, fromScry, parseList, splitParsed, analyze, bracketOf, manaBase, karstenLands, simulateHands, simRun, synergyOf,
-  playBracket, swaps, bracketPlan, comboEngine, seeded, slug, GC_FALLBACK,
+  playBracket, bracketPlan, comboEngine, seeded, slug, GC_FALLBACK,
   type Card, type Deck, type EdhData, type ScryCard,
 } from "../src/engine/index.ts";
 
@@ -116,12 +116,12 @@ test("partidas simuladas: con la misma semilla, los mismos resultados", { skip }
   assert.deepEqual(plain(r4.decks.map(d => [d.id, d.w, d.avgTurn])), old4);
 });
 
-test("cambios sugeridos y plan por bracket iguales (sin límite de bracket)", { skip }, () => {
+// Los cambios uno por uno (swaps) ya no se comparan: el motor nuevo usa las metas del plan, cuenta los
+// contrahechizos como removal y respeta el bracket, a propósito. Sus pruebas están en engine.test.ts.
+test("plan por bracket igual al original", { skip }, () => {
   for (const d of decks) {
     const E = fakePool(d); const A = analyze(d, db);
     L!.run(`S.edh[${JSON.stringify(d.commanders.map(c => c.split(" // ")[0].toLowerCase().normalize("NFD").replace(/['’,.!?"():]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")).join("-"))}] = ${JSON.stringify(E)};`);
-    const oldS = L!.run<[string, string][]>(`(()=>{ const d=__decks.find(x=>x.id==="${d.id}"); return optimizeLocal(d, analyze(d), edhOf(d), "inf").map(x=>[x.sale, x.entra]); })()`);
-    assert.deepEqual(swaps(d, A, E, db, d.plan).map(x => [x.out, x.in]), plain(oldS), d.name + " · cambios");
     for (const target of [2, 3, 4, 5]) {
       const oldP = L!.run<Record<string, unknown>>(`(()=>{ const d=__decks.find(x=>x.id==="${d.id}"); const P=bracketPlan(d, analyze(d), ${target}); return JSON.parse(JSON.stringify({checks:P.checks.map(c=>[c.ok,c.t]), cuts:P.cuts.map(c=>[c.n,c.why,c.rep]), adds:P.adds.map(a=>a.n)})); })()`);
       const P = bracketPlan(d, A, target, db, E);

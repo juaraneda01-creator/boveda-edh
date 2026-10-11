@@ -20,7 +20,8 @@ export function bracketImpact(d: Deck, name: string): string | null {
 export function CardSheet({ name, deckId, onClose }: { name: string; deckId?: string; onClose: () => void }): JSX.Element {
   const m = S.db.get(name); const d = deckId ? deckById(deckId) : undefined;
   useEffect(() => { if (!m) void ensureCards([name], { quiet: true }); }, [name]);
-  const inMain = !!d && d.cards.some(c => slug(c.n) === slug(name)), inMaybe = !!d && d.maybe.some(c => slug(c.n) === slug(name)), isCmd = !!d && d.commanders.some(c => slug(c) === slug(name));
+  const copies = d ? (d.cards.find(c => slug(c.n) === slug(name)) || { q: 0 }).q : 0;
+  const inMain = copies > 0, inMaybe = !!d && d.maybe.some(c => slug(c.n) === slug(name)), isCmd = !!d && d.commanders.some(c => slug(c) === slug(name));
   const E = d ? edhOf(d) : null; const e = E && E.pool.find(p => slug(p.n) === slug(name));
   const link = d && insight(d).Y.links.get(m ? m.n : name);
   const impact = d && !inMain && !isCmd ? bracketImpact(d, name) : null;
@@ -28,7 +29,7 @@ export function CardSheet({ name, deckId, onClose }: { name: string; deckId?: st
   return (
     <Sheet title={m ? m.n : name} onClose={onClose}>
       <div class="cardsheet">
-        {m && m.img ? <img class="card-img" src={m.img} alt={`Carta ${m.n}`} width="244" height="340" loading="lazy" /> : <div class="card-img ph" aria-hidden="true"><span>{m ? m.tl : "Sin imagen"}</span></div>}
+        {m && /^https:\/\/cards\.scryfall\.io\//.test(m.img) ? <img class="card-img" src={m.img} alt={`Carta ${m.n}`} width="244" height="340" loading="lazy" /> : <div class="card-img ph" aria-hidden="true"><span>{m ? m.tl : "Sin imagen"}</span></div>}
         <div class="cardsheet-info">
           {!m ? <p class="muted">{S.busy ? "Buscando la carta en Scryfall…" : "Scryfall no tiene datos de esta carta con ese nombre. Revisa que esté en inglés."}</p> : <>
             <p class="card-type"><Pips ci={m.ci} /> {m.tl}{m.t !== "Land" ? `, coste ${m.cmc}` : ""}</p>
@@ -47,11 +48,11 @@ export function CardSheet({ name, deckId, onClose }: { name: string; deckId?: st
           {impact ? <p class="small warn-text">{impact}</p> : null}
           {d ? <div class="row">
             {isCmd ? <span class="muted">Es tu comandante.</span>
-              : inMain ? <><button class="btn" onClick={() => { void removeCard(d.id, name); onClose(); }}>Quitar del mazo</button><button class="btn ghost" onClick={() => { void moveCard(d.id, name, "maybe"); onClose(); }}>Pasar a probables</button></>
+              : inMain ? <><button class="btn" onClick={() => { void removeCard(d.id, name, "cards", copies <= 1); onClose(); }}>{copies > 1 ? `Quitar una copia (hay ${copies})` : "Quitar del mazo"}</button><button class="btn ghost" onClick={() => { void moveCard(d.id, name, "maybe"); onClose(); }}>Pasar a probables</button></>
               : inMaybe ? <><button class="btn primary" onClick={() => { void moveCard(d.id, name, "cards"); onClose(); }}>Pasar al mazo</button><button class="btn ghost" onClick={() => { void removeCard(d.id, name, "maybe"); onClose(); }}>Quitar de probables</button></>
               : <><button class="btn primary" onClick={() => { void addCard(d.id, name); onClose(); }}>Agregar al mazo</button><button class="btn ghost" onClick={() => { void addCard(d.id, name, "maybe"); onClose(); }}>Dejar en probables</button></>}
           </div> : null}
-          {m && m.uri ? <p class="small"><a href={m.uri} target="_blank" rel="noopener noreferrer">Ver el texto completo en Scryfall</a></p> : null}
+          {m && /^https:\/\/scryfall\.com\//.test(m.uri) ? <p class="small"><a href={m.uri} target="_blank" rel="noopener noreferrer">Ver el texto completo en Scryfall</a></p> : null}
         </div>
       </div>
     </Sheet>

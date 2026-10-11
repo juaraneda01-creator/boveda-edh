@@ -16,7 +16,8 @@ export function openCard(name: string, deckId?: string): void { ui.card = { name
 /** Vuelve a dibujar el componente cuando cambia el estado de la app. */
 export function useStore(): typeof S {
   const [, set] = useState(0);
-  useEffect(() => subscribe(() => set(x => x + 1)), []);
+  // el arranque puede terminar antes de que este efecto corra: al suscribirse se redibuja una vez por si acaso
+  useEffect(() => { const off = subscribe(() => set(x => x + 1)); set(x => x + 1); return off; }, []);
   return S;
 }
 export function useHash(): string {

@@ -7,6 +7,7 @@ const DB_NAME = "boveda-constructor", DB_VERSION = 1;
 let dbp: Promise<IDBDatabase> | null = null;
 /** Si el navegador no deja usar IndexedDB (modo privado antiguo, bloqueo), los datos viven solo en memoria. */
 export let memoryOnly = false;
+export const isMemoryOnly = (): boolean => memoryOnly;
 const mem: Record<StoreName, Map<string, unknown>> = { decks: new Map(), versions: new Map(), games: new Map(), cards: new Map(), kv: new Map() };
 
 function open(): Promise<IDBDatabase> {
@@ -22,10 +23,15 @@ function open(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains("cards")) db.createObjectStore("cards", { keyPath: "k" });
       if (!db.objectStoreNames.contains("kv")) db.createObjectStore("kv", { keyPath: "k" });
     };
-    r.onsuccess = () => res(r.result);
+    r.onsuccess = () => {
+      const db = r.result;
+      // el sistema puede cerrar la conexión (pasa en iOS al volver de segundo plano): la próxima operación la reabre
+      db.onclose = () => { dbp = null; }; db.onversionchange = () => { db.close(); dbp = null; };
+      res(db);
+    };
     r.onerror = () => rej(r.error);
     r.onblocked = () => rej(new Error("base de datos bloqueada"));
-  }).catch(e => { memoryOnly = true; throw e; });
+  }).catch(e => { memoryOnly = true; dbp = null; throw e; });
   return dbp;
 }
 
@@ -40,30 +46,29 @@ export async function getAll<T>(store: StoreName): Promise<T[]> {
 }
 
 const tryOpen = (): Promise<IDBDatabase | null> => open().catch(() => null);
+/** Corre una transacción de escritura; si la conexión estaba cerrada, la reabre y reintenta una vez. */
+async function write(stores: StoreName | StoreName[], work: (tx: IDBTransaction) => void): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    const db = await tryOpen(); if (!db) return;
+    try { const tx = db.transaction(stores, "readwrite"); work(tx); await done(tx); return; }
+    catch (e) { if (attempt === 0 && e instanceof DOMException && e.name === "InvalidStateError") { dbp = null; continue; } throw e; }
+  }
+}
 
 /** Guarda uno o más registros. Si el navegador rechaza la escritura (sin espacio), el error llega a quien llamó. */
 export async function put(store: StoreName, ...values: unknown[]): Promise<void> {
   for (const v of values) mem[store].set(keyOf(store, v), v);
-  const db = await tryOpen(); if (!db) return;
-  const tx = db.transaction(store, "readwrite"); const os = tx.objectStore(store);
-  for (const v of values) os.put(v);
-  await done(tx);
+  await write(store, tx => { const os = tx.objectStore(store); for (const v of values) os.put(v); });
 }
 
 export async function del(store: StoreName, ...keys: string[]): Promise<void> {
   for (const k of keys) mem[store].delete(k);
-  const db = await tryOpen(); if (!db) return;
-  const tx = db.transaction(store, "readwrite"); const os = tx.objectStore(store);
-  for (const k of keys) os.delete(k);
-  await done(tx);
+  await write(store, tx => { const os = tx.objectStore(store); for (const k of keys) os.delete(k); });
 }
 
 export async function clearAll(stores: StoreName[]): Promise<void> {
   for (const s of stores) mem[s].clear();
-  const db = await tryOpen(); if (!db) return;
-  const tx = db.transaction(stores, "readwrite");
-  for (const s of stores) tx.objectStore(s).clear();
-  await done(tx);
+  await write(stores, tx => { for (const s of stores) tx.objectStore(s).clear(); });
 }
 
 export async function kvGet<T>(k: string): Promise<T | null> {

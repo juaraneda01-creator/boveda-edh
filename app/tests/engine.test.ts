@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import {
   MemoryDb, fromScry, parseList, splitParsed, textToDeck, deckText, diffLists, analyze, bracketOf, synergyOf, slotGoals, buildSlots, nextStep,
   completeDeck, slotSuggestions, swaps, metaCompare, compareVersions, simulateHands, hyper, gameStats, winTurnOf, playBracket, seeded, slug,
+  slotsOfCard, supportCount, isCounter,
   GC_FALLBACK, type Deck, type EdhData, type Game, type Plan, type ScryCard,
 } from "../src/engine/index.ts";
 
@@ -214,4 +215,46 @@ test("bracket oficial: umbrales de Game Changers, turnos extra, tierras y combos
   assert.equal(br([], combo(["A", "B"])).b, 4, "combo de 2 cartas");
   assert.equal(br([], combo(["A", "B", "C"])).b, 2, "un combo de 3 cartas no sube el bracket");
   assert.equal(br([]).exact, false); assert.equal(br([], combo(["A", "B", "C"])).exact, true, "con combos revisados el bracket es exacto");
+});
+
+test("cambios sugeridos: sin colores para un comandante incoloro y nada si faltan sus datos", () => {
+  const extra = new MemoryDb(new Map(db.cards), GC_FALLBACK);
+  extra.put(fromScry(card("Test Golem Commander", "Legendary Artifact Creature — Golem", "", { color_identity: [], colors: [], mana_cost: "{5}", cmc: 5 })));
+  for (let i = 0; i < 70; i++) extra.put(fromScry(card(`Test Rock ${i}`, "Artifact", i % 2 ? "{T}: Add {C}." : "Draw two cards.", { color_identity: [], colors: [], mana_cost: "{2}", cmc: 2, produced_mana: i % 2 ? ["C"] : [] })));
+  const d = { ...hakbal, commanders: ["Test Golem Commander"], cards: Array.from({ length: 60 }, (_, i) => ({ n: `Test Rock ${i}`, q: 1 })) };
+  const E: EdhData = { at: 1, slug: "x", decks: 100, themes: [], pool: [...pool.pool, ...Array.from({ length: 10 }, (_, i) => ({ n: `Test Rock ${60 + i}`, incl: 0.5, syn: 0 }))] };
+  const S = swaps(d, analyze(d, extra), E, extra, plan());
+  assert.ok(S.length > 0, "propone cambios");
+  for (const s of S) assert.equal(extra.get(s.in)!.ci, "", `${s.in} tiene color y el comandante es incoloro`);
+  const unknown = { ...hakbal, commanders: ["Comandante Sin Datos"] };
+  assert.deepEqual(swaps(unknown, analyze(unknown, db), pool, db, plan()), [], "sin datos del comandante no se sugiere nada");
+});
+
+test("contrahechizos: cuentan en la casilla Removal y las metas del plan guían los cambios", () => {
+  const counter = fromScry(card("Test Swan Song", "Instant", "Counter target enchantment, instant, or sorcery spell.", { color_identity: ["U"], colors: ["U"], mana_cost: "{U}", cmc: 1 }));
+  assert.ok(!(counter.r as string[]).includes("removal") && isCounter(counter), "el texto no calza con el rol removal, pero es contrahechizo");
+  assert.deepEqual(slotsOfCard(counter, false), ["removal"], "va a la casilla Removal, no a Sin casilla");
+  const local = new MemoryDb(new Map(db.cards), GC_FALLBACK); local.put(counter);
+  const d = { ...hakbal, cards: [...hakbal.cards, { n: "Test Swan Song", q: 1 }] };
+  const A = analyze(d, local); const slots = buildSlots(A, synergyOf(A), plan());
+  const rem = slots.find(s => s.k === "removal")!;
+  assert.equal(rem.count, supportCount(A, "removal")); assert.equal(rem.count, A.roles.removal + rem.rows.filter(r => !(r.m!.r as string[]).includes("removal")).reduce((a, r) => a + r.q, 0));
+  assert.ok(rem.rows.some(r => r.n === "Test Swan Song"));
+  // con interacción "Poca" (meta 4 a 6) y más removal que eso, ningún cambio dice que falta removal
+  const few = supportCount(A, "removal"); assert.ok(few > 6, `el mazo de prueba lleva ${few} de removal`);
+  for (const s of swaps(d, A, pool, local, plan(null, "low"))) assert.ok(!s.fills.includes("removal"), `${s.in}: no falta removal con interacción Poca`);
+});
+
+test("cambios sugeridos: no proponen cortar cartas con varias copias", () => {
+  const d = { ...hakbal, cards: [...hakbal.cards.slice(0, 60), { n: "Relentless Rats", q: 20 }] };
+  const local = new MemoryDb(new Map(db.cards), GC_FALLBACK); local.put(fromScry(card("Relentless Rats", "Creature — Rat", "A deck can have any number of cards named Relentless Rats.", { color_identity: ["G"] })));
+  assert.ok(swaps(d, analyze(d, local), pool, local, plan()).every(s => s.out !== "Relentless Rats"));
+});
+
+test("lector de listas: cantidades absurdas y listas enormes quedan acotadas", () => {
+  const p = parseList("30000000 Forest\n-5 Island\n1 Sol Ring");
+  assert.equal(p.find(c => c.n === "Forest")!.q, 99, "tope de 99 por carta");
+  assert.ok(p.every(c => c.q >= 1 && c.q <= 99));
+  const many = parseList(Array.from({ length: 5000 }, (_, i) => `1 Carta ${i}`).join("\n"));
+  assert.ok(many.length <= 600, `quedaron ${many.length} entradas`);
 });

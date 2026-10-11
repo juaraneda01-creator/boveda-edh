@@ -1,9 +1,9 @@
 // Qué cambiar: sugerencias por casilla, cambios uno por uno, plan para llegar a un bracket
 // y comparación con lo que juega la gente con el mismo comandante.
 import type { Card, CardDb, Deck, EdhData, Plan } from "./types.ts";
-import { TARGETS, bracketRule, combos2, type Analysis, type BracketRule, type DeckLike } from "./analyze.ts";
+import { bracketRule, combos2, type Analysis, type BracketRule, type DeckLike } from "./analyze.ts";
 import { bracketAllows, gcLimit, inIdentity, isCounter, poolScore } from "./build.ts";
-import type { SlotKey } from "./slots.ts";
+import { slotGoals, supportCount, type SlotKey } from "./slots.ts";
 import type { Synergy } from "./synergy.ts";
 import { CEDH_STAPLES, FAST_MANA, FREE_INTERACTION } from "./constants.ts";
 import { ROLE_ES, slug } from "./util.ts";
@@ -45,19 +45,25 @@ export interface Swap { out: string; in: string; why: string; fills: string[] }
 export function swaps(d: Pick<Deck, "commanders">, A: Analysis, E: EdhData, db: CardDb, plan: Plan, limit = 12): Swap[] {
   const inDeck = inDeckSet(d, A);
   const scoreMap = new Map(E.pool.map(p => [slug(p.n), p]));
-  const deficit: string[] = TARGETS.filter(t => t.k !== "land" && A.roles[t.k] < t.lo).map(t => t.k);
-  const surplus: string[] = TARGETS.filter(t => t.k !== "land" && A.roles[t.k] > t.hi).map(t => t.k);
+  // sin los datos del comandante no se conoce la identidad de color: mejor no sugerir que sugerir fuera de color
+  if (!A.cmdMeta.length || !A.cmdMeta.every(Boolean)) return [];
+  // qué funciones faltan o sobran según las metas del plan (las mismas que muestran las casillas)
+  const support = slotGoals(plan, (d.commanders || []).length).filter(g => ["ramp", "draw", "removal", "wipe", "protection"].includes(g.k));
+  const deficit: string[] = support.filter(g => supportCount(A, g.k) < g.lo).map(g => g.k);
+  const surplus: string[] = support.filter(g => supportCount(A, g.k) > g.hi).map(g => g.k);
+  const rolesOf = (m: Card): string[] => [...(m.r as string[]), ...(isCounter(m) && !(m.r as string[]).includes("removal") ? ["removal"] : [])];
   let gcLeft = gcLimit(plan.bracket) - A.gc.length;
   const adds = E.pool.filter(p => !inDeck.has(slug(p.n))).map(p => {
     const m = db.get(p.n); if (!m || m.t === "Land") return null;
-    if (A.ci && !inIdentity(m, A.ci)) return null;
+    if (!inIdentity(m, A.ci)) return null;
     if (m.legal && m.legal !== "legal") return null;
     if (!bracketAllows(m, plan.bracket)) return null;
-    const fills = (m.r as string[]).filter(x => deficit.includes(x));
+    const fills = rolesOf(m).filter(x => deficit.includes(x));
     return { n: m.n, m, incl: p.incl, syn: p.syn, fills, score: poolScore(p) + fills.length * 20 };
   }).filter((x): x is NonNullable<typeof x> => !!x).sort((a, b) => b.score - a.score);
-  const cuts = A.rows.filter(r => r.m && r.m.t !== "Land" && !r.m.basic).map(r => {
-    const s = scoreMap.get(slug(r.n)); const roles = (r.m!.r || []) as string[];
+  // las cartas con varias copias (Relentless Rats y parecidas) no se proponen como corte: son el plan del mazo
+  const cuts = A.rows.filter(r => r.m && r.m.t !== "Land" && !r.m.basic && r.q === 1).map(r => {
+    const s = scoreMap.get(slug(r.n)); const roles = rolesOf(r.m!);
     const protectedRole = roles.some(x => deficit.includes(x));
     const score = (s ? poolScore(s) : 0) + (protectedRole ? 40 : 0) - (roles.some(x => surplus.includes(x)) ? 15 : 0) + (r.m!.gc ? 10 : 0);
     return { n: r.n, incl: s ? s.incl : null, score };

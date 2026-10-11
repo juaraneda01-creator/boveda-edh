@@ -40,17 +40,20 @@ async function sf(url: string, body?: unknown, tries = 0): Promise<Response> {
 /** Nombre limpio para Scryfall: sin código de edición, número ni marcas de foil. */
 export const cleanCardName = (n: string): string => String(n || "").replace(/[‘’]/g, "'").replace(/\s*\*[A-Z]+\*\s*$/i, "").replace(/\s*\([A-Za-z0-9]{2,6}\)\s*[\w-]*\s*$/, "").replace(/\s+/g, " ").trim();
 
-export interface FetchedCards { found: { card: ScryCard; asked: string }[]; notFound: string[]; offline: boolean }
+export interface FetchedCards { found: { card: ScryCard; asked: string }[]; notFound: string[]; offline: boolean; down: boolean }
 export async function fetchCards(names: string[], onStep?: (done: number, total: number) => void): Promise<FetchedCards> {
   const todo = [...new Map(names.filter(Boolean).map(n => [slug(n), String(n).trim()])).values()];
-  const out: FetchedCards = { found: [], notFound: [], offline: false };
+  const out: FetchedCards = { found: [], notFound: [], offline: false, down: false };
+  const pending: string[] = [];
   // un lote rechazado se divide: una carta con nombre raro no deja sin datos a las otras 74
   const batch = async (chunk: string[]): Promise<void> => {
     let r: Response;
     try { r = await sf("https://api.scryfall.com/cards/collection", { identifiers: chunk.map(n => ({ name: cleanCardName(n).split(" // ")[0] })) }); }
-    catch { out.offline = true; return; }
+    catch { out.offline = true; pending.push(...chunk); return; }
+    // 429 o 5xx: Scryfall no está respondiendo. No tiene sentido dividir el lote ni culpar a los nombres.
+    if (r.status === 429 || r.status >= 500) { out.down = true; pending.push(...chunk); return; }
     if (!r.ok) {
-      if (chunk.length > 1) { const h = Math.ceil(chunk.length / 2); await batch(chunk.slice(0, h)); if (!out.offline) await batch(chunk.slice(h)); }
+      if (chunk.length > 1) { const h = Math.ceil(chunk.length / 2); await batch(chunk.slice(0, h)); if (!out.offline && !out.down) await batch(chunk.slice(h)); }
       else out.notFound.push(chunk[0]);
       return;
     }
@@ -60,16 +63,21 @@ export async function fetchCards(names: string[], onStep?: (done: number, total:
     for (const nf of j.not_found || []) if (nf.name) out.notFound.push(byClean.get(slug(nf.name)) || nf.name);
   };
   let done = 0;
-  for (let i = 0; i < todo.length && !out.offline; i += 75) {
+  for (let i = 0; i < todo.length && !out.offline && !out.down; i += 75) {
     const chunk = todo.slice(i, i + 75); await batch(chunk); done += chunk.length; if (onStep) onStep(done, todo.length);
   }
   // segunda oportunidad para las que no calzaron exacto: búsqueda aproximada, una por una
   const retry = out.notFound.splice(0, 40); const still: string[] = [...out.notFound];
   for (const n of retry) {
-    if (out.offline) { still.push(n); continue; }
-    try { const r = await sf("https://api.scryfall.com/cards/named?fuzzy=" + encodeURIComponent(cleanCardName(n).split(" // ")[0])); if (r.ok) out.found.push({ card: await r.json() as ScryCard, asked: n }); else still.push(n); }
-    catch { out.offline = true; still.push(n); }
+    if (out.offline || out.down) { pending.push(n); continue; }
+    try {
+      const r = await sf("https://api.scryfall.com/cards/named?fuzzy=" + encodeURIComponent(cleanCardName(n).split(" // ")[0]));
+      if (r.ok) out.found.push({ card: await r.json() as ScryCard, asked: n });
+      else if (r.status === 429 || r.status >= 500) { out.down = true; pending.push(n); }
+      else still.push(n);
+    } catch { out.offline = true; pending.push(n); }
   }
+  // "no reconocidas" son solo las que Scryfall rechazó de verdad; las que quedaron sin consultar se reintentan después
   out.notFound = still;
   return out;
 }

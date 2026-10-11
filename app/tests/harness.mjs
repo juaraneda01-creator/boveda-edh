@@ -30,11 +30,12 @@ export function serve() {
 
 /** Lo que se pidió a cada sitio, para comprobar que la app no consulta de más. */
 export const calls = { scryfall: 0, collection: 0, edhrec: 0, spellbook: 0, edhtop16: 0, other: [] };
-export const net = { offline: false };
+export const net = { offline: false, scry500: false };
 
 const json = (route, body, status = 200) => route.fulfill({ status, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(body) });
 const edhPage = (theme) => {
-  const list = CARDS.filter(c => !/Basic/.test(c.type_line)).filter(c => !theme || /Merfolk/.test(c.type_line) || /merfolk/i.test(c.oracle_text || ""));
+  // la página de un tema trae otras 60 cartas, en otro orden
+  const all = CARDS.filter(c => !/Basic/.test(c.type_line)); const list = theme ? all.slice(-60).reverse() : all;
   return { num_decks_avg: 4321, container: { json_dict: { card: { num_decks: 4321 }, cardlists: [{ cardviews: list.map((c, i) => ({ name: c.name, potential_decks: 1000, num_decks: Math.max(20, 950 - i * 3), synergy: ((i * 7) % 40 - 10) / 100 })) }] } }, panels: { taglinks: [{ value: "Merfolk", count: 900, slug: "merfolk" }, { value: "Landfall", count: 300, slug: "landfall" }] } };
 };
 
@@ -46,6 +47,7 @@ export async function mock(page) {
     if (net.offline) return route.abort("internetdisconnected");
     if (u.hostname === "api.scryfall.com") {
       calls.scryfall++;
+      if (net.scry500) return json(route, { object: "error" }, 500);
       if (u.pathname === "/cards/collection") {
         calls.collection++;
         const ids = JSON.parse(req.postData()).identifiers; const data = [], not_found = [];

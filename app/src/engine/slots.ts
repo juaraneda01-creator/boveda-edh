@@ -45,12 +45,18 @@ export function slotGoals(plan: Plan, commanders = 1): SlotGoal[] {
 }
 
 const UTILITY: SlotKey[] = ["ramp", "draw", "removal", "wipe", "protection", "tutor"];
+/** ¿Es un contrahechizo? Cuentan como removal aunque el texto no diga "counter target spell" tal cual (Swan Song, Deflecting Swat). */
+export const isCounter = (m: Card): boolean => (m.rf || []).includes("counter") || (m.sb || []).includes("counter");
+/** ¿La carta cumple esta función de apoyo? */
+export const fills = (m: Card, k: SlotKey): boolean => m.t !== "Land" && ((m.r as string[]).includes(k) || (k === "removal" && isCounter(m)));
+/** Cuántas cartas del mazo cumplen una función de apoyo (lo mismo que muestra su casilla). */
+export const supportCount = (A: Analysis, k: SlotKey): number => A.rows.reduce((a, r) => a + (r.m && fills(r.m, k) ? r.q : 0), 0);
 
 /** A qué casillas pertenece una carta. `linked`: si conecta con algún tema activo del mazo. */
 export function slotsOfCard(m: Card | null, linked: boolean): SlotKey[] {
   if (!m) return ["other"];
   if (m.t === "Land") return ["land"];
-  const out: SlotKey[] = UTILITY.filter(k => (m.r as string[]).includes(k));
+  const out: SlotKey[] = UTILITY.filter(k => fills(m, k));
   if (linked || (m.r as string[]).includes("wincon")) out.push("plan");
   return out.length ? out : ["other"];
 }

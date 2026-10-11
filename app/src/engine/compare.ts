@@ -59,14 +59,17 @@ export async function compareVersions(input: CompareInput, db: CardDb): Promise<
   const verdict: "a" | "b" | "tie" = Math.abs(diff) <= margin ? "tie" : diff > 0 ? "b" : "a";
   const side = (name: string, X: Analysis, d: DeckLike, h: HandStats | null, s: typeof sa): Side => ({ name, A: X, bracket: bracketOf(d, X).b, hands: h, win: s.pct, ci: s.ci, avgTurn: s.avgTurn, how: s.how });
   const dl = diffLists(input.a.cards, input.b.cards);
-  const lower = (a: number | null, b: number | null): "a" | "b" | null => a == null || b == null || a === b ? null : a < b ? "a" : "b";
+  // "mejor" solo cuando la diferencia supera el ruido de la prueba de manos (unos 2 errores estándar con 4.000 manos)
+  const HANDS = 4000;
+  const lowerPct = (a: number | null, b: number | null): "a" | "b" | null => { if (a == null || b == null) return null; const se = Math.sqrt(a * (1 - a) / HANDS + b * (1 - b) / HANDS); return Math.abs(a - b) <= Math.max(0.005, 2 * se) ? null : a < b ? "a" : "b"; };
+  const lowerTurn = (a: number | null, b: number | null): "a" | "b" | null => a == null || b == null || Math.abs(a - b) < 0.15 ? null : a < b ? "a" : "b";
   const deltas: Delta[] = [
     { k: "Gana en la simulación", a: sa.pct, b: sb.pct, better: verdict === "tie" ? null : verdict, fmt: "pct" },
-    { k: "Turno en que gana", a: sa.avgTurn, b: sb.avgTurn, better: lower(sa.avgTurn, sb.avgTurn), fmt: "turn" },
-    { k: "Manos atascadas", a: hA && hA.pScrew, b: hB && hB.pScrew, better: lower(hA && hA.pScrew, hB && hB.pScrew), fmt: "pct" },
-    { k: "Manos con mulligan", a: hA && hA.pMull, b: hB && hB.pMull, better: lower(hA && hA.pMull, hB && hB.pMull), fmt: "pct" },
-    { k: "Comandante en mesa", a: hA && hA.avgTurn, b: hB && hB.avgTurn, better: lower(hA && hA.avgTurn, hB && hB.avgTurn), fmt: "turn" },
-    { k: "Remate lanzable", a: hA && hA.winAvg, b: hB && hB.winAvg, better: lower(hA && hA.winAvg, hB && hB.winAvg), fmt: "turn" },
+    { k: "Turno en que gana", a: sa.avgTurn, b: sb.avgTurn, better: null, fmt: "turn" },
+    { k: "Manos atascadas", a: hA && hA.pScrew, b: hB && hB.pScrew, better: lowerPct(hA && hA.pScrew, hB && hB.pScrew), fmt: "pct" },
+    { k: "Manos con mulligan", a: hA && hA.pMull, b: hB && hB.pMull, better: lowerPct(hA && hA.pMull, hB && hB.pMull), fmt: "pct" },
+    { k: "Comandante en mesa", a: hA && hA.avgTurn, b: hB && hB.avgTurn, better: lowerTurn(hA && hA.avgTurn, hB && hB.avgTurn), fmt: "turn" },
+    { k: "Remate lanzable", a: hA && hA.winAvg, b: hB && hB.winAvg, better: lowerTurn(hA && hA.winAvg, hB && hB.winAvg), fmt: "turn" },
     { k: "Coste promedio", a: A.avg, b: B.avg, better: null, fmt: "cmc" },
     { k: "Tierras", a: A.roles.land, b: B.roles.land, better: null, fmt: "n" },
     { k: "Ramp", a: A.roles.ramp, b: B.roles.ramp, better: null, fmt: "n" },
