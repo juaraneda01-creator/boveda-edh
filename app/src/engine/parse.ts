@@ -86,7 +86,7 @@ export function parseList(input: string, { keepSide = false } = {}): Parsed[] {
 
 /** Texto suelto → secciones. Dos bloques separados por una línea en blanco, con el último de 1 o 2 líneas: ese bloque es el comandante. */
 export function textToDeck(t: string): string {
-  let text = String(t).replace(/\r/g, "").replace(/^\s*(deck|main ?deck|mainboard)\s*$/gim, "").trim();
+  let text = String(t).replace(/\r/g, "").trim();
   if (!/^(sideboard|banquillo|maybeboard|commander|companion)\b/im.test(text)) {
     const blocks = text.split(/\n\s*\n/).filter(b => b.trim());
     if (blocks.length === 2 && blocks[1].trim().split("\n").length <= 2) text = "Commander\n" + blocks[1] + "\nDeck\n" + blocks[0];

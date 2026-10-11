@@ -198,3 +198,20 @@ test("partidas reales: estadísticas y turno de victoria ajustado", () => {
   const fast = Array.from({ length: 30 }, () => g("win", 4, 1, []));
   assert.ok(playBracket(hakbal, A, sim, fast).speed >= playBracket(hakbal, A, sim, []).speed, "ganar antes en la mesa real sube la velocidad");
 });
+
+test("bracket oficial: umbrales de Game Changers, turnos extra, tierras y combos de 2 cartas", () => {
+  const base = hakbal.cards.filter(c => { const m = db.get(c.n); return m && !m.gc && !m.xt && !m.mld; });
+  const br = (extra: string[], combos?: Deck["combos"]) => { const d = { commanders: hakbal.commanders, cards: [...base, ...extra.map(n => ({ n, q: 1 }))], combos }; return bracketOf(d, analyze(d, db)); };
+  const gcs = ["Test Changer A", "Test Changer B", "Test Changer C", "Test Changer D"];
+  assert.equal(br([]).b, 2, "sin Game Changers");
+  assert.equal(br(gcs.slice(0, 1)).b, 3, "1 Game Changer");
+  assert.equal(br(gcs.slice(0, 3)).b, 3, "3 Game Changers siguen en bracket 3");
+  assert.equal(br(gcs).b, 4, "4 Game Changers pasan a bracket 4");
+  assert.equal(br(["Test Changer Land"]).b, 3, "una tierra Game Changer también cuenta");
+  assert.equal(br(["Test Armageddon"]).b, 4, "destrucción masiva de tierras");
+  assert.equal(br(["Test Time Walk"]).b, 2, "un turno extra suelto no sube el bracket");
+  const combo = (cards: string[]) => ({ at: 1, inc: [{ id: "x", cards, prod: [], desc: "", bt: null }], almost: [] });
+  assert.equal(br([], combo(["A", "B"])).b, 4, "combo de 2 cartas");
+  assert.equal(br([], combo(["A", "B", "C"])).b, 2, "un combo de 3 cartas no sube el bracket");
+  assert.equal(br([]).exact, false); assert.equal(br([], combo(["A", "B", "C"])).exact, true, "con combos revisados el bracket es exacto");
+});

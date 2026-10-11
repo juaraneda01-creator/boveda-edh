@@ -1,0 +1,28 @@
+name: Revisar el Constructor
+on:
+  push:
+    paths: ["app/**", "constructor/**", "src/**", ".github/workflows/constructor.yml"]
+  pull_request:
+    paths: ["app/**", "constructor/**", "src/**"]
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - name: Instalar herramientas
+        run: npm install --no-audit --no-fund
+      - name: Tipos
+        run: npx tsc --noEmit -p .
+      - name: Motor y paridad con la Bóveda original
+        run: node --test tests/*.test.ts
+      - name: constructor/ está al día con app/src
+        run: node build.mjs --check
+      - name: Instalar navegador de prueba
+        run: npx playwright install --with-deps chromium
+      - name: Pruebas de navegador
+        run: node tests/e2e.mjs

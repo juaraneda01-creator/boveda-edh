@@ -64,8 +64,9 @@ export function buildSlots(A: Analysis, Y: Synergy, plan: Plan, commanders = 1):
   }
   return goals.map(g => {
     const rows = by.get(g.k)!; const count = rows.reduce((a, r) => a + r.q, 0);
-    const state: Status | "info" = g.k === "other" ? (count > g.hi ? "warn" : "info") : g.k === "tutor" ? (count > g.hi ? "warn" : count < g.lo ? "warn" : "good") : status(count, g.lo, g.hi);
-    return { ...g, rows, count, state, gap: Math.max(0, g.lo - count), over: Math.max(0, count - g.hi) };
+    // "Plan" se traslapa con las demás (una carta del tema puede ser además ramp o robo): solo importa si se queda corta
+    const state: Status | "info" = g.k === "other" ? (count > g.hi ? "warn" : "info") : g.k === "plan" ? (count < g.lo ? "warn" : "good") : g.k === "tutor" ? (count > g.hi ? "warn" : count < g.lo ? "warn" : "good") : status(count, g.lo, g.hi);
+    return { ...g, rows, count, state, gap: Math.max(0, g.lo - count), over: g.k === "plan" ? 0 : Math.max(0, count - g.hi) };
   });
 }
 
