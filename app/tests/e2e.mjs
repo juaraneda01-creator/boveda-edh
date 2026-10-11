@@ -187,7 +187,7 @@ const tests = [
     const out = (txt.match(/Sale (.+?)\s+Entra/s) || [])[1].trim(); const inn = await first.locator(".in .cardname").innerText();
     await first.getByRole("button", { name: "Aplicar" }).click();
     await page.waitForFunction(([o, i]) => { const c = window.__boveda.S.decks[0].cards.map(x => x.n); return c.includes(i) && !c.includes(o); }, [out, inn]);
-    check(/Entró .* y salió /.test(await page.locator(".toast").innerText()), "confirma el cambio"); await toastGone(page);
+    await page.locator(".toast", { hasText: /Entró .* y salió / }).waitFor({ timeout: 10000 }); await toastGone(page);
     check((await deckState(page)).versions === 1, "el cambio dejó una versión");
     // combos
     await page.getByRole("button", { name: "Copiar resumen del mazo" }).click(); await toastGone(page);
@@ -218,7 +218,7 @@ const tests = [
     await page.waitForFunction(b => window.__boveda.S.decks[0].cards.map(c => c.n).sort().join("|") === b, before);
     st = await deckState(page); check(st.main === 99, "lista restaurada con 99");
     check(st.versions === 2, `la lista que había antes de restaurar quedó como versión (hay ${st.versions})`);
-    check(/quedó guardada en Versiones/.test(await page.locator(".toast").innerText()), "el aviso dice la verdad");
+    await page.locator(".toast", { hasText: "quedó guardada en Versiones" }).waitFor({ timeout: 10000 });   // el aviso dice la verdad
     // dos cambios sin esperar entre ellos: ninguno se pierde
     const two = await page.evaluate(() => { const { S, store } = window.__boveda; const d = S.decks[0]; const [a, b] = d.cards.filter(c => c.q === 1).slice(0, 2).map(c => c.n); store.removeCard(d.id, a); store.removeCard(d.id, b); const now = S.decks[0].cards.map(c => c.n); return !now.includes(a) && !now.includes(b); });
     check(two, "dos toques seguidos quitan las dos cartas");
