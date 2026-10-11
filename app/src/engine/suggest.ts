@@ -79,7 +79,10 @@ export function swaps(d: Pick<Deck, "commanders">, A: Analysis, E: EdhData, db: 
     if (a.incl != null) why.push(`jugada en ${pct(a.incl)} de los mazos de este comandante`);
     if (a.syn != null && a.syn > 0.05) why.push(`sinergia +${Math.round(a.syn * 100)}`);
     if (a.fills.length) why.push(`suma ${a.fills.map(x => ROLE_ES[x as keyof typeof ROLE_ES]).join(" y ")}, que te falta`);
-    why.push(c.incl != null ? `${c.n} aparece solo en ${pct(c.incl)}` : `${c.n} casi no aparece en listas de este comandante`);
+    // la que sale puede ser más jugada que la que entra: entonces sale por sinergia o porque su función ya sobra
+    why.push(c.incl == null ? `${c.n} casi no aparece en listas de este comandante`
+      : a.incl != null && c.incl >= a.incl ? `${c.n} (${pct(c.incl)}) sale porque tiene menos sinergia o su función ya está cubierta`
+      : `${c.n} aparece solo en ${pct(c.incl)}`);
     out.push({ out: c.n, in: a.n, why: why.join(" · "), fills: a.fills });
   }
   return out;
