@@ -9,8 +9,8 @@ const limited = limiter(60);
 const json = (o, status = 200) => new Response(JSON.stringify(o), {status, headers:{"content-type":"application/json", "cache-control":"no-store", "x-content-type-options":"nosniff"}});
 const MAX_MEMBERS = 16, MAX_DECKS = 25, MAX_GAMES = 3000, MAX_LIST = 9000, MAX_DOC = 1_500_000;
 const NEW_PER_DAY = 30;                                   // grupos nuevos por conexión y día
-// miembros de antes de las claves: pueden reclamar su lugar hasta esta fecha; después deben volver a unirse
-const LEGACY_UNTIL = Date.parse("2026-11-01T00:00:00Z");
+// La transición de los miembros sin clave se cerró el 3 de noviembre de 2026: ya no pueden reclamar su lugar
+// y deben volver a unirse con su nombre. Los que quedan sin clave se sacan del grupo.
 const RESERVED = new Set(["__proto__", "constructor", "prototype", "hasOwnProperty", "toString", "valueOf"]);
 const str = (v, n = 120) => String(v == null ? "" : v).slice(0, n);
 const idOk = v => /^[\w-]{4,40}$/.test(String(v || "")) && !RESERVED.has(String(v));
@@ -43,23 +43,20 @@ function apply(doc, op, b){
   const th = hash(tok);
   const isMember = has(doc.members, mid);
   doc.left = doc.left && typeof doc.left === "object" ? doc.left : {};
-  // miembros anteriores a las claves: la primera clave que llega queda como la suya (solo durante la transición)
   if (isMember && doc.members[mid].th && doc.members[mid].th !== th) throw fail("clave de miembro incorrecta", 403);
-  if (isMember && !doc.members[mid].th && Date.now() > LEGACY_UNTIL) throw fail("vuelve a unirte al grupo con tu nombre", 403);
+  if (isMember && !doc.members[mid].th) throw fail("vuelve a unirte al grupo con tu nombre", 403);
   // el id de alguien que salió o fue expulsado no se reutiliza
   if (!isMember && has(doc.left, mid)) throw fail("ese miembro ya salió del grupo: vuelve a unirte", 403);
-  // pasada la transición, los miembros que nunca tuvieron clave salen (ocupan cupo y no pueden actuar)
-  if (Date.now() > LEGACY_UNTIL) for (const k of Object.keys(doc.members)) if (!doc.members[k].th && k !== mid) removeMember(doc, k);
+  // los miembros que nunca tuvieron clave salen (ocupan cupo y no pueden actuar)
+  for (const k of Object.keys(doc.members)) if (!doc.members[k].th && k !== mid) removeMember(doc, k);
   // administrar (quitar, traspasar, cambiar el código) exige una clave obtenida al unirse, no reclamada
   const trusted = isMember && !!doc.members[mid].th && !doc.members[mid].legacy;
   if (op === "create" || op === "join"){
     if (!isMember && Object.keys(doc.members).length >= MAX_MEMBERS) throw fail("el grupo está lleno", 409);
-    const claimed = isMember && !doc.members[mid].th;   // entrar con el id de un miembro antiguo sin clave: no da administración
-    doc.members[mid] = {...(isMember ? doc.members[mid] : {}), name: str(b.name, 40) || "Jugador", at: Date.now(), th, ...(claimed ? {legacy:true} : {})};
+    doc.members[mid] = {...(isMember ? doc.members[mid] : {}), name: str(b.name, 40) || "Jugador", at: Date.now(), th};
     if (op === "create"){ if (b.group) doc.name = str(b.group, 60); doc.owner = mid; }
   } else {
     if (!isMember) throw fail("primero únete al grupo", 403);
-    if (!doc.members[mid].th) doc.members[mid].legacy = true;   // clave reclamada, no obtenida al unirse
     Object.assign(doc.members[mid], {at: Date.now(), th});
     if (op === "decks"){
       // lo borrado queda anotado (con su hora): un dispositivo atrasado no lo puede revivir
