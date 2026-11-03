@@ -29,6 +29,7 @@ export function serve(dir = "constructor") {
 }
 
 /** Lo que se pidió a cada sitio, para comprobar que la app no consulta de más. */
+export const RECENT = { name: "Prueba Tritona Reciente", type_line: "Creature — Merfolk Scout", oracle_text: "When this creature enters, it explores. Other Merfolk you control get +1/+1.", mana_cost: "{1}{G}{U}", cmc: 3, color_identity: ["G", "U"], colors: ["G", "U"], legalities: { commander: "legal", duel: "legal" }, released_at: "2026-10-20" };
 export const calls = { scryfall: 0, collection: 0, edhrec: 0, spellbook: 0, edhtop16: 0, other: [] };
 export const net = { offline: false, scry500: false };
 
@@ -65,6 +66,8 @@ export async function mock(page) {
           return data.length ? json(route, { object: "list", has_more: false, data }) : json(route, { object: "error" }, 404);
         }
         if (/is:gamechanger/.test(q)) return json(route, { data: CARDS.filter(c => c.game_changer), has_more: false });
+        // cartas recientes (pestaña Nuevas): una carta inventada que calza con Hakbal
+        if (/date>=/.test(q)) { calls.recent = (calls.recent || 0) + 1; return json(route, { object: "list", has_more: false, data: [RECENT] }); }
         const term = q.replace(/\s*is:commander.*$/, "").toLowerCase();
         const data = CARDS.filter(c => /Legendary Creature/.test(c.type_line) && c.name.toLowerCase().includes(term));
         return data.length ? json(route, { data }) : json(route, { object: "error" }, 404);

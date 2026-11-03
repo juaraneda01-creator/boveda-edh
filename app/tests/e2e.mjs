@@ -482,6 +482,64 @@ const tests = [
     await ctx.close(); return `${reps.length} reemplazos para ${name}${hasSol ? "; Sol Ring marcada como molesta" : ""}`;
   }],
 
+  ["prioridades 3: cartas nuevas, mejora por tandas, comandante para una lista y precon de MTGJSON", async () => {
+    const { CARDS } = await import("./harness.mjs");
+    const base = CARDS.map(c => ({ ...c, legalities: { ...(c.legalities || {}), duel: "legal" } }));
+    const nueva = { name: "Prueba Tritón Nuevo", type_line: "Creature — Merfolk Wizard", oracle_text: "When this creature enters, it explores.", mana_cost: "{G}{U}", cmc: 2, color_identity: ["G", "U"], colors: ["G", "U"], legalities: { commander: "legal", duel: "legal" } };
+    const zlib = await import("node:zlib"); const os = await import("node:os"); const path = await import("node:path");
+    const pack = (date, cards, f) => { const file = path.join(os.tmpdir(), f); fs.writeFileSync(file, zlib.gzipSync(JSON.stringify({ format: "boveda-cartas", v: 1, date, version: "prueba", cards }))); return file; };
+    const { ctx, page } = await open();
+    // dos archivos de MTGJSON: el segundo trae una carta que no estaba
+    await page.goto(site.url + "#/ajustes"); await page.getByLabel("Archivo de MTGJSON").setInputFiles(pack("2026-10-01", base, "p3-viejo.json.gz"));
+    await page.waitForFunction(() => window.__boveda.S.local && window.__boveda.S.local.date === "2026-10-01", null, { timeout: 30000 }); await toastGone(page);
+    await page.getByLabel("Archivo de MTGJSON").setInputFiles(pack("2026-11-03", [...base, nueva], "p3-nuevo.json.gz"));
+    await page.waitForFunction(() => window.__boveda.S.local && window.__boveda.S.local.date === "2026-11-03", null, { timeout: 30000 });
+    const ln = await page.evaluate(() => window.__boveda.S.localNew);
+    check(ln && ln.names.includes("Prueba Tritón Nuevo") && ln.names.length === 1, "la carta nueva entre los dos archivos: " + JSON.stringify(ln && ln.names));
+    await toastGone(page); await page.goto(site.url + "#/"); await page.waitForSelector(".hero, .page-h");
+    await draftDeck(page, "Hakbal", 3); const st = await deckState(page);
+    // pestaña Nuevas
+    await page.goto(site.url + `#/mazo/${st.id}/ajustar`); await page.getByRole("tab", { name: "Nuevas" }).click();
+    await page.waitForSelector("text=Cartas nuevas para tu mazo");
+    check(await page.locator(".cards.sug li", { hasText: "Prueba Tritón Nuevo" }).count() === 1, "propone la carta nueva del archivo de MTGJSON");
+    await page.getByRole("button", { name: /Buscar en Scryfall/ }).click(); await idle(page);
+    check((calls.recent || 0) >= 1, "consulta las cartas recientes en Scryfall");
+    check(await page.locator(".cards.sug li", { hasText: "Prueba Tritona Reciente" }).count() === 1, "propone la carta reciente de Scryfall");
+    check((await overflow(page)) <= 0, "sin desborde horizontal en Nuevas");
+    await page.locator(".cards.sug li", { hasText: "Prueba Tritón Nuevo" }).getByRole("button", { name: /Agregar/ }).click();
+    await page.waitForFunction(() => window.__boveda.S.decks.some(d => d.cards.some(c => c.n === "Prueba Tritón Nuevo")));
+    await toastGone(page);
+    // pestaña Tandas
+    await page.getByRole("tab", { name: "Tandas" }).click(); await page.waitForSelector("text=Mejorar por tandas");
+    const stages = await page.locator(".stage").count(); let applied = 0;
+    check(stages >= 1 || await page.locator("text=No encontré cambios claros").count() === 1, "muestra tandas o explica que no hay");
+    if (stages) {
+      const ins = await page.locator(".stage").first().locator(".in .cardname").allInnerTexts(); applied = ins.length;
+      const v0 = (await deckState(page)).versions;
+      await page.locator(".stage").first().getByRole("button", { name: /Aplicar esta tanda/ }).click();
+      await page.waitForFunction(n => window.__boveda.S.decks.some(d => n.every(x => d.cards.some(c => c.n === x))), ins, { timeout: 30000 });
+      check((await deckState(page)).versions > v0, "aplicar la tanda deja versiones guardadas");
+      check((await deckState(page)).main === 100, "el mazo mantiene sus cartas (99 + la nueva)");
+    }
+    check((await overflow(page)) <= 0, "sin desborde horizontal en Tandas");
+    // un precon en formato MTGJSON sin comandante: se sugiere uno
+    const main = await page.evaluate(() => window.__boveda.S.decks[0].cards.filter(c => c.n !== "Prueba Tritón Nuevo").map(c => ({ name: c.n, count: c.q })));
+    const json = JSON.stringify({ meta: { date: "2026-11-03" }, data: { name: "Precon de prueba", commander: [], mainBoard: main, sideBoard: [] } });
+    await toastGone(page); await page.goto(site.url + "#/"); await page.getByRole("button", { name: "Traer una lista" }).click();
+    await page.locator(".sheet textarea").fill(json); await page.getByRole("button", { name: "Crear mazo" }).click();
+    await page.waitForSelector(".steps"); await idle(page); await toastGone(page);
+    const pre = await page.evaluate(() => { const d = window.__boveda.S.decks.find(x => x.name === "Precon de prueba"); return d && { id: d.id, n: d.cards.reduce((a, c) => a + c.q, 0), cmd: d.commanders.length }; });
+    check(pre && pre.n === main.reduce((a, c) => a + c.count, 0) && pre.cmd === 0, "el precon de MTGJSON se importa con su nombre y sus cartas: " + JSON.stringify(pre));
+    await page.goto(site.url + `#/mazo/${pre.id}/plan`); await page.getByRole("button", { name: "Sugerir comandante para esta lista" }).click(); await idle(page);
+    await page.waitForSelector(".cmdsug li", { timeout: 15000 });
+    const sug = await page.locator(".cmdsug li .cardname").allInnerTexts();
+    check(sug.includes("Hakbal of the Surging Soul"), "sugiere el comandante de la lista: " + sug.join(", "));
+    check((await overflow(page)) <= 0, "sin desborde horizontal en Plan");
+    await page.locator(".cmdsug li", { hasText: "Hakbal of the Surging Soul" }).getByRole("button", { name: /Usar/ }).click();
+    await page.waitForFunction(id => window.__boveda.S.decks.find(d => d.id === id).commanders[0] === "Hakbal of the Surging Soul", pre.id);
+    await ctx.close(); return `${stages} tandas (${applied} cambios en la primera); comandantes sugeridos: ${sug.slice(0, 3).join(", ")}`;
+  }],
+
   ["rendimiento en teléfono lento: carga y cambio de pantalla", async () => {
     const { ctx, page } = await open(); await draftDeck(page, "Hakbal", 3); const id = (await deckState(page)).id;
     const cdp = await ctx.newCDPSession(page); await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });

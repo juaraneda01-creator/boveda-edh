@@ -111,6 +111,27 @@ export async function searchCommanders(q: string): Promise<ScryCard[]> {
   } catch (e) { if (e instanceof NetError) throw e; throw new NetError("Scryfall"); }
 }
 
+/** Cartas legales en Commander dentro de una identidad de color, publicadas desde una fecha (una página: hasta 175). */
+export async function recentCards(ci: string, since: string): Promise<ScryCard[]> {
+  const id = ci || "c";
+  const q = `id<=${id} legal:commander date>=${since} -is:digital -t:basic`;
+  try {
+    const r = await sf("https://api.scryfall.com/cards/search?unique=cards&order=released&dir=desc&q=" + encodeURIComponent(q));
+    if (r.status === 404) return [];
+    if (!r.ok) throw new NetError("Scryfall");
+    return ((await r.json()) as { data?: ScryCard[] }).data || [];
+  } catch (e) { if (e instanceof NetError) throw e; throw new NetError("Scryfall"); }
+}
+/** Comandantes que cubren una identidad de color, por popularidad (para sugerir comandante sin datos locales). */
+export async function commandersCovering(ci: string): Promise<ScryCard[]> {
+  try {
+    const r = await sf("https://api.scryfall.com/cards/search?unique=cards&order=edhrec&q=" + encodeURIComponent(`is:commander legal:commander id>=${ci || "c"}`));
+    if (r.status === 404) return [];
+    if (!r.ok) throw new NetError("Scryfall");
+    return ((await r.json()) as { data?: ScryCard[] }).data || [];
+  } catch (e) { if (e instanceof NetError) throw e; throw new NetError("Scryfall"); }
+}
+
 /** Lista oficial de Game Changers, según Scryfall. */
 export async function gameChangers(): Promise<ScryCard[]> {
   let url: string | null = "https://api.scryfall.com/cards/search?q=" + encodeURIComponent("is:gamechanger") + "&unique=cards"; const list: ScryCard[] = [];

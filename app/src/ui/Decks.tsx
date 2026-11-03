@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { S, insight, newDeck, ensureCards, toast } from "../data/store.ts";
 import { importLink, searchCommanders, NetError, LINK_SITES } from "../data/net.ts";
 import { IN_CLAUDE, relayProblem } from "../data/relay.ts";
-import { bracketOf, buildSlots, nextStep, parseList, splitParsed, textToDeck, type Deck, type ScryCard } from "../engine/index.ts";
+import { bracketOf, buildSlots, nextStep, parseList, readMtgjsonDeck, splitParsed, textToDeck, type Deck, type ScryCard } from "../engine/index.ts";
 import { Pill, Pips, Sheet, go, plural, ui } from "./kit.tsx";
 import { touch } from "../data/store.ts";
 
@@ -129,7 +129,9 @@ function FromList({ onClose }: { onClose: () => void }): JSX.Element {
       if (url.trim() && !text.trim()) {
         const im = await importLink(url.trim()); commanders = im.commanders; cards = im.cards; maybe = im.maybe; title = title || im.name;
       } else {
-        const s = splitParsed(parseList(textToDeck(text), { keepSide: true })); commanders = s.commanders; cards = s.cards; maybe = s.maybe;
+        const mj = text.trim().startsWith("{") ? readMtgjsonDeck(text) : null;   // mazo de MTGJSON (por ejemplo un precon)
+        if (mj) { commanders = mj.commanders; cards = mj.cards; maybe = mj.maybe; title = title || mj.name; }
+        else { const s = splitParsed(parseList(textToDeck(text), { keepSide: true })); commanders = s.commanders; cards = s.cards; maybe = s.maybe; }
       }
       const n = cards.reduce((a, c) => a + c.q, 0);
       if (!n && !commanders.length) { setErr("No encontré cartas. Pega la lista con una carta por línea, por ejemplo “1 Sol Ring”."); return; }
@@ -145,7 +147,7 @@ function FromList({ onClose }: { onClose: () => void }): JSX.Element {
     <div>
       <label class="field"><span>Lista de cartas</span>
         <textarea rows={9} value={text} spellcheck={false} placeholder={"Commander\n1 Hakbal of the Surging Soul\n\nDeck\n1 Sol Ring\n1 Cultivate\n8 Forest"} onInput={e => setText((e.target as HTMLTextAreaElement).value)} /></label>
-      <p class="muted small">Sirve el texto que exportan Moxfield, Archidekt, ManaBox y MTG Arena. El comandante puede ir en una sección “Commander” o con la marca *CMDR*.</p>
+      <p class="muted small">Sirve el texto que exportan Moxfield, Archidekt, ManaBox y MTG Arena. El comandante puede ir en una sección “Commander” o con la marca *CMDR*. También el archivo JSON de un mazo de MTGJSON (por ejemplo un precon).</p>
       <label class="field"><span>O el enlace público del mazo ({LINK_SITES})</span>
         <input type="url" value={url} placeholder="https://moxfield.com/decks/…" onInput={e => setUrl((e.target as HTMLInputElement).value)} /></label>
       <label class="field"><span>Nombre del mazo (opcional)</span><input type="text" value={name} maxLength={80} onInput={e => setName((e.target as HTMLInputElement).value)} /></label>

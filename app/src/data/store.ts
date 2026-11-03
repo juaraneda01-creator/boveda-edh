@@ -1,8 +1,8 @@
 // Estado de la app y acciones. Las pantallas leen de aquí y piden cambios aquí;
 // cada cambio se guarda en su tabla y avisa a las pantallas para que se redibujen.
 import {
-  MemoryDb, LocalIndex, readLocalPack, replacementsFor, GC_FALLBACK, RF_V, MAX_QTY, MAX_ENTRIES, analyze, synergyOf, simulateHands, fromScry, slug, uid, diffLists, completeDeck, allNames,
-  type Analysis, type Card, type Replacement, type Combo, type Combos, type Deck, type EdhData, type Entry, type Game, type HandStats, type Plan, type Synergy, type Version, type SimResult,
+  MemoryDb, LocalIndex, readLocalPack, replacementsFor, newCardsFor, commandersFor, upgradePath, listIdentity, GC_FALLBACK, RF_V, MAX_QTY, MAX_ENTRIES, analyze, synergyOf, simulateHands, fromScry, slug, uid, diffLists, completeDeck, allNames,
+  type Analysis, type Card, type Replacement, type NewCard, type CmdSuggestion, type Stage, type ScryCard, type Combo, type Combos, type Deck, type EdhData, type Entry, type Game, type HandStats, type Plan, type Synergy, type Version, type SimResult,
 } from "../engine/index.ts";
 import * as idb from "./idb.ts";
 import * as net from "./net.ts";
@@ -24,6 +24,8 @@ export const S = {
   gcSrc: "",                                         // de dónde salió: "scryfall", "mtgjson" o "" (lista incluida)
   local: null as LocalIndex | null,                  // datos de cartas de MTGJSON guardados en este navegador
   localAt: 0,                                        // cuándo se cargaron
+  localNew: null as { at: number; from: string; to: string; names: string[] } | null,   // cartas que no estaban en el archivo anterior
+  recent: new Map<string, { at: number; since: string; names: string[] }>(),           // búsqueda reciente en Scryfall, por identidad de color
   edh: new Map<string, EdhData>(),
   staples: new Map<string, { at: number; list: string[] }>(),
   sims: new Map<string, SavedSim>(),
@@ -70,6 +72,7 @@ export async function init(): Promise<void> {
     else if (r.k.startsWith("edh:")) S.edh.set(r.k.slice(4), r.v as EdhData);
     else if (r.k.startsWith("staples:")) S.staples.set(r.k.slice(8), r.v as { at: number; list: string[] });
     else if (r.k.startsWith("sim:")) S.sims.set(r.k.slice(4), r.v as SavedSim);
+    else if (r.k === "mtgjson-new") { const v = r.v as typeof S.localNew; if (v && Array.isArray(v.names)) S.localNew = { at: Number(v.at) || 0, from: str(v.from, 20), to: str(v.to, 20), names: strs(v.names, 5000, 150) }; }
   }
   S.ready = true; S.epoch++; touch();
   void idb.persist();
@@ -116,6 +119,13 @@ export async function importLocal(file: File): Promise<{ cards: number; gc: numb
     }
     if (!pack.cards.length) throw new Error("El archivo no trae cartas.");
     const idx = new LocalIndex(pack);
+    const prev = S.local;
+    if (prev && prev.date !== idx.date) {
+      const old = new Set(prev.all().map(c => slug(c.name)));
+      const names = idx.all().filter(c => !old.has(slug(c.name))).map(c => c.name).slice(0, 5000);
+      S.localNew = { at: Date.now(), from: prev.date, to: idx.date, names };
+      await save("kv", { k: "mtgjson-new", v: S.localNew });
+    }
     await lp.savePack(JSON.stringify(pack));
     S.local = idx; S.localAt = Date.now(); localCards.clear();
     const gc = idx.gameChangers();
@@ -220,6 +230,66 @@ export function replacements(d: Deck, name: string, opts: { limit?: number; lowe
   repMemo.set(key, out); return out;
 }
 
+/* ---------- prioridades 3: novedades, comandante para una lista y mejora por tandas ---------- */
+const scryToCard = (sc: ScryCard): Card | null => cleanCard({ ...fromScry(sc), at: Date.now() });
+/** Busca en Scryfall lo publicado en los últimos `days` días dentro de los colores del mazo. */
+export async function loadRecent(d: Deck, days = 120): Promise<void> {
+  const { A } = insight(d); const since = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
+  const b = setBusy("Buscando cartas nuevas en Scryfall");
+  try {
+    const list = await net.recentCards(A.ci, since);
+    const recs: { k: string; card: Card }[] = [];
+    for (const sc of list) { const c = scryToCard(sc); if (c) { S.db.put(c); recs.push({ k: slug(c.n), card: c }); } }
+    if (recs.length) { S.epoch++; await save("cards", ...recs); }
+    S.recent.set(A.ci, { at: Date.now(), since, names: list.map(c => c.name) });
+    if (!list.length) toast("Scryfall no tiene cartas nuevas en tus colores para esas fechas.", "warn");
+  } catch { toast(relayProblem() || "No se pudo consultar Scryfall. Revisa tu conexión.", "warn"); }
+  finally { endBusy(b); }
+}
+const newMemo = new Map<string, NewCard[]>();
+export function novedades(d: Deck): { list: NewCard[]; local: boolean; recent: { at: number; since: string } | null } {
+  const { A, Y } = insight(d); const R = S.recent.get(A.ci) || null; const E = edhOf(d);
+  const key = [d.id, d.updated, S.epoch, S.localNew ? S.localNew.at : 0, R ? R.at : 0, E ? E.at : 0].join("|");
+  let list = newMemo.get(key);
+  if (!list) {
+    const names = [...(S.localNew ? S.localNew.names : []), ...(R ? R.names : [])];
+    const cands: Card[] = [];
+    for (const n of names) { const c = S.db.get(n) || localCard(n); if (c) cands.push({ ...c, gc: S.db.isGC(c.n) }); }
+    list = newCardsFor(d, A, Y, cands, E, 15);
+    if (newMemo.size > 30) newMemo.clear(); newMemo.set(key, list);
+  }
+  return { list, local: !!S.localNew, recent: R ? { at: R.at, since: R.since } : null };
+}
+
+/** Comandantes que calzan con la lista. Usa los datos locales y las cartas guardadas; si no hay datos locales, pregunta a Scryfall. */
+export async function suggestCommanders(d: Deck): Promise<CmdSuggestion[]> {
+  await localReady;
+  const { A } = insight(d); const cards = A.rows.map(r => r.m);
+  const ci = listIdentity(cards);
+  const cands: Card[] = [...S.db.all()];
+  if (S.local) {
+    for (const sc of S.local.all()) {
+      if (!/Legendary/.test(sc.type_line || "")) continue;
+      const id = (sc.color_identity || []).join(""); if ([...ci].some(c => !id.includes(c))) continue;
+      const c = localCard(sc.name); if (c) cands.push(c);
+    }
+  } else {
+    const b = setBusy("Buscando comandantes en Scryfall");
+    try { for (const sc of await net.commandersCovering(ci)) { const c = scryToCard(sc); if (c) { S.db.put(c); cands.push(c); } } }
+    catch { toast(relayProblem() || "No se pudo consultar Scryfall. Se usan solo las cartas guardadas.", "warn"); }
+    finally { endBusy(b); }
+  }
+  return commandersFor(cards, cands, d.plan, 8);
+}
+
+/** Ruta de mejora por tandas (necesita los datos de EDHREC del comandante). */
+export function upgrade(d: Deck): Stage[] {
+  const E = edhOf(d); if (!E) return [];
+  const { A } = insight(d);
+  const landFor = (name: string): string | null => { const r = replacements(d, name, { limit: 3 }).find(x => !x.m.tap); return r ? r.n : null; };
+  return upgradePath(d, A, E, S.db, landFor, 5);
+}
+
 export function insight(d: Deck): Memo {
   const hit = memo.get(d); if (hit && hit.epoch === S.epoch) return hit;
   const A = analyze(d, S.db); const m: Memo = { epoch: S.epoch, A, Y: synergyOf(A), H: simulateHands(A) };
@@ -317,7 +387,7 @@ export async function refreshGC(force = false): Promise<void> {
 /* ---------- mazos ---------- */
 const AUTO_GAP = 30 * 60e3, MAX_VERSIONS = 40, BULK_SIZE = 6;
 /** Cambios que reemplazan la lista: siempre dejan versión, aunque muevan pocas cartas. */
-const ALWAYS = new Set(["editar la lista", "volver a una versión", "borrador", "completar", "cambiar comandante"]);
+const ALWAYS = new Set(["editar la lista", "volver a una versión", "borrador", "completar", "cambiar comandante", "mejora por tandas"]);
 type Listed = Pick<Deck, "commanders" | "cards">;
 const sameList = (a: Listed, b: Listed): boolean => { const d = diffLists(a.cards, b.cards); return !d.add.length && !d.rem.length && a.commanders.join("|") === b.commanders.join("|"); };
 const changeSize = (a: Listed, b: Listed): number => { const d = diffLists(a.cards, b.cards); return d.add.reduce((s, c) => s + c.q, 0) + d.rem.reduce((s, c) => s + c.q, 0) + (a.commanders.join("|") === b.commanders.join("|") ? 0 : BULK_SIZE); };
@@ -412,6 +482,22 @@ export async function swapCard(deckId: string, out: string, inn: string, src = "
   const rest = d.cards.flatMap(c => slug(c.n) !== slug(out) ? [c] : c.q > 1 ? [{ ...c, q: c.q - 1 }] : []);
   await saveDeck({ ...d, cards: [...rest, { n: real, q: 1 }], maybe: d.maybe.filter(c => slug(c.n) !== slug(real)) }, src);
   toast(`Entró ${real} y salió ${out}.`);
+}
+/** Aplica varios cambios de una vez (una tanda): una sola versión guardada antes, y se puede volver atrás desde Versiones. */
+export async function applySwaps(deckId: string, list: { out: string; in: string }[]): Promise<number> {
+  if (!deckById(deckId) || !list.length) return 0;
+  await ensureCards(list.map(s => s.in), { quiet: true });
+  const d = deckById(deckId); if (!d) return 0;
+  let cards = d.cards; let n = 0;
+  for (const s of list) {
+    const m = S.db.get(s.in); const real = m ? m.n : s.in;
+    if (cards.some(c => slug(c.n) === slug(real)) || !cards.some(c => slug(c.n) === slug(s.out))) continue;
+    cards = [...cards.flatMap(c => slug(c.n) !== slug(s.out) ? [c] : c.q > 1 ? [{ ...c, q: c.q - 1 }] : []), { n: real, q: 1 }]; n++;
+  }
+  if (!n) return 0;
+  const ins = new Set(cards.map(c => slug(c.n)));
+  await saveDeck({ ...d, cards, maybe: d.maybe.filter(c => !ins.has(slug(c.n))) }, "mejora por tandas");
+  return n;
 }
 export async function moveCard(deckId: string, name: string, to: Board): Promise<void> {
   const d = deckById(deckId); if (!d) return;

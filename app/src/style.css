@@ -238,3 +238,11 @@ details summary { cursor: pointer; color: var(--accent); margin-top: 4px; }
 .salt-row { flex-wrap: wrap; }
 .salt-row > .btn { margin-left: auto; }
 .cards.sub { flex-basis: 100%; margin: 4px 0 2px; padding-left: 8px; border-left: 2px solid var(--line, #ddd); }
+
+/* prioridades 3: tandas y comandantes sugeridos */
+.stage { padding: 12px 0; border-top: 1px solid var(--line-soft); } .stage:first-of-type { border-top: 0; }
+.stage h4 { margin: 0 0 2px; font-size: 1rem; } .stage .swaps { margin: 6px 0 10px; }
+.cmdci { flex: none; min-width: 34px; padding: 2px 6px; border-radius: 10px; background: var(--sunk); font-size: .75rem; font-weight: 700; text-align: center; letter-spacing: .05em; }
+.cmdsug .cardname { font-weight: 600; }
+/* muchas pestañas: en teléfono pasan a dos filas en vez de esconderse a la derecha */
+@media (max-width: 699px) { .seg.wrap { flex-wrap: wrap; overflow: visible; } .seg.wrap button { flex: 1 0 22%; padding: 9px 6px; } }

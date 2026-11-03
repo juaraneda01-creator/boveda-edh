@@ -1,7 +1,7 @@
 // Paso 4: ajustar. Qué cambiar primero, cómo llegar al bracket buscado, sinergias, combos y comparación con el meta.
 import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { S, insight, edhOf, edhForPlan, needsTheme, loadCombos, loadStaples, staplesOf, swapCard, removeCard, gamesOf, toast, replacements } from "../data/store.ts";
+import { S, insight, edhOf, edhForPlan, needsTheme, loadCombos, loadStaples, staplesOf, swapCard, removeCard, gamesOf, toast, replacements, novedades, loadRecent, upgrade, applySwaps } from "../data/store.ts";
 import {
   swaps, bracketPlan, bracketOf, metaCompare, synergyAdds, combos2, playBracket, gameStats, deckText, slug, saltOf, TAG_ES, BRACKETS,
   type Deck, type ThemeResult,
@@ -9,8 +9,8 @@ import {
 import { Bar, CardName, Chips, Note, Pill, Section, Stat, agoTxt, copyText, isoDay, pct, plural } from "./kit.tsx";
 import { addWithImpact } from "./StepBuild.tsx";
 
-type Tab = "cambios" | "bracket" | "sinergias" | "combos" | "meta" | "sal";
-const TABS: [Tab, string][] = [["cambios", "Cambios"], ["bracket", "Bracket"], ["sinergias", "Sinergias"], ["combos", "Combos"], ["meta", "Meta"], ["sal", "Sal"]];
+type Tab = "cambios" | "tandas" | "bracket" | "sinergias" | "combos" | "meta" | "nuevas" | "sal";
+const TABS: [Tab, string][] = [["cambios", "Cambios"], ["tandas", "Tandas"], ["bracket", "Bracket"], ["sinergias", "Sinergias"], ["combos", "Combos"], ["meta", "Meta"], ["nuevas", "Nuevas"], ["sal", "Sal"]];
 
 export function StepTune({ d }: { d: Deck }): JSX.Element {
   const { A, Y, H } = insight(d); const E = edhOf(d); const busy = !!S.busy;
@@ -42,7 +42,7 @@ export function StepTune({ d }: { d: Deck }): JSX.Element {
   };
   return (
     <div>
-      <div class="seg" role="tablist" aria-label="Qué ajustar">{TABS.map(([k, l]) => <button role="tab" aria-selected={tab === k} key={k} onClick={() => setTab(k)}>{l}</button>)}</div>
+      <div class="seg wrap" role="tablist" aria-label="Qué ajustar">{TABS.map(([k, l]) => <button role="tab" aria-selected={tab === k} key={k} onClick={() => setTab(k)}>{l}</button>)}</div>
       {tab === "cambios" ? <><Section title="Qué cambiar primero" aside={E ? <span class="muted small">EDHREC, {agoTxt(E.at)}{E.theme ? `, tema ${E.theme}` : ""}</span> : null}>
         {!E ? <><p class="muted">La app compara tu lista con lo que juega la gente con el mismo comandante y propone cambios uno por uno.</p>{needE}</> : SW.length ? <>
           <p class="muted">Entra la carta más jugada que te falta; sale la menos jugada que no cubre una casilla escasa. Cada cambio queda en Versiones y se puede probar en A contra B.</p>
@@ -95,6 +95,8 @@ export function StepTune({ d }: { d: Deck }): JSX.Element {
       </Section> : null}
 
       {tab === "sal" ? <SaltTab d={d} /> : null}
+      {tab === "nuevas" ? <NewTab d={d} /> : null}
+      {tab === "tandas" ? <StagesTab d={d} needE={needE} /> : null}
 
       {tab === "meta" ? <Section title="Tu lista contra lo que juega el resto" aside={E && E.decks ? <span class="muted small">{E.decks.toLocaleString("es-CL")} mazos en EDHREC</span> : null}>
         {!M ? <><p class="muted">Compara tu lista con la lista típica de tu comandante: qué llevas del núcleo, qué te falta y qué juegas tú que casi nadie juega.</p>{needE}</> : <>
@@ -158,6 +160,41 @@ function SaltTab({ d }: { d: Deck }): JSX.Element {
           {open === t.n ? (reps.length ? <ul class="cards sug sub">{reps.map(r => <li key={r.n}><CardName name={r.n} deckId={d.id} m={r.m} /><span class="why">{r.why}</span><button type="button" class="add" aria-label={`Cambiar ${t.n} por ${r.n}`} onClick={() => { void swapCard(d.id, t.n, r.n, "menos sal"); setOpen(null); }}>Cambiar</button></li>)}</ul>
             : <p class="muted small">No encontré cartas del mismo rol con menos sal en tus colores.</p>) : null}
         </li>; })}</ul></> : <p class="small">Ninguna carta de tu lista pasa de 1 de sal.</p>}
+    </Section>
+  );
+}
+
+/** Pestaña "Nuevas": cartas recién publicadas que calzan con el mazo. */
+function NewTab({ d }: { d: Deck }): JSX.Element {
+  const N = novedades(d); const busy = !!S.busy;
+  return (
+    <Section title="Cartas nuevas para tu mazo" aside={N.recent ? <span class="muted small">Scryfall, desde el {isoDay(N.recent.since)}</span> : null}>
+      <p class="muted">Cartas recién publicadas, en tus colores y tu formato, que refuerzan un tema activo, una función que te falta o tu tribu.</p>
+      <div class="row">
+        <button class="btn" disabled={busy || !d.commanders.length} onClick={() => void loadRecent(d, 120)}>{N.recent ? "Volver a buscar" : "Buscar en Scryfall (últimos 4 meses)"}</button>
+      </div>
+      {S.localNew ? <p class="muted small">Incluye {plural(S.localNew.names.length, "carta nueva", "cartas nuevas")} entre tus archivos de MTGJSON del {isoDay(S.localNew.from)} y del {isoDay(S.localNew.to)}.</p>
+        : <p class="muted small">Si cargas en Ajustes un archivo de MTGJSON más nuevo que el que tienes, también se comparan los dos.</p>}
+      {N.list.length ? <ul class="cards sug">{N.list.map(c => <li key={c.n}><span class="cost">{c.m.t === "Land" ? "Tierra" : c.m.cmc}</span><CardName name={c.n} deckId={d.id} m={c.m} /><span class="why">{c.why}</span><button type="button" class="add" aria-label={`Agregar ${c.n}`} onClick={() => void addWithImpact(d, c.n, "carta nueva")}>Agregar</button></li>)}</ul>
+        : (N.recent || N.local) ? <p class="small">Ninguna carta nueva calza con lo que hace tu mazo.</p> : null}
+    </Section>
+  );
+}
+
+/** Pestaña "Tandas": mejorar un precon (o cualquier mazo) de a pocos cambios. */
+function StagesTab({ d, needE }: { d: Deck; needE: JSX.Element }): JSX.Element {
+  const E = edhOf(d);
+  if (!E) return <Section title="Mejorar por tandas"><p class="muted">Una ruta en tres tandas para mejorar el mazo de a pocos, por ejemplo un precon: base de maná, funciones que faltan y lo más jugado con tu comandante.</p>{needE}</Section>;
+  const P = upgrade(d);
+  return (
+    <Section title="Mejorar por tandas" aside={<span class="muted small">EDHREC, {agoTxt(E.at)}</span>}>
+      <p class="muted">Cambios de a pocos, ideal para un precon. Haz una tanda, prueba el mazo en Probar y sigue con la siguiente. Cada tanda deja una versión guardada.</p>
+      {!P.length ? <p class="small">No encontré cambios claros: la lista ya se parece a lo que se juega con tu comandante.</p> : P.map((st, i) => (
+        <div class="stage" key={st.k}>
+          <h4>{i + 1}. {st.title}</h4><p class="muted small">{st.why}</p>
+          <ul class="cards swaps">{st.swaps.map(s => <li key={s.out + s.in}><span class="out">Sale <CardName name={s.out} deckId={d.id} m={S.db.get(s.out)} /></span><span class="in">Entra <CardName name={s.in} deckId={d.id} m={S.db.get(s.in)} /></span></li>)}</ul>
+          <button class="btn" disabled={!!S.busy} onClick={async () => { const n = await applySwaps(d.id, st.swaps); toast(n ? `Tanda aplicada: ${plural(n, "cambio", "cambios")}. Si no te convence, vuelve atrás desde Versiones.` : "No se aplicó ningún cambio: la lista ya cambió.", n ? undefined : "warn"); }}>Aplicar esta tanda ({st.swaps.length})</button>
+        </div>))}
     </Section>
   );
 }
