@@ -2,7 +2,7 @@
 import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { S, saveDeck, deleteDeck, draft, edhOf, loadEdh, edhForPlan, needsTheme, insight, ensureCards } from "../data/store.ts";
-import { BRACKETS, bracketOf, bracketRule, buildSlots, type Deck, type Interaction, type Plan } from "../engine/index.ts";
+import { BRACKETS, bracketOf, bracketRule, buildSlots, type Deck, type Format, type Interaction, type Plan } from "../engine/index.ts";
 import { Chips, Confirm, Note, Section, Sheet, go } from "./kit.tsx";
 import { CommanderPicker } from "./Decks.tsx";
 
@@ -24,6 +24,11 @@ export function StepPlan({ d }: { d: Deck }): JSX.Element {
         <Section title="Comandante y nombre">
           <label class="field"><span>Nombre del mazo</span><input type="text" value={name} maxLength={80} onInput={e => setName((e.target as HTMLInputElement).value)} onBlur={() => { if (name.trim() && name !== d.name) void saveDeck({ ...d, name: name.trim() }); }} /></label>
           <p>{d.commanders.length ? <>Comandante: <b>{d.commanders.join(" + ")}</b>.</> : <span class="warn-text">Este mazo todavía no tiene comandante.</span>} <button class="btn ghost" onClick={() => setPick(true)}>{d.commanders.length ? "Cambiar" : "Elegir comandante"}</button></p>
+        </Section>
+
+        <Section title="Formato">
+          <Chips<Format> label="Formato del mazo" value={d.plan.format || "commander"} options={[["commander", "Commander"], ["duel", "Duel Commander"]]} onPick={v => setPlan({ format: v })} />
+          {d.plan.format === "duel" ? <p class="muted small">Duel Commander es 1 contra 1, con 20 vidas y su propia lista de prohibidas. La app revisa la legalidad de cada carta con los datos de Scryfall o MTGJSON; las cartas prohibidas solo como comandante no se detectan todavía. Los brackets son de Commander multijugador: aquí sirven solo como referencia.</p> : null}
         </Section>
 
         <Section title="Bracket buscado">

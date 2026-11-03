@@ -1,7 +1,7 @@
 // Ajustes: respaldo, traer mazos desde la Bóveda, datos de cartas y versión de la app.
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { S, makeBackup, saveSettings, ensureCards, toast, type ImportReport } from "../data/store.ts";
+import { S, makeBackup, saveSettings, ensureCards, toast, importLocal, removeLocal, type ImportReport } from "../data/store.ts";
 import { importBackupText } from "../data/backup.ts";
 import { usage, isMemoryOnly } from "../data/idb.ts";
 import { allNames } from "../engine/index.ts";
@@ -11,6 +11,7 @@ import { Note, Section, agoTxt, dateTime, download, plural } from "./kit.tsx";
 declare const __BUILD__: { v: string };
 
 export function SettingsScreen(): JSX.Element {
+  const mj = useRef<HTMLInputElement>(null); const [mjErr, setMjErr] = useState("");
   const file = useRef<HTMLInputElement>(null); const [rep, setRep] = useState<ImportReport | null>(null); const [err, setErr] = useState(""); const [use, setUse] = useState<{ used: number; quota: number } | null>(null);
   useEffect(() => { void usage().then(setUse); }, []);
   const backup = async () => { if (!await download(`boveda-constructor-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(makeBackup()))) return; void saveSettings({ lastBackup: Date.now() }); toast("Respaldo descargado."); };
@@ -21,6 +22,12 @@ export function SettingsScreen(): JSX.Element {
       void ensureCards(S.decks.flatMap(allNames), { label: "Trayendo los datos de las cartas", quiet: true });
     } catch (e) { setErr(e instanceof Error ? e.message : "No se pudo leer el archivo."); }
     finally { if (file.current) file.current.value = ""; }
+  };
+  const onMj = async (f: File | undefined) => {
+    if (!f) return; setMjErr("");
+    try { const r = await importLocal(f); toast(`Datos de MTGJSON cargados: ${r.cards.toLocaleString("es-CL")} cartas${r.date ? ` del ${r.date}` : ""}, ${r.gc} Game Changers.`); }
+    catch (e) { setMjErr(e instanceof Error ? e.message : "No se pudo leer el archivo."); }
+    finally { if (mj.current) mj.current.value = ""; }
   };
   const stale = S.decks.length > 0 && (!S.settings.lastBackup || Date.now() - S.settings.lastBackup > 30 * 864e5);
   const mb = (n: number) => (n / 1048576).toFixed(1).replace(".", ",") + " MB";
@@ -51,6 +58,16 @@ export function SettingsScreen(): JSX.Element {
         <button class="btn" disabled={!!S.busy || !S.decks.length} onClick={async () => { const r = await ensureCards(S.decks.flatMap(allNames), { force: true, label: "Actualizando todas las cartas" }); if (!r.offline && !r.missing.length) toast("Cartas actualizadas."); }}>Actualizar las cartas de mis mazos</button>
       </Section>
 
+      <Section title="Cartas sin conexión (MTGJSON)">
+        <p>Con el archivo <b>AtomicCards</b> de MTGJSON la app conoce todas las cartas sin consultar internet{IN_CLAUDE ? " y sin gastar créditos de Firecrawl" : ""}: datos de juego, Game Changers, legalidad en Commander y en Duel Commander, y el puesto en EDHREC. Las imágenes siguen viniendo de Scryfall cuando hay conexión.</p>
+        {S.local ? <Note tone="info">Cargados: {S.local.size.toLocaleString("es-CL")} cartas{S.local.date ? `, datos de MTGJSON del ${S.local.date}` : ""} (desde {dateTime(S.localAt)}). La lista de Game Changers sale de estos datos; con conexión se revisa también en Scryfall cada semana.</Note>
+          : <p class="muted">Descárgalo en mtgjson.com → Downloads → All Files → <b>AtomicCards.json.gz</b> y cárgalo aquí. Conviene hacerlo en un computador: el archivo es grande. Para actualizar los datos, carga uno nuevo (MTGJSON publica uno cada día).</p>}
+        <div class="row"><button class="btn primary" disabled={!!S.busy} onClick={() => mj.current && mj.current.click()}>{S.local ? "Cargar un archivo nuevo" : "Cargar AtomicCards"}</button>{S.local ? <button class="btn ghost" disabled={!!S.busy} onClick={() => void removeLocal()}>Quitar estos datos</button> : null}</div>
+        <input ref={mj} type="file" accept=".json,.gz,application/json,application/gzip" hidden aria-label="Archivo de MTGJSON" onChange={e => void onMj((e.target as HTMLInputElement).files?.[0])} />
+        {mjErr ? <Note tone="bad">{mjErr}</Note> : null}
+        <p class="muted small">MTGJSON es de licencia libre (MIT). Su ranking de EDHREC es una foto del día en que se armó el archivo.</p>
+      </Section>
+
       <Section title="Almacenamiento">
         {isMemoryOnly() ? <Note tone="bad">Este navegador no deja guardar datos (puede ser una ventana privada). Lo que hagas se pierde al cerrar la pestaña: descarga un respaldo antes de salir.</Note> : null}
         <p class="muted">{plural(S.decks.length, "mazo", "mazos")}, {plural(S.versions.length, "versión", "versiones")} y {plural(S.games.length, "partida", "partidas")}.{use && use.quota ? ` La app ocupa ${mb(use.used)} de ${mb(use.quota)} disponibles.` : ""}</p>
@@ -58,7 +75,7 @@ export function SettingsScreen(): JSX.Element {
 
       <Section title="Acerca de">
         <p class="muted small">Bóveda Constructor, versión <b class="version">{__BUILD__.v}</b>. Si este código no coincide con el último que te informaron, la app publicada está atrasada.</p>
-        <p class="muted small">Fuentes: Scryfall (cartas y Game Changers), EDHREC (qué se juega con cada comandante), Commander Spellbook (combos) y EDHTop16 (torneos cEDH). No está afiliada a Wizards of the Coast. Las simulaciones son aproximadas.</p>
+        <p class="muted small">Fuentes: Scryfall y MTGJSON (cartas y Game Changers), EDHREC (qué se juega con cada comandante), Commander Spellbook (combos) y EDHTop16 (torneos cEDH). No está afiliada a Wizards of the Coast. Las simulaciones son aproximadas.</p>
       </Section>
     </div>
   );

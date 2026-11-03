@@ -38,6 +38,7 @@ export function CardSheet({ name, deckId, onClose }: { name: string; deckId?: st
               {m.xt ? <Pill tone="warn">Turno extra</Pill> : null}
               {m.mld ? <Pill tone="warn">Destruye tierras</Pill> : null}
               {m.legal && m.legal !== "legal" ? <Pill tone="bad">No legal en Commander</Pill> : null}
+              {m.duel && m.duel !== "legal" ? <Pill tone={d && d.plan.format === "duel" ? "bad" : "warn"}>{m.duel === "banned" ? "Prohibida en Duel Commander" : "No legal en Duel Commander"}</Pill> : null}
               {m.r.map(r => <Pill key={r}>{ROLE_ES[r]}</Pill>)}
             </div>
             {m.tg.filter(k => TAG_ES[k]).length ? <p class="muted small">Qué hace: {m.tg.filter(k => TAG_ES[k]).map(k => TAG_ES[k]).join(", ")}.</p> : null}

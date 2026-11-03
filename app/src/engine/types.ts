@@ -26,6 +26,7 @@ export interface Card {
   tu?: number;
   leg: boolean;         // legendaria
   legal: string;        // legalidad en Commander ("legal", "banned", "not_legal", "")
+  duel?: string;        // legalidad en Duel Commander (mismos valores; vacío = sin dato)
   img: string;
   uri: string;
   rank: number | null;  // puesto en EDHREC
@@ -41,11 +42,15 @@ export interface Combos { at: number; inc: Combo[]; almost: Combo[] }
 
 export type Interaction = "low" | "mid" | "high";
 
+/** Formato del mazo: Commander multijugador o Duel Commander (1 contra 1, lista de prohibidas propia). */
+export type Format = "commander" | "duel";
+
 /** Lo que el jugador decide antes de armar: define las casillas y los avisos. */
 export interface Plan {
   bracket: number | null;   // bracket buscado (1–5) o sin definir
   theme: string;            // estrategia, en palabras del jugador o tema de EDHREC
   inter: Interaction;       // cuánta interacción quiere
+  format?: Format;          // sin definir = Commander
 }
 
 export interface Deck {

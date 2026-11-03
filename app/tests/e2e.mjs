@@ -256,7 +256,7 @@ const tests = [
     await ctx.close();
     // navegador limpio
     const s2 = await open(); const p2 = s2.page;
-    await p2.goto(site.url + "#/ajustes"); await p2.locator('input[type="file"]').setInputFiles({ name: "respaldo.json", mimeType: "application/json", buffer: backup });
+    await p2.goto(site.url + "#/ajustes"); await p2.getByLabel('Archivo de respaldo').setInputFiles({ name: "respaldo.json", mimeType: "application/json", buffer: backup });
     await p2.waitForSelector(".note.info"); check(/Se importaron 1 mazo/.test(await p2.locator(".note.info").innerText()), "informe del respaldo");
     check((await deckState(p2)).main === 99, "el mazo volvió completo");
     // respaldo de la Bóveda original: solo entran los mazos de Commander
@@ -265,14 +265,14 @@ const tests = [
         { id: "viejo1", format: "commander", name: "Hapatra viejo", commanders: ["Hapatra, Vizier of Poisons"], cards: [{ n: "Sol Ring", q: 1 }, { n: "Swamp", q: 10 }], side: [{ n: "Forest", q: 1 }], maybe: [], versions: [{ at: 5, savedAt: 6, src: "manual", commanders: ["Hapatra, Vizier of Poisons"], cards: [{ n: "Swamp", q: 9 }], side: [], maybe: [] }], rival: { owner: "Pame" } },
         { id: "viejo2", format: "pauper", name: "Burn", commanders: [], cards: [{ n: "Lightning Bolt", q: 4 }] }],
       games: [{ id: "g1", at: 10, deck: "viejo1", res: "win", turn: 9, how: "combat", seat: 2, opp: ["Atraxa"], note: "" }, { id: "g2", at: 11, deck: "viejo2", res: "loss" }] };
-    await p2.locator('input[type="file"]').setInputFiles({ name: "boveda-edh-respaldo.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(old)) });
+    await p2.getByLabel('Archivo de respaldo').setInputFiles({ name: "boveda-edh-respaldo.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(old)) });
     await p2.waitForFunction(() => /Venían de la Bóveda/.test(document.body.textContent));
     const r = await p2.evaluate(() => { const S = window.__boveda.S; const d = S.decks.find(x => x.id === "viejo1"); return { n: S.decks.length, kind: d.kind, owner: d.owner, maybe: d.maybe, v: S.versions.filter(v => v.deckId === "viejo1").length, g: S.games.filter(g => g.deckId === "viejo1").length, all: S.games.length, pauper: S.decks.some(x => x.id === "viejo2") }; });
     check(r.n === 2 && !r.pauper, "entra solo el mazo de Commander"); check(r.kind === "ref" && r.owner === "Pame", "el mazo de un amigo queda como referencia");
     check(r.v === 1 && r.g === 1 && r.all === 1, "versiones y partidas del mazo importado"); check(r.maybe.length === 1, "el banquillo pasa a probables");
     check(/1 mazo de otro formato se dejó fuera/.test(await p2.locator(".note.info").innerText()), "avisa lo que quedó fuera");
     // un archivo cualquiera no rompe nada
-    await p2.locator('input[type="file"]').setInputFiles({ name: "x.json", mimeType: "application/json", buffer: Buffer.from("{\"hola\":1}") });
+    await p2.getByLabel('Archivo de respaldo').setInputFiles({ name: "x.json", mimeType: "application/json", buffer: Buffer.from("{\"hola\":1}") });
     await p2.waitForSelector(".note.bad"); check((await p2.evaluate(() => window.__boveda.S.decks.length)) === 2, "nada cambió");
     await s2.ctx.close();
   }],
@@ -284,7 +284,7 @@ const tests = [
     await page.evaluate(() => { const { S, store } = window.__boveda; const d = S.decks[0]; return store.saveDeck({ ...d, name: "Cambiado", cards: d.cards.slice(0, 40) }, "editar la lista"); });
     const v0 = (await deckState(page)).versions;
     await page.goto(site.url + "#/ajustes");
-    const up = (name, text) => page.locator('input[type="file"]').setInputFiles({ name, mimeType: "application/json", buffer: Buffer.from(text) });
+    const up = (name, text) => page.getByLabel('Archivo de respaldo').setInputFiles({ name, mimeType: "application/json", buffer: Buffer.from(text) });
     await up("r.json", backup); await page.waitForSelector(".note.info");
     check(/1 mazo que ya tenías se reemplazó/.test(await page.locator(".note.info").innerText()), "avisa que reemplazó: " + await page.locator(".note.info").innerText());
     let st = await deckState(page); check(st.main === 99 && st.versions === v0 + 1, "la lista de 40 quedó como versión antes de reemplazarla");
@@ -391,6 +391,45 @@ const tests = [
     const cols = await page.evaluate(() => getComputedStyle(document.querySelector(".cols")).gridTemplateColumns.split(" ").length);
     check(cols === 2, "dos columnas en el plan"); check((await overflow(page)) <= 0, "sin desborde");
     await ctx.close();
+  }],
+
+  ["MTGJSON y Duel Commander: cartas sin consultar, Game Changers locales y legalidad por formato", async () => {
+    // paquete de prueba con el formato de la app: las cartas de los fixtures + 21 Game Changers inventados
+    const { CARDS } = await import("./harness.mjs");
+    const gcFake = Array.from({ length: 21 }, (_, i) => ({ name: `Prueba GC ${i + 1}`, type_line: "Sorcery", oracle_text: "Draw a card.", mana_cost: "{1}", cmc: 1, color_identity: [], colors: [], game_changer: true, legalities: { commander: "legal", duel: "legal" } }));
+    const cards = [...CARDS.map(c => ({ ...c, game_changer: false, legalities: { ...(c.legalities || {}), duel: c.name === "Sol Ring" ? "banned" : "legal" } })), ...gcFake];
+    const zlib = await import("node:zlib"); const os = await import("node:os"); const path = await import("node:path");
+    const file = path.join(os.tmpdir(), "cartas-prueba.json.gz");
+    fs.writeFileSync(file, zlib.gzipSync(JSON.stringify({ format: "boveda-cartas", v: 1, date: "2026-11-03", version: "prueba", cards })));
+    const { ctx, page } = await open();
+    await page.goto(site.url + "#/ajustes"); await page.waitForSelector("text=Cartas sin conexión");
+    await page.locator('input[aria-label="Archivo de MTGJSON"]').setInputFiles(file);
+    await page.waitForFunction(() => !!window.__boveda.S.local, null, { timeout: 30000 });
+    const st0 = await page.evaluate(() => { const S = window.__boveda.S; return { n: S.local.size, src: S.gcSrc, gc: S.db.gcNames().length }; });
+    check(st0.n === cards.length, `cartas cargadas: ${st0.n}`); check(st0.src === "mtgjson" && st0.gc === 21, "Game Changers desde MTGJSON: " + JSON.stringify(st0));
+    check(/Cargados: /.test(await page.locator(".note", { hasText: "Cargados:" }).innerText()), "Ajustes muestra los datos cargados");
+    const before = calls.collection; await toastGone(page);
+    await page.goto(site.url + "#/"); await page.waitForSelector(".hero, .page-h");
+    await draftDeck(page, "Hakbal", 3);
+    check(calls.collection === before, `con datos locales no se piden cartas a Scryfall (${calls.collection - before} consultas)`);
+    const st = await deckState(page); check(st.main === 99 && !st.missing, "borrador completo con datos locales");
+    const hasSol = await page.evaluate(() => window.__boveda.S.decks[0].cards.some(c => c.n === "Sol Ring"));
+    // cambiar el formato a Duel Commander: Sol Ring pasa a no ser legal
+    await page.goto(site.url + `#/mazo/${st.id}/plan`); await page.getByRole("button", { name: "Duel Commander" }).click();
+    await page.waitForFunction(() => window.__boveda.S.decks[0].plan.format === "duel");
+    check(/1 contra 1/.test(await page.locator(".sec").first().innerText() + await page.content()), "aviso de Duel Commander en Plan");
+    await page.goto(site.url + `#/mazo/${st.id}/armar`); await page.waitForSelector(".slots");
+    if (hasSol) check(await page.locator("text=No legales en Duel Commander").count() === 1, "aviso de cartas no legales en Duel");
+    const ill = await page.evaluate(() => { const { S, store } = window.__boveda; return store.insight(S.decks[0]).A.illegalDuel; });
+    check(hasSol ? ill.includes("Sol Ring") : !ill.length, "legalidad en Duel: " + ill);
+    check((await overflow(page)) <= 0, "sin desborde horizontal");
+    await page.goto(site.url + "#/meta"); await page.waitForSelector("text=Game Changers");
+    check(/datos de MTGJSON del 2026-11-03/.test(await page.content()), "Meta indica que la lista sale de MTGJSON");
+    // persiste al recargar y se puede quitar
+    await page.reload(); await page.waitForFunction(() => !!window.__boveda.S.local, null, { timeout: 30000 });
+    await page.goto(site.url + "#/ajustes"); await page.getByRole("button", { name: "Quitar estos datos" }).click();
+    await page.waitForFunction(() => !window.__boveda.S.local);
+    await ctx.close(); return `${st0.n} cartas locales, Sol Ring ${hasSol ? "en el mazo y marcada en Duel" : "fuera del borrador"}`;
   }],
 
   ["rendimiento en teléfono lento: carga y cambio de pantalla", async () => {

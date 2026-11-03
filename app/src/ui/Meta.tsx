@@ -31,7 +31,7 @@ export function MetaScreen(): JSX.Element {
       </Section>
 
       <Section title={`Game Changers (${gc.length})`} aside={<button class="btn ghost" disabled={busy} onClick={() => void refreshGC(true)}>Actualizar</button>}>
-        <p class="muted small">{S.gcAt ? `Lista de Scryfall, actualizada ${agoTxt(S.gcAt)}.` : "Lista incluida en la app (guía oficial del 9 de febrero de 2026). Se actualiza sola desde Scryfall cuando hay conexión."} En negrita, las que llevas en algún mazo tuyo.</p>
+        <p class="muted small">{S.gcSrc === "mtgjson" && S.local ? `Lista de los datos de MTGJSON del ${S.local.date || "archivo cargado"} (cargados ${agoTxt(S.gcAt)}). Con conexión también se revisa en Scryfall cada semana.` : S.gcAt ? `Lista de Scryfall, actualizada ${agoTxt(S.gcAt)}.` : "Lista incluida en la app (guía oficial del 9 de febrero de 2026). Se actualiza sola desde Scryfall o desde los datos de MTGJSON."} En negrita, las que llevas en algún mazo tuyo.</p>
         <p class="gc-list">{gc.map((n, i) => <>{i ? ", " : ""}<span class={inDecks.has(slug(n)) ? "mine" : ""} key={n}><CardName name={n} m={S.db.get(n)} /></span></>)}</p>
       </Section>
 

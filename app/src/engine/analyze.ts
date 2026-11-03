@@ -1,5 +1,5 @@
 // Análisis de un mazo de Commander: conteos, curva, legalidad, bracket oficial y base de maná.
-import type { Card, CardDb, Deck, Row } from "./types.ts";
+import type { Card, CardDb, Deck, Format, Row } from "./types.ts";
 import { BASICS, WUBRG, slug } from "./util.ts";
 import { ANY_NUMBER } from "./constants.ts";
 
@@ -25,6 +25,7 @@ export interface Analysis {
   off: string[];              // fuera de la identidad de color
   dupes: string[];            // copias repetidas
   illegal: string[];          // no legales en Commander
+  illegalDuel: string[];      // no legales en Duel Commander (cartas con dato de legalidad)
   xt: string[];               // turnos extra
   mld: string[];              // destrucción masiva de tierras
   tutors: string[];
@@ -51,7 +52,7 @@ export function analyze(d: DeckLike, db: CardDb): Analysis {
   const missing = [...(d.commanders || []).filter(n => !db.get(n)), ...rows.filter(r => !r.m).map(r => r.n), ...maybe.filter(r => !r.m).map(r => r.n)];
   const roles: Roles = { land: 0, ramp: 0, draw: 0, removal: 0, wipe: 0, tutor: 0, protection: 0, wincon: 0, recursion: 0 };
   const types: Record<string, number> = {}; const curve = [0, 0, 0, 0, 0, 0, 0, 0]; let cmcSum = 0, spells = 0;
-  const gc: string[] = [], off: string[] = [], dupes: string[] = [], illegal: string[] = [], xt: string[] = [], mld: string[] = [], tutors: string[] = [];
+  const gc: string[] = [], off: string[] = [], dupes: string[] = [], illegal: string[] = [], illegalDuel: string[] = [], xt: string[] = [], mld: string[] = [], tutors: string[] = [];
   const cmdKnown = cmdMeta.length > 0 && cmdMeta.every(Boolean);
   const copies = new Map<string, number>(); for (const r of rows) copies.set(slug(r.n), (copies.get(slug(r.n)) || 0) + r.q);
   for (const r of rows) {
@@ -63,14 +64,15 @@ export function analyze(d: DeckLike, db: CardDb): Analysis {
     if (r.m.gc) gc.push(r.n); if (r.m.xt) xt.push(r.n); if (r.m.mld) mld.push(r.n); if ((r.m.r || []).includes("tutor")) tutors.push(r.n);
     if (cmdKnown && (r.m.ci || "").split("").some(c => (WUBRG as readonly string[]).includes(c) && !ci.includes(c))) off.push(r.n);
     if (r.m.legal && r.m.legal !== "legal" && r.m.legal !== "restricted" && !illegal.includes(r.n)) illegal.push(r.n);
+    if (r.m.duel && r.m.duel !== "legal" && !illegalDuel.includes(r.n)) illegalDuel.push(r.n);
   }
   for (const [k, q] of copies) {
     if (q <= 1 || BASICS.has(k)) continue;
     const r0 = rows.find(x => slug(x.n) === k);
     if (!ANY_NUMBER.test((r0 ? r0.n : k.replace(/-/g, " ")).toLowerCase())) dupes.push(r0 ? r0.n : k);
   }
-  for (const m of cmdMeta) if (m) { if (m.gc) gc.push(m.n); if (m.legal && m.legal !== "legal") illegal.push(m.n); }
-  return { ci, rows, maybe, cmdMeta, main, total, maybeN: maybe.reduce((a, r) => a + r.q, 0), missing, roles, types, curve, avg: spells ? cmcSum / spells : 0, spells, gc, off, dupes, illegal, xt, mld, tutors };
+  for (const m of cmdMeta) if (m) { if (m.gc) gc.push(m.n); if (m.legal && m.legal !== "legal") illegal.push(m.n); if (m.duel && m.duel !== "legal") illegalDuel.push(m.n); }
+  return { ci, rows, maybe, cmdMeta, main, total, maybeN: maybe.reduce((a, r) => a + r.q, 0), missing, roles, types, curve, avg: spells ? cmcSum / spells : 0, spells, gc, off, dupes, illegal, illegalDuel, xt, mld, tutors };
 }
 
 export type Status = "good" | "warn" | "bad";
@@ -125,12 +127,14 @@ export const bracketRule = (n: number): BracketRule => BRACKETS[Math.max(1, Math
 export interface Check { ok: boolean; t: string; w: number }
 export interface Health { score: number; checks: Check[] }
 /** Lista de control básica: 100 cartas, identidad, singleton, legalidad, casillas en rango, curva y manos. */
-export function health(A: Analysis, pScrew: number | null): Health {
+/** Cartas no legales según el formato del mazo. */
+export const illegalFor = (A: Analysis, fmt: Format | undefined): string[] => fmt === "duel" ? A.illegalDuel : A.illegal;
+export function health(A: Analysis, pScrew: number | null, fmt?: Format): Health {
   const checks: Check[] = [
     { ok: A.total === 100, t: `100 cartas exactas (${A.total})`, w: 15 },
     { ok: !A.off.length && A.cmdMeta.every(Boolean), t: "Todo dentro de la identidad de color", w: 10 },
     { ok: !A.dupes.length, t: "Singleton sin copias repetidas", w: 10 },
-    { ok: !A.illegal.length, t: "Todas las cartas legales en Commander", w: 5 },
+    { ok: !illegalFor(A, fmt).length, t: `Todas las cartas legales en ${fmt === "duel" ? "Duel Commander" : "Commander"}`, w: 5 },
     ...TARGETS.map(t => ({ ok: status(A.roles[t.k], t.lo, t.hi) === "good", t: `${t.n} en rango (${A.roles[t.k]} de ${t.lo}–${t.hi})`, w: 8 })),
     { ok: A.avg > 0 && A.avg <= 3.6, t: `Curva razonable (coste promedio ${A.avg.toFixed(2).replace(".", ",")}, máximo 3,6)`, w: 6 },
     { ok: pScrew != null && pScrew <= 0.15, t: `Pocas manos atascadas${pScrew != null ? ` (${Math.round(pScrew * 100)} %)` : ""}`, w: 6 },

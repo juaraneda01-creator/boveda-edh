@@ -3,6 +3,7 @@
 import type { Card, CardDb, EdhData, EdhPoolCard, Entry, Plan } from "./types.ts";
 import { BASIC_NAME, WUBRG, slug } from "./util.ts";
 import { isCounter, slotGoals } from "./slots.ts";
+import { legalIn } from "./cards.ts";
 
 export interface BuildInput {
   commanders: string[];
@@ -43,7 +44,7 @@ export function completeDeck(input: BuildInput, E: EdhData, db: CardDb): BuildRe
   const cmdKeys = new Set(input.commanders.map(slug));
 
   const pool = E.pool.map(p => ({ ...p, m: db.get(p.n) })).filter((p): p is EdhPoolCard & { m: Card } =>
-    !!p.m && !p.m.basic && inIdentity(p.m, ci) && (!p.m.legal || p.m.legal === "legal") && !cmdKeys.has(slug(p.m.n)) && !have.has(slug(p.m.n)) && !excl.has(slug(p.m.n)) && !excl.has(slug(p.n)) && bracketAllows(p.m, br),
+    !!p.m && !p.m.basic && inIdentity(p.m, ci) && legalIn(p.m, input.plan.format) && !cmdKeys.has(slug(p.m.n)) && !have.has(slug(p.m.n)) && !excl.has(slug(p.m.n)) && !excl.has(slug(p.n)) && bracketAllows(p.m, br),
   ).map(p => ({ ...p, score: poolScore(p) })).sort((a, b) => b.score - a.score);
 
   const chosen = new Map<string, Card>();

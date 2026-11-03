@@ -7,6 +7,7 @@ import { slotGoals, supportCount, type SlotKey } from "./slots.ts";
 import type { Synergy } from "./synergy.ts";
 import { CEDH_STAPLES, FAST_MANA, FREE_INTERACTION } from "./constants.ts";
 import { ROLE_ES, slug } from "./util.ts";
+import { legalIn } from "./cards.ts";
 
 const pct = (v: number) => `${Math.round(v * 100)} %`;
 const inDeckSet = (d: Pick<Deck, "commanders">, A: Analysis) => new Set([...A.rows.map(r => slug(r.n)), ...(d.commanders || []).map(slug)]);
@@ -29,7 +30,7 @@ export function slotSuggestions(k: SlotKey, d: Pick<Deck, "commanders">, A: Anal
   const out: Suggestion[] = [];
   for (const p of E.pool) {
     const m = db.get(p.n); if (!m || m.basic || inDeck.has(slug(m.n)) || !fits(m)) continue;
-    if (!inIdentity(m, A.ci) || (m.legal && m.legal !== "legal") || !bracketAllows(m, plan.bracket)) continue;
+    if (!inIdentity(m, A.ci) || !legalIn(m, plan.format) || !bracketAllows(m, plan.bracket)) continue;
     if (m.gc && gcLeft <= 0) continue;
     const why: string[] = [];
     if (p.incl != null) why.push(`en ${pct(p.incl)} de las listas`);
@@ -56,7 +57,7 @@ export function swaps(d: Pick<Deck, "commanders">, A: Analysis, E: EdhData, db: 
   const adds = E.pool.filter(p => !inDeck.has(slug(p.n))).map(p => {
     const m = db.get(p.n); if (!m || m.t === "Land") return null;
     if (!inIdentity(m, A.ci)) return null;
-    if (m.legal && m.legal !== "legal") return null;
+    if (!legalIn(m, plan.format)) return null;
     if (!bracketAllows(m, plan.bracket)) return null;
     const fills = rolesOf(m).filter(x => deficit.includes(x));
     return { n: m.n, m, incl: p.incl, syn: p.syn, fills, score: poolScore(p) + fills.length * 20 };

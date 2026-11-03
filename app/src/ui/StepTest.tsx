@@ -34,7 +34,7 @@ function Hands({ d }: { d: Deck }): JSX.Element {
   const deal = (mull = 0) => { const lib: string[] = []; for (const c of d.cards) for (let i = 0; i < c.q; i++) lib.push(c.n); for (let i = lib.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [lib[i], lib[j]] = [lib[j], lib[i]]; } setHand({ lib, n: 7, mull }); };
   useEffect(() => { setHand(null); }, [d.id, d.updated]);
   if (!H) return <p class="muted">No hay datos suficientes para probar manos.</p>;
-  const Hc = health(A, H.pScrew);
+  const Hc = health(A, H.pScrew, d.plan.format);
   const isLand = (n: string) => { const m = S.db.get(n); return !!m && m.t === "Land"; };
   const shown = hand ? hand.lib.slice(0, hand.n) : []; const lands = shown.filter(isLand).length;
   // con mulligan de Londres, el primero es gratis en Commander: se roban 7 y se manda al fondo una menos cada vez

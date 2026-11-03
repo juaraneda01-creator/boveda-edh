@@ -15,3 +15,4 @@ export * from "./slots.ts";
 export * from "./build.ts";
 export * from "./suggest.ts";
 export * from "./compare.ts";
+export * from "./mtgjson.ts";

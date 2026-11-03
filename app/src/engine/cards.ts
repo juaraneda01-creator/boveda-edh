@@ -1,5 +1,5 @@
 // De la carta de Scryfall a la carta del motor, y el índice de cartas en memoria.
-import type { Card, CardDb } from "./types.ts";
+import type { Card, CardDb, Format } from "./types.ts";
 import { BASICS, BASIC_CI, slug } from "./util.ts";
 import { cardFlags, detectRoles, mainType, sbCats, RF_V } from "./detect.ts";
 import { detectTags } from "./tags.ts";
@@ -45,7 +45,7 @@ export function fromScry(c: ScryCard): Card {
     mld: /destroy all lands|each player sacrifices (all|\w+) lands|lands don't untap|destroy all permanents/.test(o),
     tap: t === "Land" && /enters( the battlefield)? tapped\./.test(o) && !/unless|if you control|you may pay|you may reveal/.test(o),
     pw: stat(c.power != null ? c.power : f0.power), tu: stat(c.toughness != null ? c.toughness : f0.toughness),
-    leg: /Legendary/.test(tl), legal: (c.legalities || {}).commander || "",
+    leg: /Legendary/.test(tl), legal: (c.legalities || {}).commander || "", duel: (c.legalities || {}).duel || "",
     img: (c.image_uris && c.image_uris.normal) || (f0.image_uris && f0.image_uris.normal) || "",
     uri: c.scryfall_uri || "", rank: c.edhrec_rank || null, at: Date.now(),
   };
@@ -53,8 +53,15 @@ export function fromScry(c: ScryCard): Card {
 
 export function basicCard(name: string): Card {
   const b = slug(name).replace("snow-covered-", ""); const ci = BASIC_CI[b] || "";
-  return { n: name, cmc: 0, ci, col: "", t: "Land", tl: "Basic Land", cost: "", pm: ci ? [ci] : ["C"], r: [], sb: [], tg: [], rf: [], gc: false, xt: false, mld: false, tap: false, leg: false, legal: "legal", img: "", uri: "", rank: null, basic: true, at: 0, rv: RF_V };
+  return { n: name, cmc: 0, ci, col: "", t: "Land", tl: "Basic Land", cost: "", pm: ci ? [ci] : ["C"], r: [], sb: [], tg: [], rf: [], gc: false, xt: false, mld: false, tap: false, leg: false, legal: "legal", duel: "legal", img: "", uri: "", rank: null, basic: true, at: 0, rv: RF_V };
 }
+
+/** ¿La carta es legal en el formato del mazo? Sin dato de legalidad se da por buena (la carta aún no se trae). */
+export function legalIn(m: Card, fmt: Format | undefined): boolean {
+  const v = fmt === "duel" ? m.duel : m.legal;
+  return !v || v === "legal" || (fmt !== "duel" && v === "restricted");
+}
+export const formatEs = (fmt: Format | undefined): string => fmt === "duel" ? "Duel Commander" : "Commander";
 
 /** ¿Puede ser comandante? Criatura legendaria, o cualquier carta que lo diga en su texto (lo decide quien llama con el texto). */
 export const canCommand = (m: Card): boolean => m.leg && (/Creature/.test(m.tl) || /Vehicle|Spacecraft/.test(m.tl) || m.t === "Planeswalker");

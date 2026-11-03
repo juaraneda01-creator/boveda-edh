@@ -3,7 +3,7 @@ import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { S, addCard, removeCard, moveCard, saveDeck, insight, edhOf, edhForPlan, needsTheme, ensureCards, toast, draft } from "../data/store.ts";
 import {
-  buildSlots, nextStep, slotSuggestions, deckText, parseList, splitParsed, textToDeck, allNames, bracketOf, TYPE_ES, TYPE_ORDER, slug,
+  buildSlots, nextStep, slotSuggestions, deckText, parseList, splitParsed, textToDeck, allNames, bracketOf, illegalFor, formatEs, TYPE_ES, TYPE_ORDER, slug,
   type Deck, type EdhData, type Row, type Slot, type SlotKey,
 } from "../engine/index.ts";
 import { CardName, CardSearch, Note, Section, Sheet, Stack, pct, plural, copyText } from "./kit.tsx";
@@ -69,7 +69,8 @@ export function StepBuild({ d }: { d: Deck }): JSX.Element {
       </div>
       {A.missing.length ? <Note tone="warn" action={<button class="btn" disabled={!!S.busy} onClick={() => void ensureCards(allNames(d), { force: false })}>Actualizar cartas</button>}>{plural(A.missing.length, "carta no tiene datos", "cartas no tienen datos")}: {A.missing.slice(0, 4).join(", ")}{A.missing.length > 4 ? "…" : ""}. Mientras tanto no cuentan en las casillas.</Note> : null}
       {A.off.length ? <Note tone="bad">Fuera de la identidad de color: {A.off.map((n, i) => <>{i ? ", " : ""}<CardName name={n} deckId={d.id} key={n} /></>)}.</Note> : null}
-      {A.illegal.length ? <Note tone="bad">No legales en Commander: {A.illegal.map((n, i) => <>{i ? ", " : ""}<CardName name={n} deckId={d.id} key={n} /></>)}.</Note> : null}
+      {illegalFor(A, d.plan.format).length ? <Note tone="bad">No legales en {formatEs(d.plan.format)}: {illegalFor(A, d.plan.format).map((n, i) => <>{i ? ", " : ""}<CardName name={n} deckId={d.id} key={n} /></>)}.</Note> : null}
+      {d.plan.format === "duel" && A.rows.some(r => r.m && !r.m.basic && !r.m.duel) ? <Note tone="info">Hay cartas sin dato de legalidad en Duel Commander. Actualiza las cartas o carga los datos de MTGJSON en Ajustes para revisarlas todas.</Note> : null}
       {A.dupes.length ? <Note tone="bad">Copias repetidas (Commander es de una copia por carta): {A.dupes.join(", ")}.</Note> : null}
       {B && d.plan.bracket && B.b > d.plan.bracket ? <Note tone="warn" action={<a class="btn" href={`#/mazo/${d.id}/ajustar`}>Ver qué sacar</a>}>La lista es bracket {B.b} y buscas {d.plan.bracket}: {B.why}.</Note> : null}
 

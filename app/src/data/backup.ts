@@ -10,7 +10,7 @@ interface OldDeck {
   versions?: { at?: number; savedAt?: number; src?: string; commanders?: string[]; cards?: OldEntry[]; side?: OldEntry[]; maybe?: OldEntry[] }[];
 }
 interface OldGame { id: string; at: number; deck: string; res: Game["res"]; turn?: number; how?: string | null; seat?: number | null; opp?: string[]; note?: string }
-interface OldCard extends Partial<Card> { lg?: { commander?: string }; usd?: number; eur?: number }
+interface OldCard extends Partial<Card> { lg?: { commander?: string; duel?: string }; usd?: number; eur?: number }
 interface OldBackup { app?: string; decks?: OldDeck[]; games?: OldGame[]; cardData?: { cards?: Record<string, OldCard> } }
 
 const fold = (...lists: (OldEntry[] | undefined)[]): Entry[] => {
@@ -36,7 +36,7 @@ function fromOld(j: OldBackup): { decks: Partial<Deck>[]; versions: Version[]; g
   const cards: { k: string; card: Card }[] = [];
   for (const [k, c] of Object.entries((j.cardData && j.cardData.cards) || {})) {
     if (!c || !c.n || c.rv !== RF_V || !Array.isArray(c.tg) || !Array.isArray(c.rf)) continue;
-    cards.push({ k, card: { n: c.n, cmc: c.cmc || 0, ci: c.ci || "", col: c.col || "", t: c.t || "Unknown", tl: c.tl || "", cost: c.cost || "", pm: c.pm || [], r: c.r || [], sb: c.sb || [], tg: c.tg, rf: c.rf, tq: c.tq, gc: !!c.gc, xt: !!c.xt, mld: !!c.mld, tap: !!c.tap, pw: c.pw, tu: c.tu, leg: !!c.leg, legal: (c.lg && c.lg.commander) || "", img: c.img || "", uri: c.uri || "", rank: c.rank || null, at: c.at || 0, rv: RF_V } });
+    cards.push({ k, card: { n: c.n, cmc: c.cmc || 0, ci: c.ci || "", col: c.col || "", t: c.t || "Unknown", tl: c.tl || "", cost: c.cost || "", pm: c.pm || [], r: c.r || [], sb: c.sb || [], tg: c.tg, rf: c.rf, tq: c.tq, gc: !!c.gc, xt: !!c.xt, mld: !!c.mld, tap: !!c.tap, pw: c.pw, tu: c.tu, leg: !!c.leg, legal: (c.lg && c.lg.commander) || "", duel: (c.lg && c.lg.duel) || "", img: c.img || "", uri: c.uri || "", rank: c.rank || null, at: c.at || 0, rv: RF_V } });
   }
   return { decks, versions, games, cards, skipped: all.length - edh.length };
 }

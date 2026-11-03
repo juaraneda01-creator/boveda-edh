@@ -1,7 +1,7 @@
 // Estado de la app y acciones. Las pantallas leen de aquí y piden cambios aquí;
 // cada cambio se guarda en su tabla y avisa a las pantallas para que se redibujen.
 import {
-  MemoryDb, GC_FALLBACK, RF_V, MAX_QTY, MAX_ENTRIES, analyze, synergyOf, simulateHands, fromScry, slug, uid, diffLists, completeDeck, allNames,
+  MemoryDb, LocalIndex, readLocalPack, GC_FALLBACK, RF_V, MAX_QTY, MAX_ENTRIES, analyze, synergyOf, simulateHands, fromScry, slug, uid, diffLists, completeDeck, allNames,
   type Analysis, type Card, type Combo, type Combos, type Deck, type EdhData, type Entry, type Game, type HandStats, type Plan, type Synergy, type Version, type SimResult,
 } from "../engine/index.ts";
 import * as idb from "./idb.ts";
@@ -20,6 +20,9 @@ export const S = {
   games: [] as Game[],
   db: new MemoryDb(new Map(), GC_FALLBACK),
   gcAt: 0,                                           // cuándo se actualizó la lista de Game Changers (0 = lista incluida en la app)
+  gcSrc: "",                                         // de dónde salió: "scryfall", "mtgjson" o "" (lista incluida)
+  local: null as LocalIndex | null,                  // datos de cartas de MTGJSON guardados en este navegador
+  localAt: 0,                                        // cuándo se cargaron
   edh: new Map<string, EdhData>(),
   staples: new Map<string, { at: number; list: string[] }>(),
   sims: new Map<string, SavedSim>(),
@@ -52,6 +55,7 @@ async function save(store: idb.StoreName, ...values: unknown[]): Promise<void> {
 
 /* ---------- arranque ---------- */
 export async function init(): Promise<void> {
+  let localRaw: { at: number; json: string } | null = null;
   const [decks, versions, games, cards, kv] = await Promise.all([
     idb.getAll<Deck>("decks"), idb.getAll<Version>("versions"), idb.getAll<Game>("games"),
     idb.getAll<{ k: string; card: Card }>("cards"), idb.getAll<{ k: string; v: unknown }>("kv"),
@@ -61,14 +65,57 @@ export async function init(): Promise<void> {
   for (const r of cards) { const c = r && cleanCard(r.card); if (c) S.db.cards.set(String(r.k), c); }
   for (const r of kv) {
     if (r.k === "settings") S.settings = { ...S.settings, ...(r.v as Partial<Settings>) };
-    else if (r.k === "gc") { const g = r.v as { at: number; list: string[] }; if (g && Array.isArray(g.list) && g.list.length > 20) { S.db.setGC(g.list); S.gcAt = g.at; } }
+    else if (r.k === "gc") { const g = r.v as { at: number; list: string[]; src?: string }; if (g && Array.isArray(g.list) && g.list.length > 20) { S.db.setGC(g.list); S.gcAt = g.at; S.gcSrc = g.src || "scryfall"; } }
     else if (r.k === "cedh") S.cedh = r.v as typeof S.cedh;
     else if (r.k.startsWith("edh:")) S.edh.set(r.k.slice(4), r.v as EdhData);
     else if (r.k.startsWith("staples:")) S.staples.set(r.k.slice(8), r.v as { at: number; list: string[] });
     else if (r.k.startsWith("sim:")) S.sims.set(r.k.slice(4), r.v as SavedSim);
+    else if (r.k === "mtgjson") localRaw = r.v as { at: number; json: string };
   }
   S.ready = true; S.epoch++; touch();
   void idb.persist();
+  localReady = loadLocal(localRaw);
+}
+
+/* ---------- datos de cartas locales (MTGJSON) ---------- */
+let localReady: Promise<void> = Promise.resolve();
+/** Arma el índice en segundo plano para no demorar la primera pantalla. */
+async function loadLocal(raw: { at: number; json: string } | null): Promise<void> {
+  if (!raw || typeof raw.json !== "string") return;
+  await new Promise(r => setTimeout(r, 0));
+  try { S.local = new LocalIndex(readLocalPack(JSON.parse(raw.json))); S.localAt = raw.at || 0; touch(); }
+  catch { S.local = null; }
+}
+async function gunzip(bytes: Uint8Array): Promise<string> {
+  const ds = new Blob([bytes as BlobPart]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return new Response(ds).text();
+}
+/** Carga AtomicCards de MTGJSON (o el paquete compacto) desde un archivo, lo guarda y lo usa como primera fuente de cartas. */
+export async function importLocal(file: File): Promise<{ cards: number; gc: number; date: string }> {
+  const b = setBusy("Leyendo los datos de MTGJSON");
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const text = bytes[0] === 0x1f && bytes[1] === 0x8b ? await gunzip(bytes) : new TextDecoder().decode(bytes);
+    let parsed: unknown; try { parsed = JSON.parse(text); } catch { throw new Error("El archivo no es un JSON válido. Usa AtomicCards.json o AtomicCards.json.gz de MTGJSON."); }
+    const pack = readLocalPack(parsed);
+    if (!pack.cards.length) throw new Error("El archivo no trae cartas.");
+    const idx = new LocalIndex(pack);
+    await idb.put("kv", { k: "mtgjson", v: { at: Date.now(), json: JSON.stringify(pack) } });
+    S.local = idx; S.localAt = Date.now();
+    const gc = idx.gameChangers();
+    if (gc.length > 20) { S.db.setGC(gc); S.gcAt = Date.now(); S.gcSrc = "mtgjson"; await save("kv", { k: "gc", v: { at: S.gcAt, list: gc, src: "mtgjson" } }); }
+    // las cartas ya guardadas se actualizan con los datos nuevos (Game Changers, legalidad en Duel Commander)
+    const recs: { k: string; card: Card }[] = [];
+    for (const [k, c] of S.db.cards) { const sc = idx.get(c.n); if (sc) { const m = { ...fromScry(sc), at: Date.now() }; if (!m.img && c.img) m.img = c.img; if (!m.uri && c.uri) m.uri = c.uri; S.db.cards.set(k, m); recs.push({ k, card: m }); } }
+    if (recs.length) await save("cards", ...recs);
+    S.epoch++; touch();
+    return { cards: idx.size, gc: gc.length, date: idx.date };
+  } finally { endBusy(b); }
+}
+export async function removeLocal(): Promise<void> {
+  await idb.del("kv", "mtgjson"); S.local = null; S.localAt = 0;
+  if (S.gcSrc === "mtgjson") { S.gcAt = 0; void refreshGC(true); }
+  touch();
 }
 
 /* ---------- limpieza de lo que entra (respaldos, datos guardados): nada mal formado llega a las pantallas ---------- */
@@ -90,7 +137,7 @@ export function cleanCard(c: unknown): Card | null {
   return {
     n: str(o.n, 150), cmc: Number(o.cmc) || 0, ci: str(o.ci, 5), col: str(o.col, 5), t: str(o.t, 20) || "Unknown", tl: str(o.tl, 120), cost: str(o.cost, 60), pm: strs(o.pm, 8, 2),
     r: strs(o.r, 10, 20) as Card["r"], sb: strs(o.sb, 10, 20), tg: strs(o.tg, 60, 40), rf: strs(o.rf, 40, 20), tq: typeof o.tq === "number" ? o.tq : undefined,
-    gc: !!o.gc, xt: !!o.xt, mld: !!o.mld, tap: !!o.tap, pw: typeof o.pw === "number" ? o.pw : undefined, tu: typeof o.tu === "number" ? o.tu : undefined, leg: !!o.leg, legal: str(o.legal, 20),
+    gc: !!o.gc, xt: !!o.xt, mld: !!o.mld, tap: !!o.tap, pw: typeof o.pw === "number" ? o.pw : undefined, tu: typeof o.tu === "number" ? o.tu : undefined, leg: !!o.leg, legal: str(o.legal, 20), duel: o.duel ? str(o.duel, 20) : undefined,
     img: typeof o.img === "string" && SCRY_IMG.test(o.img) ? o.img : "", uri: typeof o.uri === "string" && SCRY_URI.test(o.uri) ? o.uri : "",
     rank: typeof o.rank === "number" ? o.rank : null, at: Math.min(Date.now(), Number(o.at) || 0), rv: Number(o.rv) || 0,
   };
@@ -165,6 +212,21 @@ export async function ensureCards(names: string[], opts: { force?: boolean; labe
   finally { for (const n of todo) if (inflight.get(slug(n)) === run) inflight.delete(slug(n)); }
 }
 async function fetchAndStore(todo: string[], opts: { label?: string; quiet?: boolean }): Promise<{ missing: string[]; offline: boolean }> {
+  await localReady;
+  if (S.local) {
+    const recs: { k: string; card: Card }[] = []; const rest: string[] = [];
+    for (const n of todo) {
+      const sc = S.local.get(n); if (!sc) { rest.push(n); continue; }
+      const prev = S.db.cards.get(slug(n)); const c = { ...fromScry(sc), at: Date.now() };
+      if (!c.img && prev && prev.img) c.img = prev.img;
+      S.db.put(c, n); recs.push({ k: slug(c.n), card: c });
+      const front = slug(c.n.split(" // ")[0]); if (front !== slug(c.n)) recs.push({ k: front, card: c });
+      if (slug(n) !== slug(c.n)) recs.push({ k: slug(n), card: c });
+    }
+    if (recs.length) { S.epoch++; await save("cards", ...recs); }
+    if (!rest.length) { touch(); return { missing: [], offline: false }; }
+    todo = rest;
+  }
   const b = S.busy ? null : setBusy(opts.label || "Buscando cartas en Scryfall", todo.length);
   try {
     const r = await net.fetchCards(todo, (done) => { if (b) { b.done = done; touch(); } });
@@ -193,8 +255,8 @@ export async function refreshGC(force = false): Promise<void> {
     if (list.length > 20) {
       const recs: { k: string; card: Card }[] = [];
       for (const c of list) if (!S.db.cards.has(slug(c.name))) { const m = fromScry(c); S.db.put(m); recs.push({ k: slug(m.n), card: m }); }
-      S.db.setGC(list.map(c => c.name)); S.gcAt = Date.now(); S.epoch++;
-      await save("kv", { k: "gc", v: { at: S.gcAt, list: list.map(c => c.name) } }); if (recs.length) await save("cards", ...recs);
+      S.db.setGC(list.map(c => c.name)); S.gcAt = Date.now(); S.gcSrc = "scryfall"; S.epoch++;
+      await save("kv", { k: "gc", v: { at: S.gcAt, list: list.map(c => c.name), src: "scryfall" } }); if (recs.length) await save("cards", ...recs);
       if (force) toast(`Lista de Game Changers actualizada: ${list.length} cartas.`);
       touch();
     }
