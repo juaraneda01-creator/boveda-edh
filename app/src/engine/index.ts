@@ -16,3 +16,4 @@ export * from "./build.ts";
 export * from "./suggest.ts";
 export * from "./compare.ts";
 export * from "./mtgjson.ts";
+export * from "./replace.ts";

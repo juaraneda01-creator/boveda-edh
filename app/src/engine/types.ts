@@ -30,6 +30,8 @@ export interface Card {
   img: string;
   uri: string;
   rank: number | null;  // puesto en EDHREC
+  salt?: number;        // "sal" de EDHREC: qué tan molesta resulta en la mesa (0 a 4; viene de MTGJSON)
+  bk?: boolean;         // carta de dos caras cuyo reverso es una tierra (se puede jugar como tierra)
   basic?: boolean;
   at: number;           // cuándo se trajo
   rv: number;           // versión de las reglas de detección

@@ -231,3 +231,10 @@ details summary { cursor: pointer; color: var(--accent); margin-top: 4px; }
   .step-n { width: 20px; height: 20px; } .steps a { font-size: .9375rem; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* reemplazos por rol (ficha de carta) y pestaña Sal */
+.reps { margin: 10px 0 4px; display: flex; flex-direction: column; gap: 6px; }
+.reps .cards .name { flex: 1 1 auto; min-width: 0; }
+.salt-row { flex-wrap: wrap; }
+.salt-row > .btn { margin-left: auto; }
+.cards.sub { flex-basis: 100%; margin: 4px 0 2px; padding-left: 8px; border-left: 2px solid var(--line, #ddd); }

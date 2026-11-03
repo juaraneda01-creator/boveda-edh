@@ -1,8 +1,8 @@
 // Estado de la app y acciones. Las pantallas leen de aquí y piden cambios aquí;
 // cada cambio se guarda en su tabla y avisa a las pantallas para que se redibujen.
 import {
-  MemoryDb, LocalIndex, readLocalPack, GC_FALLBACK, RF_V, MAX_QTY, MAX_ENTRIES, analyze, synergyOf, simulateHands, fromScry, slug, uid, diffLists, completeDeck, allNames,
-  type Analysis, type Card, type Combo, type Combos, type Deck, type EdhData, type Entry, type Game, type HandStats, type Plan, type Synergy, type Version, type SimResult,
+  MemoryDb, LocalIndex, readLocalPack, replacementsFor, GC_FALLBACK, RF_V, MAX_QTY, MAX_ENTRIES, analyze, synergyOf, simulateHands, fromScry, slug, uid, diffLists, completeDeck, allNames,
+  type Analysis, type Card, type Replacement, type Combo, type Combos, type Deck, type EdhData, type Entry, type Game, type HandStats, type Plan, type Synergy, type Version, type SimResult,
 } from "../engine/index.ts";
 import * as idb from "./idb.ts";
 import * as net from "./net.ts";
@@ -109,7 +109,7 @@ export async function importLocal(file: File): Promise<{ cards: number; gc: numb
     if (!pack.cards.length) throw new Error("El archivo no trae cartas.");
     const idx = new LocalIndex(pack);
     await lp.savePack(JSON.stringify(pack));
-    S.local = idx; S.localAt = Date.now();
+    S.local = idx; S.localAt = Date.now(); localCards.clear();
     const gc = idx.gameChangers();
     if (gc.length > 20) { S.db.setGC(gc); S.gcAt = Date.now(); S.gcSrc = "mtgjson"; await save("kv", { k: "gc", v: { at: S.gcAt, list: gc, src: "mtgjson" } }); }
     // las cartas ya guardadas se actualizan con los datos nuevos (Game Changers, legalidad en Duel Commander)
@@ -121,7 +121,7 @@ export async function importLocal(file: File): Promise<{ cards: number; gc: numb
   } finally { endBusy(b); }
 }
 export async function removeLocal(): Promise<void> {
-  await lp.deletePack(); S.local = null; S.localAt = 0;
+  await lp.deletePack(); S.local = null; S.localAt = 0; localCards.clear();
   if (S.gcSrc === "mtgjson") {
     // vuelve a la lista incluida en la app y, con conexión, a la de Scryfall
     S.db.setGC(GC_FALLBACK); S.gcAt = 0; S.gcSrc = ""; S.epoch++;
@@ -152,6 +152,7 @@ export function cleanCard(c: unknown): Card | null {
     gc: !!o.gc, xt: !!o.xt, mld: !!o.mld, tap: !!o.tap, pw: typeof o.pw === "number" ? o.pw : undefined, tu: typeof o.tu === "number" ? o.tu : undefined, leg: !!o.leg, legal: str(o.legal, 20), duel: typeof o.duel === "string" ? str(o.duel, 20) : undefined,
     img: typeof o.img === "string" && SCRY_IMG.test(o.img) ? o.img : "", uri: typeof o.uri === "string" && SCRY_URI.test(o.uri) ? o.uri : "",
     rank: typeof o.rank === "number" ? o.rank : null, at: Math.min(Date.now(), Number(o.at) || 0), rv: Number(o.rv) || 0,
+    ...(typeof o.salt === "number" && o.salt >= 0 && o.salt < 10 ? { salt: o.salt } : {}), ...(o.bk ? { bk: true } : {}),
   };
 }
 export function cleanGame(g: unknown): Game | null {
@@ -179,6 +180,30 @@ export function cleanDeck(d: Partial<Deck>): Deck {
 interface Memo { epoch: number; A: Analysis; Y: Synergy; H: HandStats | null }
 const memo = new WeakMap<Deck, Memo>();
 /** Análisis, sinergias y prueba de manos de un mazo. Se recalculan solo si cambió el mazo o los datos de cartas. */
+/* ---------- reemplazos por rol (cartas guardadas + datos locales de MTGJSON) ---------- */
+// las cartas locales se convierten a medida que hacen falta y quedan en memoria mientras la página está abierta
+const localCards = new Map<string, Card>();
+function localCandidates(ci: string, isLand: boolean, maxCmc: number): Card[] {
+  if (!S.local) return [];
+  const out: Card[] = [];
+  for (const sc of S.local.all()) {
+    const id = (sc.color_identity || []).join("");
+    if ([...id].some(c => !ci.includes(c))) continue;
+    if (/\bLand\b/.test((sc.type_line || "").split(" // ")[0]) !== isLand) continue;
+    if (!isLand && (sc.cmc || 0) > maxCmc) continue;
+    const k = slug(sc.name); let c = localCards.get(k);
+    if (!c) { const m = cleanCard(fromScry(sc)); if (!m) continue; c = m; localCards.set(k, c); }
+    out.push(c);
+  }
+  return out;
+}
+export function replacements(d: Deck, name: string, opts: { limit?: number; lowerSalt?: boolean } = {}): Replacement[] {
+  const { A } = insight(d); const m0 = S.db.get(name); if (!m0) return [];
+  const isLand = m0.t === "Land";
+  const cands = [...S.db.all(), ...localCandidates(A.ci, isLand, m0.cmc + 2)];
+  return replacementsFor(name, d, A, d.plan, cands, edhOf(d), opts);
+}
+
 export function insight(d: Deck): Memo {
   const hit = memo.get(d); if (hit && hit.epoch === S.epoch) return hit;
   const A = analyze(d, S.db); const m: Memo = { epoch: S.epoch, A, Y: synergyOf(A), H: simulateHands(A) };

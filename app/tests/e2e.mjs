@@ -434,6 +434,47 @@ const tests = [
     await ctx.close(); return `${st0.n} cartas locales, Sol Ring ${hasSol ? "en el mazo y marcada en Duel" : "fuera del borrador"}`;
   }],
 
+  ["prioridades 2: pestaña Sal, opciones menos molestas y reemplazos por rol en la ficha", async () => {
+    const { CARDS } = await import("./harness.mjs");
+    // sal inventada: Sol Ring muy molesta, Arcane Signet poco (si están en los fixtures)
+    const cards = CARDS.map(c => ({ ...c, legalities: { ...(c.legalities || {}), duel: "legal" }, ...(c.name === "Sol Ring" ? { edhrec_saltiness: 1.8 } : c.name === "Arcane Signet" ? { edhrec_saltiness: 0.4 } : {}) }));
+    const zlib = await import("node:zlib"); const os = await import("node:os"); const path = await import("node:path");
+    const file = path.join(os.tmpdir(), "cartas-sal.json.gz");
+    fs.writeFileSync(file, zlib.gzipSync(JSON.stringify({ format: "boveda-cartas", v: 1, date: "2026-11-03", version: "prueba", cards })));
+    const { ctx, page } = await open();
+    await page.goto(site.url + "#/ajustes"); await page.getByLabel("Archivo de MTGJSON").setInputFiles(file);
+    await page.waitForFunction(() => !!window.__boveda.S.local, null, { timeout: 30000 }); await toastGone(page);
+    await page.goto(site.url + "#/"); await page.waitForSelector(".hero, .page-h");
+    await draftDeck(page, "Hakbal", 3);
+    const st = await deckState(page);
+    const hasSol = await page.evaluate(() => window.__boveda.S.decks[0].cards.some(c => c.n === "Sol Ring"));
+    await page.goto(site.url + `#/mazo/${st.id}/ajustar`); await page.getByRole("tab", { name: "Sal", exact: true }).click();
+    await page.waitForSelector("text=Sal del mazo");
+    check(await page.locator("text=sal promedio").count() === 1, "la pestaña Sal muestra el promedio");
+    if (hasSol) {
+      check(await page.locator(".salt-row", { hasText: "Sol Ring" }).count() === 1, "Sol Ring aparece entre las más molestas");
+      await page.locator(".salt-row", { hasText: "Sol Ring" }).getByRole("button", { name: "Opciones menos molestas" }).click();
+      check(await page.locator(".salt-row .cards.sub li, .salt-row p.muted").count() >= 1, "propone opciones o explica que no hay");
+    }
+    check((await overflow(page)) <= 0, "sin desborde horizontal en la pestaña Sal");
+    // ficha de una carta del mazo: reemplazos del mismo rol
+    const name = await page.evaluate(() => { const { S, store } = window.__boveda; const A = store.insight(S.decks[0]).A; const r = A.rows.find(x => x.m && x.m.t !== "Land" && x.m.r.includes("ramp")); return r ? r.n : null; });
+    check(!!name, "hay una carta de ramp en el borrador");
+    const reps = await page.evaluate(n => window.__boveda.store.replacements(window.__boveda.S.decks[0], n, { limit: 6 }).map(r => r.n), name);
+    check(Array.isArray(reps) && reps.every(n => n !== name), "los reemplazos no repiten la carta: " + reps);
+    await page.goto(site.url + `#/mazo/${st.id}/armar`); await page.waitForSelector(".slots");
+    await toastGone(page); await page.getByRole("tab", { name: "Tipos" }).click();
+    await page.locator(".types .cardname", { hasText: name }).first().click();
+    await page.waitForSelector(".sheet");
+    await page.getByRole("button", { name: "Buscar reemplazos del mismo rol" }).click();
+    check(await page.locator(".reps li, .reps p.muted").count() >= 1, "la ficha muestra reemplazos o explica que no hay");
+    if (reps.length) {
+      await page.locator(".reps li").first().getByRole("button", { name: "Cambiar" }).click();
+      await page.waitForFunction(([n, r]) => { const c = window.__boveda.S.decks[0].cards; return !c.some(x => x.n === n) && c.some(x => x.n === r); }, [name, reps[0]]);
+    }
+    await ctx.close(); return `${reps.length} reemplazos para ${name}${hasSol ? "; Sol Ring marcada como molesta" : ""}`;
+  }],
+
   ["rendimiento en teléfono lento: carga y cambio de pantalla", async () => {
     const { ctx, page } = await open(); await draftDeck(page, "Hakbal", 3); const id = (await deckState(page)).id;
     const cdp = await ctx.newCDPSession(page); await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });

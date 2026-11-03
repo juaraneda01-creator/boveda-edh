@@ -17,7 +17,7 @@ interface MjFace {
   manaValue?: number; convertedManaCost?: number; manaCost?: string;
   colors?: string[]; colorIdentity?: string[]; type?: string; text?: string;
   power?: string; toughness?: string; loyalty?: string; defense?: string;
-  isGameChanger?: boolean; isFunny?: boolean; edhrecRank?: number;
+  isGameChanger?: boolean; isFunny?: boolean; edhrecRank?: number; edhrecSaltiness?: number;
   legalities?: Record<string, string>;
   identifiers?: { scryfallOracleId?: string; scryfallId?: string };
 }
@@ -66,6 +66,8 @@ export function atomicToScry(name: string, faces: MjFace[]): ScryCard {
     game_changer: !!a.isGameChanger,
     legalities: legalities(a.legalities),
     edhrec_rank: a.edhrecRank,
+    edhrec_saltiness: typeof a.edhrecSaltiness === "number" ? a.edhrecSaltiness : undefined,
+    layout: a.layout,
     scryfall_uri: ids.scryfallOracleId ? `https://scryfall.com/search?q=oracleid%3A${ids.scryfallOracleId}` : undefined,
     image_uris: img(ids.scryfallId),
   };
@@ -112,5 +114,7 @@ export class LocalIndex {
     for (const c of pack.cards) this.by.set(slug(c.name), c);
   }
   get(name: string): ScryCard | null { return this.by.get(slug(name)) || null; }
+  /** Todas las cartas, una vez cada una. */
+  all(): ScryCard[] { return [...new Set(this.by.values())]; }
   gameChangers(): string[] { const s = new Set<string>(); for (const c of this.by.values()) if (c.game_changer) s.add(c.name); return [...s].sort(); }
 }

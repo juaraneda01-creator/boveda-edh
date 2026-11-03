@@ -1,16 +1,16 @@
 // Paso 4: ajustar. Qué cambiar primero, cómo llegar al bracket buscado, sinergias, combos y comparación con el meta.
 import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { S, insight, edhOf, edhForPlan, needsTheme, loadCombos, loadStaples, staplesOf, swapCard, removeCard, gamesOf, toast } from "../data/store.ts";
+import { S, insight, edhOf, edhForPlan, needsTheme, loadCombos, loadStaples, staplesOf, swapCard, removeCard, gamesOf, toast, replacements } from "../data/store.ts";
 import {
-  swaps, bracketPlan, bracketOf, metaCompare, synergyAdds, combos2, playBracket, gameStats, deckText, slug, TAG_ES, BRACKETS,
+  swaps, bracketPlan, bracketOf, metaCompare, synergyAdds, combos2, playBracket, gameStats, deckText, slug, saltOf, TAG_ES, BRACKETS,
   type Deck, type ThemeResult,
 } from "../engine/index.ts";
 import { Bar, CardName, Chips, Note, Pill, Section, Stat, agoTxt, copyText, pct, plural } from "./kit.tsx";
 import { addWithImpact } from "./StepBuild.tsx";
 
-type Tab = "cambios" | "bracket" | "sinergias" | "combos" | "meta";
-const TABS: [Tab, string][] = [["cambios", "Cambios"], ["bracket", "Bracket"], ["sinergias", "Sinergias"], ["combos", "Combos"], ["meta", "Meta"]];
+type Tab = "cambios" | "bracket" | "sinergias" | "combos" | "meta" | "sal";
+const TABS: [Tab, string][] = [["cambios", "Cambios"], ["bracket", "Bracket"], ["sinergias", "Sinergias"], ["combos", "Combos"], ["meta", "Meta"], ["sal", "Sal"]];
 
 export function StepTune({ d }: { d: Deck }): JSX.Element {
   const { A, Y, H } = insight(d); const E = edhOf(d); const busy = !!S.busy;
@@ -94,6 +94,8 @@ export function StepTune({ d }: { d: Deck }): JSX.Element {
         </>}
       </Section> : null}
 
+      {tab === "sal" ? <SaltTab d={d} /> : null}
+
       {tab === "meta" ? <Section title="Tu lista contra lo que juega el resto" aside={E && E.decks ? <span class="muted small">{E.decks.toLocaleString("es-CL")} mazos en EDHREC</span> : null}>
         {!M ? <><p class="muted">Compara tu lista con la lista típica de tu comandante: qué llevas del núcleo, qué te falta y qué juegas tú que casi nadie juega.</p>{needE}</> : <>
           <div class="stats">
@@ -129,5 +131,33 @@ function ThemeBox({ d, t, open, onToggle, tone }: { d: Deck; t: ThemeResult; ope
         {open ? (adds.length ? <ul class="cards sug">{adds.map(x => <li key={x.n}><span class="cost">{x.m.cmc}</span><CardName name={x.n} deckId={d.id} m={x.m} /><span class="why">{x.incl ? pct(x.incl) + ", " : ""}{x.m.tg.filter(k => TAG_ES[k]).slice(0, 2).map(k => TAG_ES[k]).join(", ")}</span><button type="button" class="add" onClick={() => void addWithImpact(d, x.n, "sinergia")}>Agregar</button></li>)}</ul>
           : <p class="muted small">No hay candidatas entre las cartas conocidas. Consulta qué se juega con tu comandante para tener más opciones.</p>) : null}</div> : null}
     </div>
+  );
+}
+
+/** Pestaña "Sal": qué tan molesto resulta el mazo en la mesa, según EDHREC (datos de MTGJSON). */
+function SaltTab({ d }: { d: Deck }): JSX.Element {
+  const { A } = insight(d); const R = saltOf(A);
+  const [open, setOpen] = useState<string | null>(null);
+  const num = (v: number) => v.toFixed(2).replace(".", ",");
+  if (!R.known) return <Section title="Sal del mazo"><p class="muted">La "sal" de EDHREC mide cuánto molesta una carta a los demás jugadores (0 a 4). Viene en los datos de MTGJSON: cárgalos en <a href="#/ajustes">Ajustes</a> y vuelve aquí.</p></Section>;
+  const tone = R.level === "alta" ? "bad" : R.level === "media" ? "warn" : "info";
+  return (
+    <Section title="Sal del mazo" aside={<span class="muted small">EDHREC vía MTGJSON{S.local && S.local.date ? `, ${S.local.date.split("-").reverse().join("-")}` : ""}</span>}>
+      <div class="stats">
+        <Stat k="sal promedio" v={R.avg != null ? num(R.avg) : "—"} sub={R.level ? `nivel ${R.level}` : ""} />
+        <Stat k="cartas muy molestas" v={R.top.length} sub="con sal 1 o más" />
+        <Stat k="con dato" v={`${R.known} de ${R.total}`} sub="sin contar básicas" />
+      </div>
+      <Note tone={tone}>{R.level === "alta" ? "Tu mazo tiene varias cartas que suelen molestar a la mesa. En partidas casuales conviene avisar o cambiar algunas." : R.level === "media" ? "Nivel normal para un mazo afinado. Revisa las más molestas si tu grupo es casual." : "Mazo amable para la mesa."}</Note>
+      <p class="muted small">Es una orientación de la comunidad, no una regla. 0 = nada molesta, 4 = muy molesta.</p>
+      {R.top.length ? <><h4>Las más molestas</h4><ul class="cards">{R.top.map(t => {
+        const reps = open === t.n ? replacements(d, t.n, { lowerSalt: true, limit: 4 }) : [];
+        return <li key={t.n} class="salt-row">
+          <span class="cost num">{num(t.salt)}</span><CardName name={t.n} deckId={d.id} m={S.db.get(t.n)} />
+          <button type="button" class="btn ghost" aria-expanded={open === t.n} onClick={() => setOpen(open === t.n ? null : t.n)}>{open === t.n ? "Cerrar" : "Opciones menos molestas"}</button>
+          {open === t.n ? (reps.length ? <ul class="cards sug sub">{reps.map(r => <li key={r.n}><CardName name={r.n} deckId={d.id} m={r.m} /><span class="why">{r.why}</span><button type="button" class="add" onClick={() => { void swapCard(d.id, t.n, r.n, "menos sal"); setOpen(null); toast(`${t.n} sale y entra ${r.n}.`); }}>Cambiar</button></li>)}</ul>
+            : <p class="muted small">No encontré cartas del mismo rol con menos sal en tus colores.</p>) : null}
+        </li>; })}</ul></> : <p class="small">Ninguna carta de tu lista pasa de 1 de sal.</p>}
+    </Section>
   );
 }

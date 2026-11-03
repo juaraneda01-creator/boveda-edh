@@ -3,7 +3,7 @@ import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { S, addCard, removeCard, moveCard, saveDeck, insight, edhOf, edhForPlan, needsTheme, ensureCards, toast, draft } from "../data/store.ts";
 import {
-  buildSlots, nextStep, slotSuggestions, deckText, parseList, splitParsed, textToDeck, allNames, bracketOf, illegalFor, formatEs, TYPE_ES, TYPE_ORDER, slug,
+  buildSlots, nextStep, slotSuggestions, deckText, parseList, splitParsed, textToDeck, allNames, bracketOf, illegalFor, formatEs, landBacks, TYPE_ES, TYPE_ORDER, slug,
   type Deck, type EdhData, type Row, type Slot, type SlotKey,
 } from "../engine/index.ts";
 import { CardName, CardSearch, Note, Section, Sheet, Stack, pct, plural, copyText } from "./kit.tsx";
@@ -67,6 +67,7 @@ export function StepBuild({ d }: { d: Deck }): JSX.Element {
         <p class="lead-text">{nextStep(slots, A, size)}</p>
         {A.main < size && d.commanders.length ? <button class="btn" disabled={!!S.busy} onClick={() => void draft(d.id)}>{A.main ? "Completar lo que falta" : "Armar borrador"}</button> : null}
       </div>
+      {landBacks(A).length ? <Note tone="info">{plural(landBacks(A).length, "carta de dos caras se puede jugar como tierra", "cartas de dos caras se pueden jugar como tierra")} ({landBacks(A).slice(0, 4).join(", ")}{landBacks(A).length > 4 ? "…" : ""}). La casilla Tierras no las cuenta: con ellas tendrías {A.roles.land + landBacks(A).length} fuentes.</Note> : null}
       {A.missing.length ? <Note tone="warn" action={<button class="btn" disabled={!!S.busy} onClick={() => void ensureCards(allNames(d), { force: false })}>Actualizar cartas</button>}>{plural(A.missing.length, "carta no tiene datos", "cartas no tienen datos")}: {A.missing.slice(0, 4).join(", ")}{A.missing.length > 4 ? "…" : ""}. Mientras tanto no cuentan en las casillas.</Note> : null}
       {A.off.length ? <Note tone="bad">Fuera de la identidad de color: {A.off.map((n, i) => <>{i ? ", " : ""}<CardName name={n} deckId={d.id} key={n} /></>)}.</Note> : null}
       {illegalFor(A, d.plan.format).length ? <Note tone="bad">No legales en {formatEs(d.plan.format)}: {illegalFor(A, d.plan.format).map((n, i) => <>{i ? ", " : ""}<CardName name={n} deckId={d.id} key={n} /></>)}.</Note> : null}

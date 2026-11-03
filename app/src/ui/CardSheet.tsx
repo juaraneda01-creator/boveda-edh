@@ -1,7 +1,7 @@
 // Ficha de una carta: imagen, qué hace según el motor y qué se puede hacer con ella en el mazo abierto.
 import type { JSX } from "preact";
-import { useEffect } from "preact/hooks";
-import { S, addCard, removeCard, moveCard, deckById, ensureCards, insight, edhOf } from "../data/store.ts";
+import { useEffect, useState } from "preact/hooks";
+import { S, addCard, removeCard, moveCard, swapCard, deckById, ensureCards, insight, edhOf, replacements, toast } from "../data/store.ts";
 import { ROLE_ES, TAG_ES, slug, analyze, bracketOf, type Deck } from "../engine/index.ts";
 import { Pill, Pips, Sheet, pct } from "./kit.tsx";
 
@@ -53,9 +53,24 @@ export function CardSheet({ name, deckId, onClose }: { name: string; deckId?: st
               : inMaybe ? <><button class="btn primary" onClick={() => { void moveCard(d.id, name, "cards"); onClose(); }}>Pasar al mazo</button><button class="btn ghost" onClick={() => { void removeCard(d.id, name, "maybe"); onClose(); }}>Quitar de probables</button></>
               : <><button class="btn primary" onClick={() => { void addCard(d.id, name); onClose(); }}>Agregar al mazo</button><button class="btn ghost" onClick={() => { void addCard(d.id, name, "maybe"); onClose(); }}>Dejar en probables</button></>}
           </div> : null}
+          {d && m && inMain && !isCmd && !m.basic ? <Replacements d={d} name={m.n} onDone={onClose} /> : null}
           {m && /^https:\/\/scryfall\.com\//.test(m.uri) ? <p class="small"><a href={m.uri} target="_blank" rel="noopener noreferrer">Ver el texto completo en Scryfall</a></p> : null}
         </div>
       </div>
     </Sheet>
+  );
+}
+
+/** Reemplazos del mismo rol, dentro de los colores, el formato y el bracket del mazo. */
+function Replacements({ d, name, onDone }: { d: Deck; name: string; onDone: () => void }): JSX.Element {
+  const [open, setOpen] = useState(false);
+  const list = open ? replacements(d, name, { limit: 6 }) : [];
+  return (
+    <div class="reps">
+      <button type="button" class="btn ghost" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? "Ocultar reemplazos" : "Buscar reemplazos del mismo rol"}</button>
+      {open ? (list.length ? <ul class="cards sug">{list.map(r => <li key={r.n}><span class="cost">{r.m.t === "Land" ? "T" : r.m.cmc}</span><span class="name">{r.n}</span><span class="why">{r.why}</span>
+          <button type="button" class="add" onClick={() => { void swapCard(d.id, name, r.n, "reemplazo por rol"); toast(`${name} sale y entra ${r.n}.`); onDone(); }}>Cambiar</button></li>)}</ul>
+        : <p class="muted small">{S.local ? "No encontré otras cartas del mismo rol en tus colores y tu formato." : "Sin candidatas todavía. Consulta qué se juega con tu comandante en Ajustar, o carga los datos de MTGJSON en Ajustes para buscar entre todas las cartas."}</p>) : null}
+    </div>
   );
 }
