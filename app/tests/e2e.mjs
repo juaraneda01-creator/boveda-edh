@@ -163,7 +163,8 @@ const tests = [
     await page.waitForFunction(() => /salieron 30/.test(document.querySelector(".versions")?.textContent || ""));
     await page.locator(".versions li", { hasText: "Borrador inicial" }).getByRole("button", { name: "Comparar con la actual" }).click();
     await page.waitForSelector("select"); check(await page.getByRole("tab", { name: "A contra B" }).getAttribute("aria-selected") === "true", "abre en A contra B");
-    await page.getByRole("button", { name: "200 partidas" }).click();
+    // 800 partidas: con 200 el margen de azar (±14) a veces tapa la diferencia y la prueba fallaba al azar
+    await page.getByRole("button", { name: "800 partidas" }).click();
     const result = page.locator(".note", { hasText: /rinde mejor|No hay diferencia/ });
     await result.waitFor({ timeout: 90000 }); const verdict = await result.innerText();
     check(/La versión A rinde mejor/.test(verdict), "la versión con tierras debe ganar: " + verdict);
