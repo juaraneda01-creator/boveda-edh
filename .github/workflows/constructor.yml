@@ -6,7 +6,7 @@ on:
     paths: ["app/**", "constructor/**", "artifact/**", "src/**"]
 jobs:
   revisar:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # Playwright 1.56 no instala Chromium en ubuntu-26.04
     defaults:
       run:
         working-directory: app
