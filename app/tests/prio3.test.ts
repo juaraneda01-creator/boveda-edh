@@ -15,6 +15,7 @@ const CARDS: ScryCard[] = [
   sc("Reina Elfa", "Legendary Creature — Elf Druid", "Other Elves you control get +1/+1. Whenever an Elf enters the battlefield under your control, draw a card.", { ...G, mana_cost: "{2}{G}", cmc: 3, edhrec_rank: 300 }),
   sc("Rey Goblin", "Legendary Creature — Goblin", "Other Goblins you control get +1/+1.", { color_identity: ["R"], colors: ["R"], mana_cost: "{2}{R}", cmc: 3 }),
   sc("Señor Elfo Azul", "Legendary Creature — Elf Wizard", "Other Elves you control get +1/+1.", { color_identity: ["G", "U"], colors: ["G", "U"], mana_cost: "{G}{U}", cmc: 2, edhrec_rank: 900 }),
+  sc("Jace Prueba", "Legendary Planeswalker — Jace", "+1: Draw a card.", { color_identity: ["G"], colors: ["G"], mana_cost: "{2}{G}", cmc: 3 }),
   sc("Gigante Sin Tribu", "Legendary Creature — Giant", "Trample", { ...G, mana_cost: "{4}{G}", cmc: 5 }),
   sc("Elfo Nuevo", "Creature — Elf", "Other Elves you control get +1/+1.", G),
   sc("Rampa Nueva", "Sorcery", "Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.", G),
@@ -61,6 +62,11 @@ test("comandante para una lista: cubre sus colores y comparte su tribu", () => {
   const azul = r.find(x => x.n === "Señor Elfo Azul"); assert.ok(azul && azul.extra === "U" && /agrega U/.test(azul.why), "un color de más se avisa y pesa menos");
   assert.match(r[0].why, /tribu Elf/);
   assert.deepEqual(commandersFor([], get("Reina Elfa"), plan()), []);
+  assert.ok(!names.includes("Jace Prueba"), "sin el texto de la carta, un planeswalker no se sugiere");
+  // el comandante puede venir entre las 99 de una lista importada; el comandante actual no se vuelve a sugerir
+  const withCmd = [...list, db.get("Reina Elfa")!];
+  assert.equal(commandersFor(withCmd, get("Reina Elfa", "Señor Elfo Azul"), plan())[0].n, "Reina Elfa");
+  assert.ok(!commandersFor(list, get("Reina Elfa", "Señor Elfo Azul"), plan(), 8, ["Reina Elfa"]).some(x => x.n === "Reina Elfa"));
 });
 
 test("mejora por tandas: maná, funciones y lo más jugado, sin repetir cartas", () => {
@@ -76,11 +82,11 @@ test("mejora por tandas: maná, funciones y lo más jugado, sin repetir cartas",
 });
 
 test("mazos de MTGJSON: comandante, cartas y banca", () => {
-  const j = JSON.stringify({ meta: { date: "2026-10-01" }, data: { name: "Precon de Prueba", commander: [{ name: "Reina Elfa", count: 1 }], mainBoard: [{ name: "Reina Elfa", count: 1 }, { name: "Forest", count: 30 }, { name: "Elfo 1", count: 1 }, { count: 2 }, { name: "Exagerado", count: 500 }], sideBoard: [{ name: "Carta Floja" }] } });
+  const j = JSON.stringify({ meta: { date: "2026-10-01" }, data: { name: "Precon de Prueba", commander: [{ name: "Reina Elfa", count: 1 }], mainBoard: [{ name: "Reina Elfa", count: 1 }, { name: "Forest", count: 20 }, { name: "Forest", count: 10 }, { name: "Elfo 1", count: 1 }, { count: 2 }, { name: "Exagerado", count: 500 }], sideBoard: [{ name: "Carta Floja" }, { name: "Carta Floja" }] } });
   const m = readMtgjsonDeck(j)!;
   assert.equal(m.name, "Precon de Prueba"); assert.deepEqual(m.commanders, ["Reina Elfa"]);
-  assert.deepEqual(m.cards, [{ n: "Forest", q: 30 }, { n: "Elfo 1", q: 1 }, { n: "Exagerado", q: 99 }], "sin el comandante, sin entradas sin nombre y con tope");
-  assert.deepEqual(m.maybe, [{ n: "Carta Floja", q: 1 }]);
+  assert.deepEqual(m.cards, [{ n: "Forest", q: 30 }, { n: "Elfo 1", q: 1 }, { n: "Exagerado", q: 99 }], "sin el comandante, impresiones juntas, sin entradas sin nombre y con tope");
+  assert.deepEqual(m.maybe, [{ n: "Carta Floja", q: 2 }], "las impresiones repetidas se juntan");
   assert.equal(readMtgjsonDeck("1 Sol Ring"), null); assert.equal(readMtgjsonDeck("{\"data\":{}}"), null);
   assert.ok(readMtgjsonDeck(JSON.stringify({ name: "Sin envoltura", mainBoard: [{ name: "Forest", count: 1 }] })), "también sin el objeto data");
 });

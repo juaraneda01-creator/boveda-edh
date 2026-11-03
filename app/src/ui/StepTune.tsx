@@ -175,7 +175,7 @@ function NewTab({ d }: { d: Deck }): JSX.Element {
       </div>
       {S.localNew ? <p class="muted small">Incluye {plural(S.localNew.names.length, "carta nueva", "cartas nuevas")} entre tus archivos de MTGJSON del {isoDay(S.localNew.from)} y del {isoDay(S.localNew.to)}.</p>
         : <p class="muted small">Si cargas en Ajustes un archivo de MTGJSON más nuevo que el que tienes, también se comparan los dos.</p>}
-      {N.list.length ? <ul class="cards sug">{N.list.map(c => <li key={c.n}><span class="cost">{c.m.t === "Land" ? "Tierra" : c.m.cmc}</span><CardName name={c.n} deckId={d.id} m={c.m} /><span class="why">{c.why}</span><button type="button" class="add" aria-label={`Agregar ${c.n}`} onClick={() => void addWithImpact(d, c.n, "carta nueva")}>Agregar</button></li>)}</ul>
+      {N.list.length ? <ul class="cards sug">{N.list.map(c => <li key={c.n}><span class="cost">{c.m.t === "Land" ? "Tierra" : c.m.cmc}</span><CardName name={c.n} deckId={d.id} m={c.m} /><span class="why">{c.why}</span><button type="button" class="add" aria-label={`Agregar ${c.n}`} disabled={busy} onClick={() => void addWithImpact(d, c.n, "carta nueva")}>Agregar</button></li>)}</ul>
         : (N.recent || N.local) ? <p class="small">Ninguna carta nueva calza con lo que hace tu mazo.</p> : null}
     </Section>
   );

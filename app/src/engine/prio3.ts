@@ -51,20 +51,22 @@ export function newCardsFor(d: Pick<Deck, "commanders" | "cards" | "plan">, A: A
 /* ---------- comandante para una lista ---------- */
 export interface CmdSuggestion { n: string; m: Card; score: number; extra: string; why: string }
 /** Para una lista sin comandante (o para cambiarlo): legendarias que cubren sus colores y comparten sus temas y tribus. */
-export function commandersFor(cards: (Card | null)[], cands: Iterable<Card>, plan: Pick<Plan, "format">, limit = 8): CmdSuggestion[] {
+export function commandersFor(cards: (Card | null)[], cands: Iterable<Card>, plan: Pick<Plan, "format">, limit = 8, current: string[] = []): CmdSuggestion[] {
   const known = cards.filter((m): m is Card => !!m && !m.basic);
   if (!known.length) return [];
   const ci = WUBRG.filter(c => known.some(m => m.ci.includes(c))).join("");
   // cuánto pesa cada etiqueta y cada tribu en la lista
   const tagW = new Map<string, number>(); const tribeW = new Map<string, number>();
   for (const m of known) { for (const t of new Set(m.tg)) tagW.set(t, (tagW.get(t) || 0) + 1); for (const s of subtypesOf(m)) tribeW.set(s, (tribeW.get(s) || 0) + 1); }
-  const names = new Set(known.map(m => slug(m.n)));
+  // las cartas de la lista sí pueden ser candidatas (en una lista importada el comandante suele venir entre las 99); los comandantes actuales no
+  const skip = new Set(current.map(slug));
   const out: CmdSuggestion[] = []; const seen = new Set<string>();
   for (const m of cands) {
     const k = slug(m.n);
-    if (!m.n || seen.has(k) || names.has(k)) continue;
+    if (!m.n || seen.has(k) || skip.has(k)) continue;
     seen.add(k);
-    if (!canCommand(m) || !legalIn(m, plan.format)) continue;
+    // sin el texto de la carta no se sabe si un planeswalker puede ser comandante: solo criaturas y vehículos legendarios
+    if (!canCommand(m) || !/Creature|Vehicle|Spacecraft/.test(m.tl) || !legalIn(m, plan.format)) continue;
     if ([...ci].some(c => !m.ci.includes(c))) continue;              // tiene que cubrir todos los colores de la lista
     const extra = [...m.ci].filter(c => (WUBRG as readonly string[]).includes(c) && !ci.includes(c)).join("");
     const shared = [...new Set(m.tg)].map(t => [t, tagW.get(t) || 0] as const).filter(([, w]) => w >= 3).sort((a, b) => b[1] - a[1]);
@@ -123,7 +125,10 @@ export function readMtgjsonDeck(text: string): MjDeck | null {
   if (!o || typeof o !== "object" || !Array.isArray(o.mainBoard)) return null;
   const list = (a: unknown): Entry[] => (Array.isArray(a) ? a : []).filter((c: MjDeckCard) => c && typeof c.name === "string" && c.name)
     .map((c: MjDeckCard) => ({ n: String(c.name).slice(0, 150), q: Math.max(1, Math.min(99, Math.round(Number(c.count) || 1))) }));
-  const commanders = list(o.commander).map(c => c.n).slice(0, 2);
+  // MTGJSON trae una entrada por impresión (foil y no foil, básicas de varias ediciones): se juntan por nombre
+  const merge = (a: Entry[]): Entry[] => { const m = new Map<string, Entry>(); for (const e of a) { const k = slug(e.n); const p = m.get(k); m.set(k, p ? { n: p.n, q: Math.min(99, p.q + e.q) } : e); } return [...m.values()]; };
+  const commanders = merge(list(o.commander)).map(c => c.n).slice(0, 2);
   const cmd = new Set(commanders.map(slug));
-  return { name: String(o.name || "Mazo de MTGJSON").slice(0, 80), commanders, cards: list(o.mainBoard).filter(c => !cmd.has(slug(c.n))), maybe: list(o.sideBoard) };
+  const cards = merge(list(o.mainBoard)).filter(c => !cmd.has(slug(c.n))); const inMain = new Set(cards.map(c => slug(c.n)));
+  return { name: String(o.name || "Mazo de MTGJSON").slice(0, 80), commanders, cards, maybe: merge(list(o.sideBoard)).filter(c => !cmd.has(slug(c.n)) && !inMain.has(slug(c.n))) };
 }

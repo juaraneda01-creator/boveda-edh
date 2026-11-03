@@ -1,8 +1,8 @@
 // Paso 1: el plan. Comandante, bracket buscado, estrategia e interacción definen las metas de cada casilla.
 import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { S, saveDeck, deleteDeck, draft, edhOf, loadEdh, edhForPlan, needsTheme, insight, ensureCards, suggestCommanders } from "../data/store.ts";
-import { BRACKETS, bracketOf, bracketRule, buildSlots, type CmdSuggestion, type Deck, type Format, type Interaction, type Plan } from "../engine/index.ts";
+import { S, saveDeck, deleteDeck, draft, edhOf, loadEdh, edhForPlan, needsTheme, insight, ensureCards, suggestCommanders, toast } from "../data/store.ts";
+import { BRACKETS, bracketOf, bracketRule, buildSlots, slug, type CmdSuggestion, type Deck, type Format, type Interaction, type Plan } from "../engine/index.ts";
 import { Chips, Confirm, Note, Section, Sheet, go } from "./kit.tsx";
 import { CommanderPicker } from "./Decks.tsx";
 
@@ -25,7 +25,7 @@ export function StepPlan({ d }: { d: Deck }): JSX.Element {
           <label class="field"><span>Nombre del mazo</span><input type="text" value={name} maxLength={80} onInput={e => setName((e.target as HTMLInputElement).value)} onBlur={() => { if (name.trim() && name !== d.name) void saveDeck({ ...d, name: name.trim() }); }} /></label>
           <p>{d.commanders.length ? <>Comandante: <b>{d.commanders.join(" + ")}</b>.</> : <span class="warn-text">Este mazo todavía no tiene comandante.</span>} <button class="btn ghost" onClick={() => setPick(true)}>{d.commanders.length ? "Cambiar" : "Elegir comandante"}</button></p>
           {A.main >= 20 ? <p><button class="btn ghost" disabled={busy} onClick={async () => setSugg(await suggestCommanders(d))}>Sugerir comandante para esta lista</button></p> : null}
-          {sugg ? (sugg.length ? <ul class="cards sug cmdsug">{sugg.map(c => <li key={c.n}><span class="cmdci">{c.m.ci || "C"}</span><span class="cardname">{c.n}</span><span class="why">{c.why}</span><button type="button" class="add" aria-label={`Usar ${c.n} como comandante`} disabled={busy} onClick={async () => { await ensureCards([c.n], { quiet: true }); await saveDeck({ ...d, commanders: [c.n], cards: d.cards.filter(x => x.n !== c.n) }, "cambiar comandante"); setSugg(null); }}>Usar</button></li>)}</ul>
+          {sugg ? (sugg.length ? <ul class="cards sug cmdsug">{sugg.map(c => <li key={c.n}><span class="cmdci">{c.m.ci || "C"}</span><span class="cardname">{c.n}</span><span class="why">{c.why}</span><button type="button" class="add" aria-label={`Usar ${c.n} como comandante`} disabled={busy} onClick={async () => { await ensureCards([c.n], { quiet: true }); const k = slug(c.n); const old = d.commanders.filter(x => slug(x) !== k).map(n => ({ n, q: 1 })); await saveDeck({ ...d, commanders: [c.n], cards: d.cards.filter(x => slug(x.n) !== k), maybe: [...old, ...d.maybe.filter(x => slug(x.n) !== k && !old.some(o => slug(o.n) === slug(x.n)))] }, "cambiar comandante"); if (old.length) toast(`${old.map(o => o.n).join(" y ")} quedó en la banca.`); setSugg(null); }}>Usar</button></li>)}</ul>
             : <p class="muted small">No encontré una legendaria que cubra los colores de la lista y comparta sus temas.</p>) : null}
         </Section>
 
