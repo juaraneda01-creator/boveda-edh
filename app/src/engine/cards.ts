@@ -51,7 +51,7 @@ export function fromScry(c: ScryCard): Card {
     img: (c.image_uris && c.image_uris.normal) || (f0.image_uris && f0.image_uris.normal) || "",
     uri: c.scryfall_uri || "", rank: c.edhrec_rank || null, at: Date.now(),
     ...(typeof c.edhrec_saltiness === "number" ? { salt: Math.round(c.edhrec_saltiness * 100) / 100 } : {}),
-    ...(t !== "Land" && (c.card_faces || []).slice(1).some(f => /\bLand\b/.test(f.type_line || "")) && /modal_dfc|transform|reversible/.test(c.layout || "modal_dfc") ? { bk: true } : {}),
+    ...(t !== "Land" && (c.card_faces || []).slice(1).some(f => /\bLand\b/.test(f.type_line || "")) && c.layout === "modal_dfc" ? { bk: true } : {}),
   };
 }
 

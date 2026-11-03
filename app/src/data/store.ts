@@ -83,8 +83,16 @@ const MAX_PACK_BYTES = 300 * 1048576;
 async function loadLocal(): Promise<void> {
   await new Promise(r => setTimeout(r, 50));
   const raw = await lp.loadPack(); if (!raw) return;
-  try { S.local = new LocalIndex(readLocalPack(JSON.parse(raw.json))); S.localAt = raw.at || 0; touch(); }
-  catch { S.local = null; }
+  try { S.local = new LocalIndex(readLocalPack(JSON.parse(raw.json))); S.localAt = raw.at || 0; }
+  catch { S.local = null; return; }
+  const recs: { k: string; card: Card }[] = [];
+  for (const [k, c] of [...S.db.cards]) {
+    if (c.basic || c.salt !== undefined) continue;
+    const m = localCard(c.n, c);
+    if (m && (m.salt !== undefined || m.bk || m.duel !== c.duel)) { S.db.put(m); S.db.cards.set(k, m); recs.push({ k, card: m }); }
+  }
+  if (recs.length) { S.epoch++; await save("cards", ...recs); }
+  touch();
 }
 /** Una carta de los datos locales, saneada como cualquier dato que entra desde un archivo. */
 function localCard(name: string, prev?: Card): Card | null {
@@ -197,11 +205,19 @@ function localCandidates(ci: string, isLand: boolean, maxCmc: number): Card[] {
   }
   return out;
 }
+const repMemo = new Map<string, Replacement[]>();
 export function replacements(d: Deck, name: string, opts: { limit?: number; lowerSalt?: boolean } = {}): Replacement[] {
+  const E = edhOf(d);
+  const key = [d.id, d.updated, slug(name), opts.limit ?? 8, opts.lowerSalt ? 1 : 0, S.epoch, S.localAt, S.gcAt, E ? E.at : 0].join("|");
+  const hit = repMemo.get(key); if (hit) return hit;
   const { A } = insight(d); const m0 = S.db.get(name); if (!m0) return [];
   const isLand = m0.t === "Land";
-  const cands = [...S.db.all(), ...localCandidates(A.ci, isLand, m0.cmc + 2)];
-  return replacementsFor(name, d, A, d.plan, cands, edhOf(d), opts);
+  // la lista de Game Changers vigente manda sobre la marca que traiga cada carta
+  const withGC = (m: Card): Card => { const gc = S.db.isGC(m.n); return gc === m.gc ? m : { ...m, gc }; };
+  const cands = [...S.db.all(), ...localCandidates(A.ci, isLand, m0.cmc + 2)].map(withGC);
+  const out = replacementsFor(name, d, A, d.plan, cands, E, opts);
+  if (repMemo.size > 60) repMemo.clear();
+  repMemo.set(key, out); return out;
 }
 
 export function insight(d: Deck): Memo {

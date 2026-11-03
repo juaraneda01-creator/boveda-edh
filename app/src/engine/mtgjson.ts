@@ -104,8 +104,9 @@ export function readLocalPack(json: unknown): LocalPack {
 export class LocalIndex {
   readonly date: string; readonly version: string; readonly size: number;
   private by = new Map<string, ScryCard>();
+  private list: ScryCard[];
   constructor(pack: LocalPack) {
-    this.date = pack.date; this.version = pack.version; this.size = pack.cards.length;
+    this.date = pack.date; this.version = pack.version; this.size = pack.cards.length; this.list = pack.cards;
     for (const c of pack.cards) {
       const keys = [slug(c.name), ...(c.card_faces || []).map(f => slug(f.name))];
       for (const k of keys) if (k && !this.by.has(k)) this.by.set(k, c);
@@ -115,6 +116,6 @@ export class LocalIndex {
   }
   get(name: string): ScryCard | null { return this.by.get(slug(name)) || null; }
   /** Todas las cartas, una vez cada una. */
-  all(): ScryCard[] { return [...new Set(this.by.values())]; }
+  all(): ScryCard[] { return this.list; }
   gameChangers(): string[] { const s = new Set<string>(); for (const c of this.by.values()) if (c.game_changer) s.add(c.name); return [...s].sort(); }
 }

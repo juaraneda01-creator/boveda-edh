@@ -92,5 +92,15 @@ expect("el código antiguo avisa", (await fn(new Request(U))).status === 410, nu
   expect("administra el primero que se unió con su clave", ld.owner === "nuevo1", ld.owner);
   expect("el miembro sin clave salió del grupo", !ld.members.real1, Object.keys(ld.members));
   [ls] = await lpost({op:"kick", who:"nuevo1", mid:"real1", tok:"tok-intruso-1234567"});
-  expect("un id sin clave no expulsa", ls === 403, ls); }
+  expect("un id sin clave no expulsa", ls === 403, ls);
+  // un miembro sin clave no aparece al leer el grupo, y quitarlo no falla
+  { const st2 = getStore(); const c2 = await st2.getWithMetadata(lid); c2.data.members.fantasma = {name:"Fantasma", at: 1}; await st2.setJSON(lid, c2.data, {onlyIfMatch: c2.etag}); }
+  { const r = await fn(new Request(LU)); const j = await r.json(); expect("el GET no muestra miembros sin clave", r.status === 200 && !j.members.fantasma && j.members.nuevo1, Object.keys(j.members)); }
+  [ls, ld] = await lpost({op:"kick", who:"fantasma", mid:"nuevo1", tok:"tok-nuevo-123456789"});
+  expect("quitar a un miembro sin clave no falla", ls === 200 && !ld.members.fantasma, [ls, ld && ld.error]);
+  // traspasar a un miembro marcado de la transición no se acepta
+  [ls] = await lpost({op:"join", name:"Viejo", mid:"viejo1", tok:"tok-viejo-123456789"});
+  { const st3 = getStore(); const c3 = await st3.getWithMetadata(lid); c3.data.members.viejo1.legacy = true; await st3.setJSON(lid, c3.data, {onlyIfMatch: c3.etag}); }
+  [ls, ld] = await lpost({op:"owner", who:"viejo1", mid:"nuevo1", tok:"tok-nuevo-123456789"});
+  expect("no se traspasa a un miembro de la transición", ls === 400, [ls, ld && ld.error]); }
 console.log("Grupo OK: crear/unirse, claves por miembro, mazos sin pisarse, partidas validadas y escrituras simultáneas sin pérdidas.");

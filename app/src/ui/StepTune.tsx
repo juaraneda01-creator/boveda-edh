@@ -6,7 +6,7 @@ import {
   swaps, bracketPlan, bracketOf, metaCompare, synergyAdds, combos2, playBracket, gameStats, deckText, slug, saltOf, TAG_ES, BRACKETS,
   type Deck, type ThemeResult,
 } from "../engine/index.ts";
-import { Bar, CardName, Chips, Note, Pill, Section, Stat, agoTxt, copyText, pct, plural } from "./kit.tsx";
+import { Bar, CardName, Chips, Note, Pill, Section, Stat, agoTxt, copyText, isoDay, pct, plural } from "./kit.tsx";
 import { addWithImpact } from "./StepBuild.tsx";
 
 type Tab = "cambios" | "bracket" | "sinergias" | "combos" | "meta" | "sal";
@@ -142,7 +142,7 @@ function SaltTab({ d }: { d: Deck }): JSX.Element {
   if (!R.known) return <Section title="Sal del mazo"><p class="muted">La "sal" de EDHREC mide cuánto molesta una carta a los demás jugadores (0 a 4). Viene en los datos de MTGJSON: cárgalos en <a href="#/ajustes">Ajustes</a> y vuelve aquí.</p></Section>;
   const tone = R.level === "alta" ? "bad" : R.level === "media" ? "warn" : "info";
   return (
-    <Section title="Sal del mazo" aside={<span class="muted small">EDHREC vía MTGJSON{S.local && S.local.date ? `, ${S.local.date.split("-").reverse().join("-")}` : ""}</span>}>
+    <Section title="Sal del mazo" aside={<span class="muted small">EDHREC vía MTGJSON{S.local && S.local.date ? `, ${isoDay(S.local.date)}` : ""}</span>}>
       <div class="stats">
         <Stat k="sal promedio" v={R.avg != null ? num(R.avg) : "—"} sub={R.level ? `nivel ${R.level}` : ""} />
         <Stat k="cartas muy molestas" v={R.top.length} sub="con sal 1 o más" />
@@ -154,8 +154,8 @@ function SaltTab({ d }: { d: Deck }): JSX.Element {
         const reps = open === t.n ? replacements(d, t.n, { lowerSalt: true, limit: 4 }) : [];
         return <li key={t.n} class="salt-row">
           <span class="cost num">{num(t.salt)}</span><CardName name={t.n} deckId={d.id} m={S.db.get(t.n)} />
-          <button type="button" class="btn ghost" aria-expanded={open === t.n} onClick={() => setOpen(open === t.n ? null : t.n)}>{open === t.n ? "Cerrar" : "Opciones menos molestas"}</button>
-          {open === t.n ? (reps.length ? <ul class="cards sug sub">{reps.map(r => <li key={r.n}><CardName name={r.n} deckId={d.id} m={r.m} /><span class="why">{r.why}</span><button type="button" class="add" onClick={() => { void swapCard(d.id, t.n, r.n, "menos sal"); setOpen(null); toast(`${t.n} sale y entra ${r.n}.`); }}>Cambiar</button></li>)}</ul>
+          {t.cmd ? <span class="why">comandante</span> : <button type="button" class="btn ghost" aria-expanded={open === t.n} aria-label={`Opciones menos molestas que ${t.n}`} onClick={() => setOpen(open === t.n ? null : t.n)}>{open === t.n ? "Cerrar" : "Opciones menos molestas"}</button>}
+          {open === t.n ? (reps.length ? <ul class="cards sug sub">{reps.map(r => <li key={r.n}><CardName name={r.n} deckId={d.id} m={r.m} /><span class="why">{r.why}</span><button type="button" class="add" aria-label={`Cambiar ${t.n} por ${r.n}`} onClick={() => { void swapCard(d.id, t.n, r.n, "menos sal"); setOpen(null); }}>Cambiar</button></li>)}</ul>
             : <p class="muted small">No encontré cartas del mismo rol con menos sal en tus colores.</p>) : null}
         </li>; })}</ul></> : <p class="small">Ninguna carta de tu lista pasa de 1 de sal.</p>}
     </Section>

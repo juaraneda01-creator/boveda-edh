@@ -21,6 +21,9 @@ const CARDS: ScryCard[] = [
   sc("Robo Amable", "Enchantment", "At the beginning of your upkeep, draw a card.", { cmc: 3, color_identity: ["U"], mana_cost: "{2}{U}", edhrec_saltiness: 0.3 } as Partial<ScryCard>),
   sc("Tierra Lenta", "Land", "This land enters tapped.\n{T}: Add {G} or {U}.", { cmc: 0, mana_cost: "", produced_mana: ["G", "U"], color_identity: ["G", "U"] }),
   sc("Tierra Rapida", "Land", "{T}: Add {G} or {U}.", { cmc: 0, mana_cost: "", produced_mana: ["G", "U"], color_identity: ["G", "U"] }),
+  sc("Mapa // Cueva", "Artifact // Land", "", { layout: "transform", oracle_text: undefined, card_faces: [{ name: "Mapa", type_line: "Artifact", oracle_text: "{1}, {T}: Scry 1.", mana_cost: "{2}" }, { name: "Cueva", type_line: "Land", oracle_text: "{T}: Add {C}.", mana_cost: "" }], cmc: 2 }),
+  sc("Torre Utilitaria", "Land", "You have no maximum hand size.\n{T}: Add {C}.", { cmc: 0, mana_cost: "", produced_mana: ["C"] }),
+  sc("Otra Tierra Utilitaria", "Land", "{T}: Add {C}.\n{2}, {T}: Draw a card, then discard a card.", { cmc: 0, mana_cost: "", produced_mana: ["C"] }),
   sc("Hechizo // Tierra", "Sorcery // Land", "", { layout: "modal_dfc", oracle_text: undefined, card_faces: [{ name: "Hechizo", type_line: "Sorcery", oracle_text: "Draw a card.", mana_cost: "{1}{U}" }, { name: "Tierra", type_line: "Land", oracle_text: "{T}: Add {U}.", mana_cost: "" }], color_identity: ["U"], cmc: 2 }),
 ];
 const db = new MemoryDb(new Map(), []);
@@ -38,7 +41,7 @@ test("reemplazos: mismo rol, en colores, sin repetir lo que ya está, lo barato 
   assert.ok(!names(r).some(n => /Robo|Tierra/.test(n)), "solo el mismo rol y no tierras");
   assert.equal(r[0].m.cmc, 1, "lo más barato primero cuando nada viene de EDHREC");
   assert.deepEqual(names(r).slice(0, 2).sort(), ["Piedra Changer", "Piedra Prohibida Duel"]);
-  assert.match(r[0].why, /mismo rol: ramp/); assert.match(r[0].why, /3 menos de coste/);
+  assert.match(r[0].why, /mismo rol: ramp/); assert.match(r[0].why, /cuesta 3 menos/);
 });
 
 test("reemplazos: respetan Duel Commander, el bracket y los Game Changers", () => {
@@ -77,6 +80,7 @@ test("medidor de sal: promedio, nivel y las más molestas", () => {
   assert.equal(Math.round((R.avg as number) * 100), Math.round((2.4 + 0.3 + 0.2) / 3 * 100));
   assert.equal(R.level, "alta"); assert.deepEqual(R.top.map(t => t.n), ["Robo Molesto"]);
   assert.equal(saltOf(analyze(deck(["Piedra Barata"]), db)).level, null, "sin datos no hay nivel");
+  assert.ok(R.top.every(t => t.cmd === false));
 });
 
 test("cartas de dos caras con reverso de tierra se reconocen (Scryfall y MTGJSON)", () => {
@@ -84,9 +88,16 @@ test("cartas de dos caras con reverso de tierra se reconocen (Scryfall y MTGJSON
   assert.equal(m.t, "Sorcery"); assert.equal(m.bk, true);
   assert.deepEqual(landBacks(analyze(deck(["Hechizo // Tierra", "Robo Simple"]), db)), ["Hechizo // Tierra"]);
   assert.equal(db.get("Robo Simple")!.bk, undefined);
+  assert.equal(db.get("Mapa // Cueva")!.bk, undefined, "una carta que se transforma no se juega como tierra desde la mano");
   const fromMj = fromScry(atomicToScry("Hechizo MJ // Tierra MJ", [
     { name: "Hechizo MJ // Tierra MJ", faceName: "Hechizo MJ", side: "a", layout: "modal_dfc", type: "Instant", text: "Draw a card.", manaCost: "{U}", colors: ["U"], colorIdentity: ["U"], manaValue: 1, edhrecSaltiness: 0.15 },
     { name: "Hechizo MJ // Tierra MJ", faceName: "Tierra MJ", side: "b", layout: "modal_dfc", type: "Land", text: "{T}: Add {U}.", colors: [], colorIdentity: ["U"], manaValue: 1 },
   ]));
   assert.equal(fromMj.bk, true); assert.equal(fromMj.salt, 0.15);
+});
+
+test("reemplazos de tierras que no dan color: solo otras que hagan algo parecido, nunca duales cualquiera", () => {
+  const d = deck(["Torre Utilitaria"]); const A = analyze(d, db);
+  const r = names(replacementsFor("Torre Utilitaria", d, A, d.plan, all(), null));
+  assert.ok(!r.includes("Tierra Rapida") && !r.includes("Tierra Lenta"), "no propone duales para una tierra utilitaria: " + r);
 });

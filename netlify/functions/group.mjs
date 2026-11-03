@@ -49,7 +49,7 @@ function apply(doc, op, b){
   if (!isMember && has(doc.left, mid)) throw fail("ese miembro ya salió del grupo: vuelve a unirte", 403);
   // los miembros que nunca tuvieron clave salen (ocupan cupo y no pueden actuar)
   for (const k of Object.keys(doc.members)) if (!doc.members[k].th && k !== mid) removeMember(doc, k);
-  // administrar (quitar, traspasar, cambiar el código) exige una clave obtenida al unirse, no reclamada
+  // administrar (quitar, traspasar, cambiar el código) exige una clave obtenida al unirse (los marcados "legacy" reclamaron la suya en la transición)
   const trusted = isMember && !!doc.members[mid].th && !doc.members[mid].legacy;
   if (op === "create" || op === "join"){
     if (!isMember && Object.keys(doc.members).length >= MAX_MEMBERS) throw fail("el grupo está lleno", 409);
@@ -85,12 +85,15 @@ function apply(doc, op, b){
     } else if (op === "kick"){
       const who = str(b.who, 40);
       if (doc.owner !== mid || !trusted) throw fail("solo quien administra el grupo puede quitar miembros", 403);
-      if (who === mid || !has(doc.members, who)) throw fail("miembro inválido", 400);
-      removeMember(doc, who);
+      if (who === mid) throw fail("miembro inválido", 400);
+      // un miembro sin clave ya salió al revisar el grupo: quitarlo da lo mismo
+      if (!has(doc.members, who)) { if (!has(doc.left, who)) throw fail("miembro inválido", 400); }
+      else removeMember(doc, who);
     } else if (op === "owner"){
       const who = str(b.who, 40);
       if (doc.owner !== mid || !trusted) throw fail("solo quien administra el grupo puede traspasarlo", 403);
       if (!has(doc.members, who)) throw fail("miembro inválido", 400);
+      if (!doc.members[who].th || doc.members[who].legacy) throw fail("ese miembro debe volver a unirse antes de administrar el grupo", 400);
       doc.owner = who;
     } else throw fail("operación no válida", 400);
   }
@@ -110,7 +113,8 @@ function removeMember(doc, who){
 }
 // lo que sale nunca lleva las huellas de las claves
 function pub(doc){
-  const members = {}; for (const [k, m] of Object.entries(doc.members || {})){ const {th, ...rest} = m; members[k] = rest; }
+  // los miembros sin clave no se muestran: no pueden actuar y salen en la próxima escritura
+  const members = {}; for (const [k, m] of Object.entries(doc.members || {})){ if (!m || !m.th) continue; const {th, ...rest} = m; members[k] = rest; }
   const {left, ...rest} = doc;
   return {...rest, members};
 }

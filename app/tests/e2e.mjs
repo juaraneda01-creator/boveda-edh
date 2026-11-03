@@ -413,7 +413,10 @@ const tests = [
     await draftDeck(page, "Hakbal", 3);
     check(calls.collection === before, `con datos locales no se piden cartas a Scryfall (${calls.collection - before} consultas)`);
     const st = await deckState(page); check(st.main === 99 && !st.missing, "borrador completo con datos locales");
-    const hasSol = await page.evaluate(() => window.__boveda.S.decks[0].cards.some(c => c.n === "Sol Ring"));
+    // Sol Ring siempre en el mazo, para que la prueba no dependa del borrador
+    await page.evaluate(async () => { const { S, store } = window.__boveda; const d = S.decks[0]; if (!d.cards.some(c => c.n === "Sol Ring")) { const cut = d.cards.find(c => !/Island|Forest|Plains|Swamp|Mountain/.test(c.n)); await store.swapCard(d.id, cut.n, "Sol Ring", "prueba"); } });
+    await page.waitForFunction(() => window.__boveda.S.decks[0].cards.some(c => c.n === "Sol Ring")); await toastGone(page);
+    const hasSol = true;
     // cambiar el formato a Duel Commander: Sol Ring pasa a no ser legal
     await page.goto(site.url + `#/mazo/${st.id}/plan`); await page.getByRole("button", { name: "Duel Commander" }).click();
     await page.waitForFunction(() => window.__boveda.S.decks[0].plan.format === "duel");
@@ -461,7 +464,10 @@ const tests = [
     const name = await page.evaluate(() => { const { S, store } = window.__boveda; const A = store.insight(S.decks[0]).A; const r = A.rows.find(x => x.m && x.m.t !== "Land" && x.m.r.includes("ramp")); return r ? r.n : null; });
     check(!!name, "hay una carta de ramp en el borrador");
     const reps = await page.evaluate(n => window.__boveda.store.replacements(window.__boveda.S.decks[0], n, { limit: 6 }).map(r => r.n), name);
-    check(Array.isArray(reps) && reps.every(n => n !== name), "los reemplazos no repiten la carta: " + reps);
+    check(Array.isArray(reps) && reps.length > 0 && reps.every(n => n !== name), "hay reemplazos y no repiten la carta: " + reps);
+    // la sal se conserva al recargar
+    await page.reload(); await page.waitForFunction(() => !!window.__boveda.S.local, null, { timeout: 30000 });
+    check(await page.evaluate(() => window.__boveda.S.db.get("Sol Ring").salt) === 1.8, "la sal de la carta se conserva al recargar");
     await page.goto(site.url + `#/mazo/${st.id}/armar`); await page.waitForSelector(".slots");
     await toastGone(page); await page.getByRole("tab", { name: "Tipos" }).click();
     await page.locator(".types .cardname", { hasText: name }).first().click();

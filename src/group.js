@@ -14,7 +14,7 @@ const grpNewTok = () => [...crypto.getRandomValues(new Uint8Array(24))].map(x=>x
 function grpIdent(){
   const G = S.data.group; if (!G) return null;
   if (!G.mid) G.mid = uid();
-  if (!G.tok){ G.tok = grpNewTok(); saveData(); }   // grupos de antes de las claves: se crea una sola vez y se sincroniza con el grupo
+  if (!G.tok){ G.tok = grpNewTok(); saveData(); }   // dispositivos de antes de las claves: la clave nueva no sirve para el grupo antiguo; hay que volver a unirse
   return {mid: G.mid, tok: G.tok};
 }
 // solo se acepta un documento igual o más nuevo que el que ya se ve (una respuesta lenta no borra lo recién anotado)
@@ -216,7 +216,7 @@ document.addEventListener("click", async ev => {
     S.grp.busy = true; render();
     try { await grpCall("POST", {op:"leave"}); }
     catch(e){
-      if (e.status===403 && !confirm("El grupo no reconoce la clave de este dispositivo, así que no se pudo avisar. ¿Salir solo aquí? (Tus mazos seguirán visibles en el grupo.)")){ S.grp.busy = false; render(); return; }
+      if (e.status===403 && !confirm("El grupo no reconoce la clave de este dispositivo, así que no se pudo avisar. ¿Salir solo aquí? (Tus mazos podrían seguir visibles en el grupo hasta que quien lo administra te quite.)")){ S.grp.busy = false; render(); return; }
       if (e.status!==404 && e.status!==403 && e.status!==410){ S.grp.busy = false; render(); toast("No se pudo salir ahora (sin conexión). Intenta de nuevo."); return; } }
     S.data.decks = S.data.decks.filter(d=>!(d.rival && d.rival.group)); S.data.group = null; S.data.grpDel = []; S.grp.doc = null; S.grp.f = grpForm(); S.grp.pubHash = ""; S.grp.busy = false;
     saveData(); render(); toast("Saliste del grupo."); return; }

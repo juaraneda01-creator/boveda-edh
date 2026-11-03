@@ -8,8 +8,10 @@ import { ROLE_ES, slug } from "./util.ts";
 
 export interface Replacement { n: string; m: Card; score: number; why: string; gc: boolean }
 
+// marcas que llevan casi todas las cartas de su tipo: no sirven para decir que dos tierras hacen lo mismo
+const GENERIC_RF = new Set(["act"]);
 const rolesOf = (m: Card): string[] => [...new Set([...(m.r as string[]), ...(isCounter(m) ? ["removal"] : [])])];
-const fmtDelta = (d: number): string => d < 0 ? `${-d} menos de coste` : d > 0 ? `${d} más de coste` : "mismo coste";
+const fmtDelta = (d: number): string => d < 0 ? `cuesta ${-d} menos` : d > 0 ? `cuesta ${d} más` : "mismo coste";
 
 /**
  * Cartas que cumplen la misma función que `name`, dentro de los colores, el formato y el bracket del mazo.
@@ -45,6 +47,8 @@ export function replacementsFor(
       const give = (m.pm || []).filter(c => "WUBRG".includes(c) && A.ci.includes(c));
       const covers = cols.filter(c => give.includes(c)).length;
       if (cols.length && !covers) continue;
+      // tierra que no da color (utilitaria, fetch): solo otras que compartan lo que hace
+      if (!cols.length && !m.tg.some(t => tags.has(t)) && !(m.rf || []).some(f => !GENERIC_RF.has(f) && (m0.rf || []).includes(f))) continue;
       score += covers * 12 + (give.length > cols.length ? 6 : 0) + (m.tap ? -8 : 6);
       why.push(give.length ? `da ${give.join("")}` : "tierra utilitaria"); if (!m.tap) why.push("entra enderezada");
     } else {
@@ -72,16 +76,16 @@ export interface SaltReport {
   avg: number | null;          // promedio de las cartas con dato
   sum: number;
   level: "baja" | "media" | "alta" | null;
-  top: { n: string; salt: number }[];
+  top: { n: string; salt: number; cmd: boolean }[];
 }
 /** "Sal" del mazo según EDHREC: orientación para la mesa casual, no una regla. */
 export function saltOf(A: Analysis): SaltReport {
-  const cards = [...A.cmdMeta.filter((m): m is Card => !!m).map(m => ({ n: m.n, m })), ...A.rows.filter(r => r.m && !r.m.basic).map(r => ({ n: r.n, m: r.m as Card }))];
+  const cards = [...A.cmdMeta.filter((m): m is Card => !!m).map(m => ({ n: m.n, m, cmd: true })), ...A.rows.filter(r => r.m && !r.m.basic).map(r => ({ n: r.n, m: r.m as Card, cmd: false }))];
   const withSalt = cards.filter(x => typeof x.m.salt === "number");
   const sum = withSalt.reduce((a, x) => a + (x.m.salt as number), 0);
   const avg = withSalt.length ? sum / withSalt.length : null;
   const level = avg == null ? null : avg < 0.55 ? "baja" : avg < 0.9 ? "media" : "alta";
-  const top = withSalt.map(x => ({ n: x.n, salt: x.m.salt as number })).filter(x => x.salt >= 1).sort((a, b) => b.salt - a.salt).slice(0, 8);
+  const top = withSalt.map(x => ({ n: x.n, salt: x.m.salt as number, cmd: x.cmd })).filter(x => x.salt >= 1).sort((a, b) => b.salt - a.salt).slice(0, 8);
   return { known: withSalt.length, total: cards.length, avg, sum: Math.round(sum * 100) / 100, level, top };
 }
 
