@@ -1,6 +1,6 @@
 // Qué cambiar: sugerencias por casilla, cambios uno por uno, plan para llegar a un bracket
 // y comparación con lo que juega la gente con el mismo comandante.
-import type { Card, CardDb, Deck, EdhData, Plan } from "./types.ts";
+import type { Card, CardDb, Deck, EdhData, Format, Plan } from "./types.ts";
 import { bracketRule, combos2, type Analysis, type BracketRule, type DeckLike } from "./analyze.ts";
 import { bracketAllows, gcLimit, inIdentity, isCounter, poolScore } from "./build.ts";
 import { slotGoals, supportCount, type SlotKey } from "./slots.ts";
@@ -96,7 +96,7 @@ export interface CedhBench { k: string; v: number | string; goal: string; ok: bo
 export interface BracketPlan { R: BracketRule; checks: PlanCheck[]; cuts: PlanCut[]; adds: PlanAdd[]; bench: CedhBench[] | null; needGC: boolean }
 
 /** Qué sacar y qué poner para que el mazo quede en el bracket buscado. */
-export function bracketPlan(d: DeckLike, A: Analysis, target: number, db: CardDb, E: EdhData | null): BracketPlan {
+export function bracketPlan(d: DeckLike, A: Analysis, target: number, db: CardDb, E: EdhData | null, fmt?: Format): BracketPlan {
   const R = bracketRule(target);
   const cmds = d.commanders || [];
   const inDeck = new Set([...A.rows.map(r => slug(r.n)), ...cmds.map(slug)]);
@@ -131,7 +131,7 @@ export function bracketPlan(d: DeckLike, A: Analysis, target: number, db: CardDb
   if (A.tutors.length > R.tutors) { checks.push({ ok: false, t: `Tutores: ${A.tutors.length}, conviene no pasar de ${R.tutors}` }); for (const n of A.tutors.filter(n => !cuts.some(c => c.n === n)).slice(0, A.tutors.length - R.tutors)) cuts.push({ n, why: "tutor", rep: replacementFor(n) }); }
   else checks.push({ ok: true, t: `Tutores: ${A.tutors.length}${R.tutors < 99 ? ` (hasta ${R.tutors})` : ""}` });
   // subir de nivel: Game Changers en tus colores, piezas que completan combos, y staples de torneo
-  const gcPool = db.gcNames().map(n => db.get(n)).filter((m): m is Card => !!m && inIdentity(m, A.ci) && !inDeck.has(slug(m.n)) && (!m.legal || m.legal === "legal"));
+  const gcPool = db.gcNames().map(n => db.get(n)).filter((m): m is Card => !!m && inIdentity(m, A.ci) && !inDeck.has(slug(m.n)) && legalIn(m, fmt));
   const rankE = (n: string) => { const p = E && E.pool.find(x => slug(x.n) === slug(n)); return p ? (p.incl || 0) : -1; };
   if (target >= 3) {
     const room = Math.min(R.gc, 99) - A.gc.length;
@@ -172,14 +172,14 @@ export interface MetaCompare {
   rare: { n: string; incl: number | null; linked: boolean }[]; // que llevas y casi nadie juega
 }
 /** Tu lista contra lo que juega la gente con el mismo comandante. No es una nota: es un mapa de diferencias. */
-export function metaCompare(d: Pick<Deck, "commanders">, A: Analysis, E: EdhData, db: CardDb, Y: Synergy): MetaCompare {
+export function metaCompare(d: Pick<Deck, "commanders">, A: Analysis, E: EdhData, db: CardDb, Y: Synergy, fmt?: Format): MetaCompare {
   const inDeck = inDeckSet(d, A);
   const pool = E.pool.filter(p => p.incl != null).map(p => ({ ...p, incl: p.incl as number, m: db.get(p.n) })).filter(p => !(p.m && p.m.basic));
   const typical = [...pool].sort((a, b) => b.incl - a.incl).slice(0, 60);
   const totalW = typical.reduce((a, p) => a + p.incl, 0) || 1;
   const haveW = typical.filter(p => inDeck.has(slug(p.n))).reduce((a, p) => a + p.incl, 0);
   const core = pool.filter(p => p.incl >= 0.5).sort((a, b) => b.incl - a.incl).map(p => ({ n: p.n, incl: p.incl, have: inDeck.has(slug(p.n)) }));
-  const missing = pool.filter(p => p.incl >= 0.3 && !inDeck.has(slug(p.n)) && (!p.m || (inIdentity(p.m, A.ci) && (!p.m.legal || p.m.legal === "legal")))).sort((a, b) => b.incl - a.incl).slice(0, 15).map(p => ({ n: p.n, incl: p.incl, m: p.m }));
+  const missing = pool.filter(p => p.incl >= 0.3 && !inDeck.has(slug(p.n)) && (!p.m || (inIdentity(p.m, A.ci) && legalIn(p.m, fmt)))).sort((a, b) => b.incl - a.incl).slice(0, 15).map(p => ({ n: p.n, incl: p.incl, m: p.m }));
   const inclOf = new Map(E.pool.map(p => [slug(p.n), p.incl]));
   const rare = A.rows.filter(r => r.m && r.m.t !== "Land").map(r => ({ n: r.n, incl: inclOf.has(slug(r.n)) ? (inclOf.get(slug(r.n)) ?? null) : null, linked: (Y.links.get(r.n) || { n: 0 }).n > 0 }))
     .filter(x => x.incl == null || x.incl < 0.05).sort((a, b) => Number(a.linked) - Number(b.linked) || (a.incl || 0) - (b.incl || 0));

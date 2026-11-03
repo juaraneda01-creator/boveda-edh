@@ -6,6 +6,7 @@ import {
 } from "../engine/index.ts";
 import * as idb from "./idb.ts";
 import * as net from "./net.ts";
+import * as lp from "./localpack.ts";
 import { relayProblem } from "./relay.ts";
 
 export interface Settings { welcomed: boolean; lastBackup: number }
@@ -55,7 +56,6 @@ async function save(store: idb.StoreName, ...values: unknown[]): Promise<void> {
 
 /* ---------- arranque ---------- */
 export async function init(): Promise<void> {
-  let localRaw: { at: number; json: string } | null = null;
   const [decks, versions, games, cards, kv] = await Promise.all([
     idb.getAll<Deck>("decks"), idb.getAll<Version>("versions"), idb.getAll<Game>("games"),
     idb.getAll<{ k: string; card: Card }>("cards"), idb.getAll<{ k: string; v: unknown }>("kv"),
@@ -70,51 +70,63 @@ export async function init(): Promise<void> {
     else if (r.k.startsWith("edh:")) S.edh.set(r.k.slice(4), r.v as EdhData);
     else if (r.k.startsWith("staples:")) S.staples.set(r.k.slice(8), r.v as { at: number; list: string[] });
     else if (r.k.startsWith("sim:")) S.sims.set(r.k.slice(4), r.v as SavedSim);
-    else if (r.k === "mtgjson") localRaw = r.v as { at: number; json: string };
   }
   S.ready = true; S.epoch++; touch();
   void idb.persist();
-  localReady = loadLocal(localRaw);
+  localReady = loadLocal();
 }
 
 /* ---------- datos de cartas locales (MTGJSON) ---------- */
 let localReady: Promise<void> = Promise.resolve();
-/** Arma el índice en segundo plano para no demorar la primera pantalla. */
-async function loadLocal(raw: { at: number; json: string } | null): Promise<void> {
-  if (!raw || typeof raw.json !== "string") return;
-  await new Promise(r => setTimeout(r, 0));
+const MAX_PACK_BYTES = 300 * 1048576;
+/** Lee el paquete guardado (base aparte, comprimido) después de mostrar la primera pantalla. */
+async function loadLocal(): Promise<void> {
+  await new Promise(r => setTimeout(r, 50));
+  const raw = await lp.loadPack(); if (!raw) return;
   try { S.local = new LocalIndex(readLocalPack(JSON.parse(raw.json))); S.localAt = raw.at || 0; touch(); }
   catch { S.local = null; }
 }
-async function gunzip(bytes: Uint8Array): Promise<string> {
-  const ds = new Blob([bytes as BlobPart]).stream().pipeThrough(new DecompressionStream("gzip"));
-  return new Response(ds).text();
+/** Una carta de los datos locales, saneada como cualquier dato que entra desde un archivo. */
+function localCard(name: string, prev?: Card): Card | null {
+  const sc = S.local && S.local.get(name); if (!sc) return null;
+  const c = cleanCard({ ...fromScry(sc), at: Date.now() }); if (!c) return null;
+  if (!c.img && prev && prev.img) c.img = prev.img;
+  if (!c.uri && prev && prev.uri) c.uri = prev.uri;
+  return c;
 }
 /** Carga AtomicCards de MTGJSON (o el paquete compacto) desde un archivo, lo guarda y lo usa como primera fuente de cartas. */
 export async function importLocal(file: File): Promise<{ cards: number; gc: number; date: string }> {
+  if (file.size > MAX_PACK_BYTES) throw new Error("El archivo es demasiado grande. Usa AtomicCards.json.gz (comprimido) o el paquete de tools/mtgjson.mjs.");
   const b = setBusy("Leyendo los datos de MTGJSON");
   try {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const text = bytes[0] === 0x1f && bytes[1] === 0x8b ? await gunzip(bytes) : new TextDecoder().decode(bytes);
-    let parsed: unknown; try { parsed = JSON.parse(text); } catch { throw new Error("El archivo no es un JSON válido. Usa AtomicCards.json o AtomicCards.json.gz de MTGJSON."); }
-    const pack = readLocalPack(parsed);
+    let pack;
+    {
+      const blob = file.slice(0, 2); const head = new Uint8Array(await blob.arrayBuffer());
+      const text = head[0] === 0x1f && head[1] === 0x8b ? await lp.gunzipBlob(file) : await file.text();
+      let parsed: unknown; try { parsed = JSON.parse(text); } catch { throw new Error("El archivo no es un JSON válido. Usa AtomicCards.json o AtomicCards.json.gz de MTGJSON."); }
+      pack = readLocalPack(parsed);
+    }
     if (!pack.cards.length) throw new Error("El archivo no trae cartas.");
     const idx = new LocalIndex(pack);
-    await idb.put("kv", { k: "mtgjson", v: { at: Date.now(), json: JSON.stringify(pack) } });
+    await lp.savePack(JSON.stringify(pack));
     S.local = idx; S.localAt = Date.now();
     const gc = idx.gameChangers();
     if (gc.length > 20) { S.db.setGC(gc); S.gcAt = Date.now(); S.gcSrc = "mtgjson"; await save("kv", { k: "gc", v: { at: S.gcAt, list: gc, src: "mtgjson" } }); }
     // las cartas ya guardadas se actualizan con los datos nuevos (Game Changers, legalidad en Duel Commander)
     const recs: { k: string; card: Card }[] = [];
-    for (const [k, c] of S.db.cards) { const sc = idx.get(c.n); if (sc) { const m = { ...fromScry(sc), at: Date.now() }; if (!m.img && c.img) m.img = c.img; if (!m.uri && c.uri) m.uri = c.uri; S.db.cards.set(k, m); recs.push({ k, card: m }); } }
+    for (const [k, c] of [...S.db.cards]) { const m = localCard(c.n, c); if (m) { S.db.put(m); S.db.cards.set(k, m); recs.push({ k, card: m }); } }
     if (recs.length) await save("cards", ...recs);
     S.epoch++; touch();
     return { cards: idx.size, gc: gc.length, date: idx.date };
   } finally { endBusy(b); }
 }
 export async function removeLocal(): Promise<void> {
-  await idb.del("kv", "mtgjson"); S.local = null; S.localAt = 0;
-  if (S.gcSrc === "mtgjson") { S.gcAt = 0; void refreshGC(true); }
+  await lp.deletePack(); S.local = null; S.localAt = 0;
+  if (S.gcSrc === "mtgjson") {
+    // vuelve a la lista incluida en la app y, con conexión, a la de Scryfall
+    S.db.setGC(GC_FALLBACK); S.gcAt = 0; S.gcSrc = ""; S.epoch++;
+    await idb.del("kv", "gc"); void refreshGC(true);
+  }
   touch();
 }
 
@@ -137,7 +149,7 @@ export function cleanCard(c: unknown): Card | null {
   return {
     n: str(o.n, 150), cmc: Number(o.cmc) || 0, ci: str(o.ci, 5), col: str(o.col, 5), t: str(o.t, 20) || "Unknown", tl: str(o.tl, 120), cost: str(o.cost, 60), pm: strs(o.pm, 8, 2),
     r: strs(o.r, 10, 20) as Card["r"], sb: strs(o.sb, 10, 20), tg: strs(o.tg, 60, 40), rf: strs(o.rf, 40, 20), tq: typeof o.tq === "number" ? o.tq : undefined,
-    gc: !!o.gc, xt: !!o.xt, mld: !!o.mld, tap: !!o.tap, pw: typeof o.pw === "number" ? o.pw : undefined, tu: typeof o.tu === "number" ? o.tu : undefined, leg: !!o.leg, legal: str(o.legal, 20), duel: o.duel ? str(o.duel, 20) : undefined,
+    gc: !!o.gc, xt: !!o.xt, mld: !!o.mld, tap: !!o.tap, pw: typeof o.pw === "number" ? o.pw : undefined, tu: typeof o.tu === "number" ? o.tu : undefined, leg: !!o.leg, legal: str(o.legal, 20), duel: typeof o.duel === "string" ? str(o.duel, 20) : undefined,
     img: typeof o.img === "string" && SCRY_IMG.test(o.img) ? o.img : "", uri: typeof o.uri === "string" && SCRY_URI.test(o.uri) ? o.uri : "",
     rank: typeof o.rank === "number" ? o.rank : null, at: Math.min(Date.now(), Number(o.at) || 0), rv: Number(o.rv) || 0,
   };
@@ -159,7 +171,7 @@ export function cleanDeck(d: Partial<Deck>): Deck {
   return {
     id: safeId(d.id) || uid(), name: str(d.name, 80).trim() || "Mazo sin nombre", commanders: strs(d.commanders, 2, 150),
     cards: cleanEntries(d.cards), maybe: cleanEntries(d.maybe), kind: d.kind === "ref" ? "ref" : "mine", owner: d.owner ? str(d.owner, 40) : undefined,
-    plan: { bracket: plan.bracket == null ? null : Math.round(Number(plan.bracket)), theme: str(plan.theme, 80), inter: plan.inter }, combos: cleanCombos(d.combos), notes: d.notes ? str(d.notes, 2000) : undefined, created: Number(d.created) || Date.now(), updated: Number(d.updated) || Date.now(),
+    plan: { bracket: plan.bracket == null ? null : Math.round(Number(plan.bracket)), theme: str(plan.theme, 80), inter: plan.inter, ...(plan.format === "duel" ? { format: "duel" as const } : {}) }, combos: cleanCombos(d.combos), notes: d.notes ? str(d.notes, 2000) : undefined, created: Number(d.created) || Date.now(), updated: Number(d.updated) || Date.now(),
   };
 }
 
@@ -195,7 +207,7 @@ export const needsTheme = (d: Pick<Deck, "commanders" | "plan">): boolean => !!d
 
 /* ---------- cartas ---------- */
 const STALE = 90 * 864e5;
-const needsFetch = (name: string): boolean => { const k = slug(name); const c = S.db.cards.get(k); return !c || c.rv !== RF_V || Date.now() - (c.at || 0) > STALE; };
+const needsFetch = (name: string): boolean => { const k = slug(name); const c = S.db.cards.get(k); return !c || c.rv !== RF_V || Date.now() - (c.at || 0) > STALE || (c.duel === undefined && !c.basic); };
 const isBasic = (n: string): boolean => !!S.db.get(n)?.basic;
 
 /** Trae de Scryfall las cartas que falten (o todas, con `force`). Devuelve cuántas no se reconocieron. */
@@ -216,9 +228,7 @@ async function fetchAndStore(todo: string[], opts: { label?: string; quiet?: boo
   if (S.local) {
     const recs: { k: string; card: Card }[] = []; const rest: string[] = [];
     for (const n of todo) {
-      const sc = S.local.get(n); if (!sc) { rest.push(n); continue; }
-      const prev = S.db.cards.get(slug(n)); const c = { ...fromScry(sc), at: Date.now() };
-      if (!c.img && prev && prev.img) c.img = prev.img;
+      const c = localCard(n, S.db.cards.get(slug(n))); if (!c) { rest.push(n); continue; }
       S.db.put(c, n); recs.push({ k: slug(c.n), card: c });
       const front = slug(c.n.split(" // ")[0]); if (front !== slug(c.n)) recs.push({ k: front, card: c });
       if (slug(n) !== slug(c.n)) recs.push({ k: slug(n), card: c });

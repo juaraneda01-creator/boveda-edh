@@ -6,7 +6,7 @@ import { importBackupText } from "../data/backup.ts";
 import { usage, isMemoryOnly } from "../data/idb.ts";
 import { allNames } from "../engine/index.ts";
 import { IN_CLAUDE } from "../data/relay.ts";
-import { Note, Section, agoTxt, dateTime, download, plural } from "./kit.tsx";
+import { Note, Section, agoTxt, dateTime, download, isoDay, plural } from "./kit.tsx";
 
 declare const __BUILD__: { v: string };
 
@@ -25,7 +25,7 @@ export function SettingsScreen(): JSX.Element {
   };
   const onMj = async (f: File | undefined) => {
     if (!f) return; setMjErr("");
-    try { const r = await importLocal(f); toast(`Datos de MTGJSON cargados: ${r.cards.toLocaleString("es-CL")} cartas${r.date ? ` del ${r.date}` : ""}, ${r.gc} Game Changers.`); }
+    try { const r = await importLocal(f); toast(`Datos de MTGJSON cargados: ${r.cards.toLocaleString("es-CL")} cartas${r.date ? ` del ${isoDay(r.date)}` : ""}, ${r.gc} Game Changers.`); }
     catch (e) { setMjErr(e instanceof Error ? e.message : "No se pudo leer el archivo."); }
     finally { if (mj.current) mj.current.value = ""; }
   };
@@ -60,7 +60,7 @@ export function SettingsScreen(): JSX.Element {
 
       <Section title="Cartas sin conexión (MTGJSON)">
         <p>Con el archivo <b>AtomicCards</b> de MTGJSON la app conoce todas las cartas sin consultar internet{IN_CLAUDE ? " y sin gastar créditos de Firecrawl" : ""}: datos de juego, Game Changers, legalidad en Commander y en Duel Commander, y el puesto en EDHREC. Las imágenes siguen viniendo de Scryfall cuando hay conexión.</p>
-        {S.local ? <Note tone="info">Cargados: {S.local.size.toLocaleString("es-CL")} cartas{S.local.date ? `, datos de MTGJSON del ${S.local.date}` : ""} (desde {dateTime(S.localAt)}). La lista de Game Changers sale de estos datos; con conexión se revisa también en Scryfall cada semana.</Note>
+        {S.local ? <Note tone="info">Cargados: {S.local.size.toLocaleString("es-CL")} cartas{S.local.date ? `, datos de MTGJSON del ${isoDay(S.local.date)}` : ""} (desde {dateTime(S.localAt)}). La lista de Game Changers sale de estos datos; con conexión se revisa también en Scryfall cada semana.</Note>
           : <p class="muted">Descárgalo en mtgjson.com → Downloads → All Files → <b>AtomicCards.json.gz</b> y cárgalo aquí. Conviene hacerlo en un computador: el archivo es grande. Para actualizar los datos, carga uno nuevo (MTGJSON publica uno cada día).</p>}
         <div class="row"><button class="btn primary" disabled={!!S.busy} onClick={() => mj.current && mj.current.click()}>{S.local ? "Cargar un archivo nuevo" : "Cargar AtomicCards"}</button>{S.local ? <button class="btn ghost" disabled={!!S.busy} onClick={() => void removeLocal()}>Quitar estos datos</button> : null}</div>
         <input ref={mj} type="file" accept=".json,.gz,application/json,application/gzip" hidden aria-label="Archivo de MTGJSON" onChange={e => void onMj((e.target as HTMLInputElement).files?.[0])} />

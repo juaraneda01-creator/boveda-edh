@@ -38,7 +38,7 @@ export function producedMana(text: string, type: string): string[] {
   for (const [re, c] of BASIC_TYPE) if (re.test(type)) out.add(c);
   for (const m of (text || "").matchAll(/\badd\b([^.\n]*)/gi)) {
     const part = m[1];
-    if (/any color|any one color|mana of any type|any combination of colors/i.test(part)) for (const c of "WUBRG") out.add(c);
+    if (/any color|any one color|mana of any type|any combination of colors|the chosen color|chosen colors?|exiled card's colors|any of [^.]*colors/i.test(part)) for (const c of "WUBRG") out.add(c);
     for (const s of part.match(/\{[WUBRGC](\/[WUBRGP])?\}/g) || []) for (const c of s.replace(/[{}]/g, "").split("/")) if ("WUBRGC".includes(c)) out.add(c);
   }
   return ["W", "U", "B", "R", "G", "C"].filter(c => out.has(c));
@@ -80,7 +80,8 @@ export function atomicToScry(name: string, faces: MjFace[]): ScryCard {
 export function compactAtomic(json: MjAtomic): LocalPack {
   const cards: ScryCard[] = [];
   for (const [name, faces] of Object.entries(json.data || {})) {
-    if (!Array.isArray(faces) || !faces.length || faces[0].isFunny) continue;
+    if (!Array.isArray(faces) || !faces.length || !faces[0] || typeof faces[0].name !== "string") continue;
+    if (faces[0].isFunny && !(faces[0].legalities || {}).commander) continue;
     cards.push(atomicToScry(name, faces));
   }
   return { format: "boveda-cartas", v: 1, date: json.meta?.date || "", version: json.meta?.version || "", cards };
@@ -89,7 +90,10 @@ export function compactAtomic(json: MjAtomic): LocalPack {
 /** Acepta un AtomicCards de MTGJSON o un paquete compacto ya armado. Lanza un error legible si no es ninguno. */
 export function readLocalPack(json: unknown): LocalPack {
   const o = json as Partial<LocalPack> & MjAtomic;
-  if (o && o.format === "boveda-cartas" && Array.isArray(o.cards)) return o as LocalPack;
+  if (o && o.format === "boveda-cartas" && Array.isArray(o.cards)) {
+    const cards = (o.cards as unknown[]).filter((c): c is ScryCard => !!c && typeof c === "object" && typeof (c as ScryCard).name === "string" && !!(c as ScryCard).name).slice(0, 100000);
+    return { format: "boveda-cartas", v: 1, date: String(o.date || "").slice(0, 20), version: String(o.version || "").slice(0, 40), cards };
+  }
   if (o && o.data && typeof o.data === "object" && !Array.isArray(o.data)) return compactAtomic(o);
   throw new Error("El archivo no es AtomicCards de MTGJSON ni un paquete de cartas de la Bóveda.");
 }

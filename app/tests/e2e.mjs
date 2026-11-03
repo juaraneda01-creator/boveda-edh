@@ -424,11 +424,13 @@ const tests = [
     check(hasSol ? ill.includes("Sol Ring") : !ill.length, "legalidad en Duel: " + ill);
     check((await overflow(page)) <= 0, "sin desborde horizontal");
     await page.goto(site.url + "#/meta"); await page.waitForSelector("text=Game Changers");
-    check(/datos de MTGJSON del 2026-11-03/.test(await page.content()), "Meta indica que la lista sale de MTGJSON");
+    check(/datos de MTGJSON del 03-11-2026/.test(await page.content()), "Meta indica que la lista sale de MTGJSON");
     // persiste al recargar y se puede quitar
     await page.reload(); await page.waitForFunction(() => !!window.__boveda.S.local, null, { timeout: 30000 });
+    check(await page.evaluate(() => window.__boveda.S.decks[0].plan.format) === "duel", "el formato Duel Commander se mantiene al recargar");
     await page.goto(site.url + "#/ajustes"); await page.getByRole("button", { name: "Quitar estos datos" }).click();
     await page.waitForFunction(() => !window.__boveda.S.local);
+    check(await page.evaluate(() => window.__boveda.S.gcSrc !== "mtgjson"), "al quitar los datos, la lista de Game Changers deja de decir MTGJSON");
     await ctx.close(); return `${st0.n} cartas locales, Sol Ring ${hasSol ? "en el mazo y marcada en Duel" : "fuera del borrador"}`;
   }],
 

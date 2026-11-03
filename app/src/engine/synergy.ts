@@ -1,5 +1,6 @@
 // Sinergias: qué temas tiene el mazo, cuáles están completos y qué cartas no conectan con nada.
-import type { Card, CardDb, EdhData, Row } from "./types.ts";
+import type { Card, CardDb, EdhData, Format, Row } from "./types.ts";
+import { legalIn } from "./cards.ts";
 import type { Analysis } from "./analyze.ts";
 import { THEMES, subtypesOf, type Theme } from "./tags.ts";
 import { WUBRG, slug } from "./util.ts";
@@ -65,7 +66,7 @@ export function synergyOf(A: Analysis): Synergy {
 
 export interface SynergyAdd { n: string; m: Card; incl: number; both: boolean; s: number }
 /** Cartas conocidas (EDHREC o caché) que refuerzan el lado débil de un tema. */
-export function synergyAdds(d: { commanders: string[] }, A: Analysis, th: ThemeResult, db: CardDb, E: EdhData | null, limit = 8): SynergyAdd[] {
+export function synergyAdds(d: { commanders: string[] }, A: Analysis, th: ThemeResult, db: CardDb, E: EdhData | null, limit = 8, fmt?: Format): SynergyAdd[] {
   const want = th.need === "en" ? th.en : th.pay;
   const inDeck = new Set([...A.rows.map(r => slug(r.n)), ...(d.commanders || []).map(slug)]);
   const edhIncl = new Map(((E && E.pool) || []).map(c => [slug(c.n), c.incl || 0]));
@@ -73,7 +74,7 @@ export function synergyAdds(d: { commanders: string[] }, A: Analysis, th: ThemeR
   const out: SynergyAdd[] = []; const seen = new Set<string>();
   for (const m of db.all()) {
     const k = slug(m.n);
-    if (!m.n || seen.has(k) || inDeck.has(k) || m.t === "Land" || (m.legal && m.legal !== "legal") || !inCI(m)) continue;
+    if (!m.n || seen.has(k) || inDeck.has(k) || m.t === "Land" || !legalIn(m, fmt) || !inCI(m)) continue;
     seen.add(k);
     const tg = m.tg || []; if (!want.some(w => tg.includes(w)) && !(th.need === "en" && (th.enType || []).includes(m.t))) continue;
     const both = th.en.some(w => tg.includes(w)) && th.pay.some(w => tg.includes(w));

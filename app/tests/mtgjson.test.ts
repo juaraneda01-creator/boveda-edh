@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   MemoryDb, fromScry, atomicToScry, compactAtomic, readLocalPack, producedMana, LocalIndex, legalIn, formatEs,
-  analyze, health, illegalFor, slotSuggestions, completeDeck, GC_FALLBACK, type Deck, type EdhData, type Plan,
+  analyze, health, illegalFor, slotSuggestions, completeDeck, bracketPlan, metaCompare, synergyOf, GC_FALLBACK, type Deck, type EdhData, type Plan,
 } from "../src/engine/index.ts";
 
 const ATOMIC = {
@@ -30,6 +30,9 @@ test("maná que produce: tipos básicos, símbolos y 'cualquier color'", () => {
   assert.deepEqual(producedMana("{T}: Add one mana of any color.", "Artifact"), ["W", "U", "B", "R", "G"]);
   assert.deepEqual(producedMana("{T}: Add {R} or {G}.", "Land"), ["R", "G"]);
   assert.deepEqual(producedMana("Draw a card.", "Sorcery"), []);
+  // revisión: color elegido y colores de otra carta también cuentan como cualquier color
+  assert.deepEqual(producedMana("As this enters, choose a color.\n{T}: Add one mana of the chosen color.", "Artifact"), ["W", "U", "B", "R", "G"]);
+  assert.deepEqual(producedMana("{T}: Add one mana of any of the exiled card's colors.", "Artifact"), ["W", "U", "B", "R", "G"]);
 });
 
 test("AtomicCards → carta del motor: legalidades, Game Changer, ranking, imagen y caras", () => {
@@ -54,6 +57,12 @@ test("paquete compacto: deja fuera las cartas de broma y se puede volver a leer"
   assert.equal(readLocalPack(ATOMIC).cards.length, 5, "también acepta AtomicCards directo");
   assert.throws(() => readLocalPack({ data: [] }), /no es AtomicCards/);
   assert.throws(() => readLocalPack(null), /no es AtomicCards/);
+  // revisión: un paquete con elementos malformados no rompe la carga
+  const bad = readLocalPack({ format: "boveda-cartas", v: 1, date: "x", version: "y", cards: [null, 5, { name: "" }, { name: "Prueba Ok", type_line: "Artifact" }] });
+  assert.deepEqual(bad.cards.map(c => c.name), ["Prueba Ok"]);
+  // revisión: cartas de ediciones de broma legales en Commander se mantienen
+  const fun = compactAtomic({ data: { "Prueba Legal Divertida": [{ name: "Prueba Legal Divertida", type: "Creature — Elf", isFunny: true, legalities: { commander: "Legal" } }] } });
+  assert.equal(fun.cards.length, 1);
 });
 
 test("índice local: busca por nombre, por cara y entrega los Game Changers", () => {
@@ -96,4 +105,18 @@ test("sugerencias y borrador no proponen cartas prohibidas en Duel Commander", (
   assert.deepEqual(names("duel"), [], "en Duel: la piedra está prohibida y el prisma no es legal");
   const built = completeDeck({ commanders: d0.commanders, cards: [], plan: plan("duel") }, E, db);
   assert.ok(!built.cards.some(c => c.n === "Prueba Ring" || c.n === "Prueba Prisma"));
+});
+
+test("revisión: plan por bracket y comparación con el meta respetan Duel Commander", () => {
+  const E: EdhData = { at: 1, slug: "x", decks: 10, themes: [], pool: [{ n: "Prueba Ring", incl: 0.9, syn: 0 }, { n: "Prueba Tutor", incl: 0.6, syn: 0 }] };
+  const d0: Deck = { ...deck(), commanders: ["Prueba Comandante"], cards: [] };
+  const local = new MemoryDb(new Map(), []);
+  for (const c of compactAtomic(ATOMIC).cards) local.put(fromScry(c));
+  local.put(fromScry({ name: "Prueba Comandante", type_line: "Legendary Creature — Elf", oracle_text: "", mana_cost: "{G}{U}", cmc: 2, color_identity: ["G", "U", "B"], colors: ["G"], legalities: { commander: "legal", duel: "legal" } }));
+  local.setGC(["Prueba Tutor"]);
+  const A = analyze(d0, local);
+  const missing = (f?: Plan["format"]) => metaCompare(d0, A, E, local, synergyOf(A), f).missing.map(x => x.n);
+  assert.ok(missing("commander").includes("Prueba Ring")); assert.ok(!missing("duel").includes("Prueba Ring"));
+  const adds = bracketPlan(d0, A, 4, local, E, "duel").adds.map(x => x.n);
+  assert.ok(!adds.includes("Prueba Ring"));
 });

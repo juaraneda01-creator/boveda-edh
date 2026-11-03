@@ -21,8 +21,8 @@ export function StepTune({ d }: { d: Deck }): JSX.Element {
   if (!A.main) return <div class="empty"><h2>Aún no hay nada que ajustar</h2><p>Primero arma el mazo o pide un borrador.</p><a class="btn primary" href={`#/mazo/${d.id}/plan`}>Ir al plan</a></div>;
   const needE = <button class="btn" disabled={busy || !d.commanders.length} onClick={() => void edhForPlan(d)}>Consultar qué se juega con tu comandante</button>;
   const SW = E ? swaps(d, A, E, S.db, d.plan, 10) : [];
-  const P = bracketPlan(d, A, target, S.db, E);
-  const M = E ? metaCompare(d, A, E, S.db, Y) : null;
+  const P = bracketPlan(d, A, target, S.db, E, d.plan.format);
+  const M = E ? metaCompare(d, A, E, S.db, Y, d.plan.format) : null;
   const st = staplesOf(d); const inDeck = new Set(A.rows.map(r => slug(r.n)));
   const c2 = combos2(d);
   const themes = Y.themes.filter(t => t.state !== "ausente").slice(0, 6);
@@ -116,7 +116,7 @@ export function StepTune({ d }: { d: Deck }): JSX.Element {
 
 function ThemeBox({ d, t, open, onToggle, tone }: { d: Deck; t: ThemeResult; open: boolean; onToggle: () => void; tone: string }): JSX.Element {
   const { A } = insight(d); const E = edhOf(d);
-  const adds = open && t.need ? synergyAdds(d, A, t, S.db, E, 8) : [];
+  const adds = open && t.need ? synergyAdds(d, A, t, S.db, E, 8, d.plan.format) : [];
   const names = (rows: ThemeResult["enR"]) => rows.length ? rows.slice(0, 12).map((r, i) => <>{i ? ", " : ""}<CardName name={r.n} deckId={d.id} m={r.m} key={r.n} /></>) : <span class="muted">ninguna</span>;
   return (
     <div class="theme">

@@ -34,6 +34,8 @@ export const num1 = (v: number | null | undefined): string => v == null || isNaN
 export const turnTxt = (v: number | null | undefined): string => v == null || isNaN(v) ? "—" : "T" + num1(v);
 export const dateTxt = (t: number): string => new Date(t).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" });
 export const dateTime = (t: number): string => new Date(t).toLocaleString("es-CL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+/** Fecha de MTGJSON (aaaa-mm-dd) como día-mes-año. */
+export const isoDay = (iso: string): string => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ""); return m ? `${m[3]}-${m[2]}-${m[1]}` : iso; };
 export const agoTxt = (t: number): string => { const d = Math.floor((Date.now() - t) / 864e5); return d <= 0 ? "hoy" : d === 1 ? "ayer" : `hace ${d} días`; };
 export const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 
